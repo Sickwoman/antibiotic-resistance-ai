@@ -143,6 +143,23 @@ def test_split_save_and_load(tmp_path):
     assert '"resistant"' in saved and "group_id" not in saved
 
 
+def test_unreachable_fractions_are_rejected_and_real_fractions_reported():
+    meta = make_meta()
+    with pytest.raises(SplitError, match="cannot be produced"):
+        random_split(meta, ["DRIAMS-A"], 0.4, 0.1, seed=1)       # folds would give 50 %, not 40 %
+    split = random_split(meta, ["DRIAMS-A"], 0.25, 0.15, seed=1)  # 0.15 / 0.75 = 0.2 is reachable
+    assert "requested 25% / 15%" in split.description
+
+
+def test_make_splits_skips_splits_whose_sites_are_missing():
+    config = copy.deepcopy(load_config())
+    only_b = make_meta()
+    only_b = only_b[only_b["site"] == "DRIAMS-B"].reset_index(drop=True)
+    skipped: list[str] = []
+    assert make_splits(only_b, config, skipped) == {}
+    assert len(skipped) == 3 and all("not in this dataset" in s for s in skipped)
+
+
 def test_make_splits_from_project_config():
     meta = make_meta()
     config = copy.deepcopy(load_config())

@@ -109,6 +109,10 @@ def _group_fold(meta: pd.DataFrame, rows: np.ndarray, fraction: float, seed: int
     if not 0 < fraction < 1:
         raise SplitError(f"fraction must be between 0 and 1, got {fraction}")
     n_splits = max(2, int(round(1 / fraction)))
+    if abs(1 / n_splits - fraction) > 0.02:  # the held-out part is one of n_splits folds
+        raise SplitError(f"A held-out fraction of {fraction:.3f} cannot be produced with grouped folds "
+                         f"(nearest is 1/{n_splits} = {1 / n_splits:.3f}); use a fraction such as 0.5, 0.25, "
+                         "0.2 or 0.1 (for validation: validation_fraction / (1 - test_fraction)).")
     y = meta["label"].to_numpy()[rows]
     groups = meta["group_id"].to_numpy()[rows]
     if np.unique(groups).size < n_splits:
@@ -124,8 +128,9 @@ def random_split(meta: pd.DataFrame, sites: Iterable[str], test_fraction: float,
     pool, test = _group_fold(meta, rows, test_fraction, seed)
     train, validation = _group_fold(meta, pool, validation_fraction / (1 - test_fraction), seed + 1)
     split = Split("random", train, validation, test,
-                  f"Stratified, patient-grouped random split of {sorted(set(sites))} "
-                  f"(test {test_fraction:.0%}, validation {validation_fraction:.0%}, seed {seed}).",
+                  f"Stratified, patient-grouped random split of {sorted(set(sites))}: "
+                  f"test {test.size / rows.size:.1%}, validation {validation.size / rows.size:.1%} of the samples "
+                  f"(requested {test_fraction:.0%} / {validation_fraction:.0%}), seed {seed}.",
                   ["Group IDs are only valid within one DRIAMS-A year folder (patient_no is re-hashed per year)."])
     check_split(meta, split)
     return split
@@ -176,25 +181,39 @@ def external_split(meta: pd.DataFrame, train_sites: Iterable[str], test_sites: I
     train, validation = _group_fold(meta, pool, validation_fraction, seed)
     split = Split("external", train, validation, np.sort(test),
                   f"Train/validation on {train_sites}, external test on {test_sites} "
-                  f"(validation {validation_fraction:.0%} of the training sites, seed {seed}).",
+                  f"(validation {validation.size / pool.size:.1%} of the training-site samples, "
+                  f"requested {validation_fraction:.0%}, seed {seed}).",
                   ["Patients cannot be linked across hospitals, so cross-site patient overlap is not checked."])
     check_split(meta, split)
     return split
 
 
-def make_splits(meta: pd.DataFrame, config: dict[str, Any]) -> dict[str, Split]:
+def make_splits(meta: pd.DataFrame, config: dict[str, Any], skipped: list[str] | None = None) -> dict[str, Split]:
+    """Build every configured split that the dataset's sites allow; reasons for skipped ones go to `skipped`."""
     s = config["splits"]
     seed = int(config["project"]["random_seed"])
-    splits = {
-        "random": random_split(meta, s["random"]["sites"], s["random"]["test_fraction"],
-                               s["random"]["validation_fraction"], seed),
-        "temporal": temporal_split(meta, s["temporal"]["sites"], s["temporal"]["validation_start"],
-                                   s["temporal"]["test_start"], s["temporal"]["date_column"]),
-    }
     available = set(meta["site"])
+    skipped = skipped if skipped is not None else []
+
+    def missing(sites: Iterable[str]) -> list[str]:
+        return [site for site in sites if site not in available]
+
+    splits: dict[str, Split] = {}
+    if missing(s["random"]["sites"]):
+        skipped.append(f"random: site(s) {missing(s['random']['sites'])} not in this dataset")
+    else:
+        splits["random"] = random_split(meta, s["random"]["sites"], s["random"]["test_fraction"],
+                                        s["random"]["validation_fraction"], seed)
+    if missing(s["temporal"]["sites"]):
+        skipped.append(f"temporal: site(s) {missing(s['temporal']['sites'])} not in this dataset")
+    else:
+        splits["temporal"] = temporal_split(meta, s["temporal"]["sites"], s["temporal"]["validation_start"],
+                                            s["temporal"]["test_start"], s["temporal"]["date_column"])
     test_sites = [site for site in s["external"]["test_sites"] if site in available]
-    not_built = [site for site in s["external"]["test_sites"] if site not in available]
-    if test_sites:
+    not_built = missing(s["external"]["test_sites"])
+    if missing(s["external"]["train_sites"]) or not test_sites:
+        skipped.append("external: training site(s) or all test sites are not in this dataset")
+    else:
         external = external_split(meta, s["external"]["train_sites"], test_sites,
                                   s["external"]["validation_fraction"], seed)
         if not_built:

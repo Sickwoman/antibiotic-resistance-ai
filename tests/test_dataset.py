@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import numpy as np
@@ -48,12 +49,16 @@ SITE_Y_2017 = [
     ("y13", "MIX!Escherichia coli", "R", "Urine", P4, "2017-06-07", "ok"),
     ("y14", "Escherichia coli", "S", "Varia", P4, "2017-07-01", "ok"),
     ("y18", "Escherichia coli", "S", "Urine", P4, "2017-07-02", "ok"),        # published binned file disagrees
+    ("y19", "Escherichia coli", "R", "Urine", P4, "2017-07-03", "ok"),        # repeated with another label
+    ("y20", "Escherichia coli", "-", "Urine", P4, "2017-07-04", "ok"),        # repeated; only 2018 copy labelled
 ]
 SITE_Y_2018 = [
-    ("y01", "Escherichia coli", "S", "Urine", P3, "2018-01-10", "ok"),       # duplicate code within the site
+    ("y01", "Escherichia coli", "R", "Urine", P3, "2018-01-10", "ok"),       # repeated code, same label
     ("y15", "Escherichia coli", "R", "Urine", P3, "2017-12-30", "ok"),       # 2018 folder, acquired in 2017
     ("y16", "Escherichia coli", "S", "Blood", P3, "2018-02-01", "ok"),
     ("y17", "Escherichia coli", "S", "Urine", P1, "2018-03-01", "ok"),       # same hash as 2017, other year
+    ("y19", "Escherichia coli", "S", "Urine", P3, "2018-03-02", "ok"),
+    ("y20", "Escherichia coli", "S", "Urine", P3, "2018-03-03", "ok"),
 ]
 SITE_Z = [("z01", "Escherichia coli", "R"), ("z02", "Escherichia coli", "S"), ("z03", "Escherichia coli", "S")]
 PATIENT_HASHES = {P1, P2, P3, P4}
@@ -134,7 +139,7 @@ def test_primary_dataset_contents(driams):
     summary, X, meta, exclusions = _build(config)
     assert X.dtype == np.float32 and X.shape == (len(meta), 6000)
     assert set(meta["code"] + "@" + meta["year_folder"]) == {
-        "y01@2017", "y02@2017", "y03@2017", "y14@2017", "y15@2018", "y16@2018", "y17@2018",
+        "y01@2017", "y02@2017", "y03@2017", "y14@2017", "y15@2018", "y16@2018", "y17@2018", "y20@2018",
         "z01@2018", "z02@2018", "z03@2018"}
     labels = dict(zip(meta["code"] + "@" + meta["year_folder"], meta["label"]))
     assert labels["y01@2017"] == 1 and labels["y02@2017"] == 0 and labels["y03@2017"] == 1   # I -> resistant
@@ -142,19 +147,21 @@ def test_primary_dataset_contents(driams):
         "y01@2018": "duplicate_record", "y04@2017": "no_ast_result", "y05@2017": "ambiguous_ast_result",
         "y06@2017": "unsupported_ast_result", "y07@2017": "excluded_workstation",
         "y08@2017": "no_spectrum_file", "y09@2017": "malformed_spectrum", "y10@2017": "unusable_spectrum",
-        "y11@2017": "duplicate_spectrum", "y18@2017": "differs_from_driams_binned"}
+        "y11@2017": "duplicate_spectrum", "y18@2017": "differs_from_driams_binned",
+        "y19@2017": "conflicting_duplicate_record", "y19@2018": "conflicting_duplicate_record",
+        "y20@2017": "no_ast_result"}
     # every target-species row is either used or excluded; other species are not counted
     target_rows = sum(v["target_species_rows"] for v in summary["per_site"].values())
-    assert target_rows == len(meta) + len(exclusions) == 20
+    assert target_rows == len(meta) + len(exclusions) == 24
     check = summary["verification_against_driams_binned"]
     assert check["enabled"] and check["verified"] == 1 and check["failed"] == 1
-    assert check["no_reference_file"] == 10 and check["max_relative_difference_of_verified"] < 1e-6
+    assert check["no_reference_file"] == 11 and check["max_relative_difference_of_verified"] < 1e-6
     assert summary["resistant"] == int((meta["label"] == 1).sum()) == 4
     assert summary["excluded_workstations_by_site"] == {"DRIAMS-Y": {"HospitalHygiene": 1}}
     assert summary["per_site"]["DRIAMS-Y"]["other_spellings_not_included"] == {"MIX!Escherichia coli": 1}
-    assert summary["per_site"]["DRIAMS-Y"]["ast_values"] == {"I": 1, "R": 2, "S": 4}
+    assert summary["per_site"]["DRIAMS-Y"]["ast_values"] == {"I": 1, "R": 2, "S": 5}
     assert summary["per_site"]["DRIAMS-Z"]["samples_without_patient_id"] == 3
-    assert summary["x_shape"] == [10, 6000]
+    assert summary["x_shape"] == [11, 6000]
 
 
 def test_rows_of_x_match_their_spectra(driams):
@@ -267,6 +274,45 @@ def test_missing_site_is_an_error(driams):
     config, _ = driams
     with pytest.raises(DatasetError, match="not extracted"):
         build_dataset(config, CohortSpec.from_config(config, sites=["DRIAMS-Y", "DRIAMS-C"]))
+
+
+def test_non_default_choices_never_reuse_the_primary_name(driams):
+    config, _ = driams
+    assert CohortSpec.from_config(config).name == "ecoli_ciprofloxacin"
+    assert CohortSpec.from_config(config, sites=["DRIAMS-Z"]).name == "ecoli_ciprofloxacin__sites-Z"
+    assert (CohortSpec.from_config(config, intermediate_as="exclude", sites=["DRIAMS-Y"]).name
+            == "ecoli_ciprofloxacin__intermediate-exclude__sites-Y")
+    assert CohortSpec.from_config(config, sites=["DRIAMS-Y", "DRIAMS-Z"]).name == "ecoli_ciprofloxacin"
+
+
+def test_failed_build_releases_its_files(driams, monkeypatch):
+    config, out = driams
+    import src.dataset as dataset_module
+
+    def crash(*args, **kwargs):
+        raise RuntimeError("simulated crash while processing spectra")
+
+    monkeypatch.setattr(dataset_module, "_process_spectra", crash)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        build_dataset(config, CohortSpec.from_config(config))
+    assert (out / "ecoli_ciprofloxacin.building").exists()
+    monkeypatch.undo()
+    _build(config)                                       # the leftover folder can be removed and rebuilt
+    assert not (out / "ecoli_ciprofloxacin.building").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="open files only block deletion on Windows")
+def test_locked_leftover_folder_gives_a_clear_error(driams):
+    config, out = driams
+    leftover = out / "ecoli_ciprofloxacin.building"
+    leftover.mkdir(parents=True)
+    handle = np.lib.format.open_memmap(leftover / "X_unfiltered.npy", mode="w+", dtype="float32", shape=(2, 2))
+    try:
+        with pytest.raises(DatasetError, match="still open"):
+            build_dataset(config, CohortSpec.from_config(config))
+    finally:
+        handle._mmap.close()
+        del handle
 
 
 def test_load_dataset_detects_inconsistency(driams):

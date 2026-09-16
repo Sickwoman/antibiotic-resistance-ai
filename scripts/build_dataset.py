@@ -145,7 +145,10 @@ def main() -> int:
 
             if not args.skip_splits:
                 section("Splits (row indices only; patient groups kept together)")
-                splits = make_splits(meta, config)
+                skipped: list[str] = []
+                splits = make_splits(meta, config, skipped)
+                for message in skipped:
+                    print(f"skipped split - {message}")
                 split_rows, split_json = [], {}
                 for name, split in splits.items():
                     check_split(meta, split)

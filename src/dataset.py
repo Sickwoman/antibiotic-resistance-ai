@@ -45,7 +45,6 @@ from src.utils import PROJECT_ROOT, driams_root, get_logger, project_path
 # Exclusion reasons in the order they are checked; a row gets the first reason that applies.
 EXCLUSION_REASONS: dict[str, str] = {
     "missing_code": "metadata row has no spectrum code",
-    "duplicate_record": "spectrum code appears more than once at the site (first row kept)",
     "antibiotic_not_reported": "the site's metadata has no column for the antibiotic",
     "no_ast_result": "no result for the antibiotic",
     "ambiguous_ast_result": "result that is not a single category, e.g. 'R(1), S(1)'",
@@ -53,6 +52,10 @@ EXCLUSION_REASONS: dict[str, str] = {
     "intermediate_excluded": "I result while labels.intermediate_as is 'exclude'",
     "excluded_workstation": "sample type listed in dataset.exclude_workstations (e.g. HospitalHygiene)",
     "missing_acquisition_date": "no parseable acquisition_date while dataset.require_acquisition_date is true",
+    "conflicting_duplicate_record": "spectrum code listed more than once at the site with different labels "
+                                    "(all copies excluded)",
+    "duplicate_record": "spectrum code listed more than once at the site with the same label "
+                        "(first usable row kept)",
     "no_spectrum_file": "raw spectrum file not found on disk",
     "malformed_spectrum": "raw spectrum file unreadable or failed validation",
     "unusable_spectrum": "spectrum readable but preprocessing left no usable signal",
@@ -96,13 +99,18 @@ class CohortSpec:
         d = config["dataset"]
         default_policy = config["labels"]["intermediate_as"]
         policy = intermediate_as or default_policy
-        if name is None:
-            name = d["name"] if policy == default_policy else f"{d['name']}__intermediate-{policy}"
+        site_list = tuple(sites or d["sites"])
+        if name is None:  # any non-default choice gets its own folder, so the primary dataset is never overwritten
+            name = d["name"]
+            if policy != default_policy:
+                name += f"__intermediate-{policy}"
+            if site_list != tuple(d["sites"]):
+                name += "__sites-" + "-".join(s.replace("DRIAMS-", "") for s in site_list)
         return cls(
             name=name,
             species=config["target"]["species"],
             antibiotic=config["target"]["preferred_antibiotic"],
-            sites=tuple(sites or d["sites"]),
+            sites=site_list,
             intermediate_as=policy,
             exclude_workstations=tuple(d.get("exclude_workstations") or ()),
             require_acquisition_date=bool(d.get("require_acquisition_date", False)),
@@ -151,7 +159,6 @@ def select_cohort(tables: dict[str, pd.DataFrame], spec: CohortSpec, ambiguous_v
 
         code = t[CODE_COL].astype("string")
         assign(_bool(code.isna()), "missing_code")
-        assign(_bool(code.duplicated(keep="first") & code.notna()), "duplicate_record")
 
         if spec.antibiotic in t.columns:
             labels = label_status(t[spec.antibiotic], spec.intermediate_as, ambiguous_values)
@@ -174,6 +181,20 @@ def select_cohort(tables: dict[str, pd.DataFrame], spec: CohortSpec, ambiguous_v
             dates = pd.Series(pd.NaT, index=t.index, dtype="datetime64[ns]")
         if spec.require_acquisition_date:
             assign(dates.isna().to_numpy(), "missing_acquisition_date")
+
+        # Repeated codes, judged only among rows that are otherwise usable: conflicting labels exclude
+        # every copy; identical labels keep the first copy.
+        usable = pd.DataFrame({"code": code.to_numpy(dtype=object), "label": label})[np.equal(reason, None)]
+        repeated = usable[usable["code"].duplicated(keep=False)]
+        if len(repeated):
+            n_labels = repeated.groupby("code")["label"].transform("nunique").to_numpy()
+            conflict = np.zeros(n, dtype=bool)
+            conflict[repeated.index[n_labels > 1]] = True
+            assign(conflict, "conflicting_duplicate_record")
+            later = np.zeros(n, dtype=bool)
+            same = repeated[n_labels == 1]
+            later[same.index[same["code"].duplicated(keep="first")]] = True
+            assign(later, "duplicate_record")
 
         years = t[YEAR_COL].astype(str).to_numpy()
         codes = code.fillna("").to_numpy(dtype=object)
@@ -279,11 +300,84 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     output_root = Path(output_root) if output_root else project_path(config["dataset"]["output_dir"])
     out_dir = output_root / spec.name
     tmp_dir = output_root / f"{spec.name}.building"
-    shutil.rmtree(tmp_dir, ignore_errors=True)
+    if tmp_dir.exists():
+        try:
+            shutil.rmtree(tmp_dir)
+        except OSError as exc:
+            raise DatasetError(f"Cannot remove the unfinished build folder {tmp_dir} because a file in it is still "
+                               "open. Close programs or Python sessions using it and run again.") from exc
     tmp_dir.mkdir(parents=True)
 
     staging = np.lib.format.open_memmap(tmp_dir / "X_unfiltered.npy", mode="w+", dtype=pcfg.dtype,
                                         shape=(n, pcfg.n_bins))
+    matrix = None
+    try:
+        reasons, details, raw_points, nonzero, verification = _process_spectra(
+            candidates, staging, root, pcfg, spec, config["dataset"], chunk, progress_every)
+        valid = np.equal(reasons, None)
+        keep_idx = np.flatnonzero(valid)
+        if keep_idx.size == 0:
+            raise DatasetError("Every candidate spectrum failed preprocessing; nothing to save.")
+        matrix = np.lib.format.open_memmap(tmp_dir / "X.npy", mode="w+", dtype=pcfg.dtype,
+                                           shape=(keep_idx.size, pcfg.n_bins))
+        for start in range(0, keep_idx.size, chunk):
+            part = keep_idx[start:start + chunk]
+            matrix[start:start + part.size] = staging[part]
+        x_bytes = int(matrix.nbytes)
+    finally:  # always release the files, otherwise Windows keeps them locked
+        if matrix is not None:
+            _close_memmap(matrix)
+        _close_memmap(staging)
+        del matrix, staging
+        gc.collect()
+    (tmp_dir / "X_unfiltered.npy").unlink()
+
+    spectrum_excluded = candidates.loc[~valid].drop(columns="group_key").assign(
+        reason=reasons[~valid], detail=details[~valid])
+    exclusions = pd.concat([exclusions, spectrum_excluded], ignore_index=True)
+    exclusions["reason"] = pd.Categorical(exclusions["reason"], categories=list(EXCLUSION_REASONS))
+    exclusions = exclusions.sort_values(["reason", "site", "year_folder"], kind="stable")
+
+    meta = candidates.loc[valid].reset_index(drop=True)
+    group_id, group_source = assign_group_ids(meta["group_key"])
+    meta = meta.drop(columns="group_key")
+    meta["group_id"] = group_id
+    meta["group_source"] = group_source
+    meta["label"] = meta["label"].astype(np.int8)
+    meta["raw_points"] = raw_points[valid]
+    meta["nonzero_bins"] = nonzero[valid]
+    meta.insert(0, "sample_index", np.arange(len(meta)))
+    meta["acquisition_date"] = pd.to_datetime(meta["acquisition_date"]).dt.strftime("%Y-%m-%d")
+    meta = meta[METADATA_COLUMNS]
+    assert not any(c in meta.columns or c in exclusions.columns for c in PRIVATE_COLUMNS)
+
+    meta.to_csv(tmp_dir / "metadata.csv", index=False)
+    exclusions[EXCLUSION_COLUMNS].to_csv(tmp_dir / "exclusions.csv", index=False)
+
+    summary = summarize(meta, exclusions, info, spec, pcfg, x_bytes)
+    summary["verification_against_driams_binned"] = verification
+    summary["elapsed_seconds"] = round(time.monotonic() - started, 1)
+    (tmp_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    old_dir = output_root / f"{spec.name}.old"
+    shutil.rmtree(old_dir, ignore_errors=True)
+    try:
+        if out_dir.exists():
+            out_dir.rename(old_dir)
+        tmp_dir.rename(out_dir)
+    except PermissionError as exc:
+        raise DatasetError(f"Could not replace {out_dir}; close any program (e.g. a notebook) that has the "
+                           f"dataset open and run again. The new build is kept in {tmp_dir}.") from exc
+    shutil.rmtree(old_dir, ignore_errors=True)
+    log.info("%s: saved %d samples x %d features to %s", spec.name, len(meta), pcfg.n_bins, out_dir)
+    return summary
+
+
+def _process_spectra(candidates: pd.DataFrame, staging: np.ndarray, root: Path, pcfg: PreprocessingConfig,
+                     spec: CohortSpec, dataset_cfg: dict[str, Any], chunk: int, progress_every: int,
+                     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
+    """Preprocess every candidate into `staging`; return per-row reasons/details/stats and check counts."""
+    n = len(candidates)
     reasons = np.full(n, None, dtype=object)
     details = np.full(n, "", dtype=object)
     raw_points = np.zeros(n, dtype=np.int32)
@@ -292,12 +386,13 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     codes = candidates["code"].to_numpy()
     sites_arr = candidates["site"].to_numpy()
     years_arr = candidates["year_folder"].to_numpy()
-    tolerance = float(config["dataset"].get("verification_tolerance", 1e-4))
-    verify = bool(config["dataset"].get("verify_against_driams_binned", False)) and pcfg.matches_driams_binning
+    tolerance = float(dataset_cfg.get("verification_tolerance", 1e-4))
+    requested = bool(dataset_cfg.get("verify_against_driams_binned", False))
+    verify = requested and pcfg.matches_driams_binning
     verification: dict[str, Any] = {
         "enabled": verify, "tolerance": tolerance, "verified": 0, "no_reference_file": 0,
         "unreadable_reference_file": 0, "failed": 0, "max_relative_difference_of_verified": 0.0,
-        "skipped_reason": None if verify or not config["dataset"].get("verify_against_driams_binned") else
+        "skipped_reason": None if verify or not requested else
         "preprocessing settings differ from DRIAMS, so binned_6000 files are not comparable"}
     for i, rel in enumerate(candidates["spectrum_relpath"].to_numpy()):
         try:
@@ -340,63 +435,7 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
             staging.flush()
         if progress_every and (i + 1) % progress_every == 0:
             log.info("%s: processed %d / %d spectra", spec.name, i + 1, n)
-
-    valid = np.equal(reasons, None)
-    keep_idx = np.flatnonzero(valid)
-    if keep_idx.size == 0:
-        _close_memmap(staging)
-        raise DatasetError("Every candidate spectrum failed preprocessing; nothing to save.")
-    matrix = np.lib.format.open_memmap(tmp_dir / "X.npy", mode="w+", dtype=pcfg.dtype,
-                                       shape=(keep_idx.size, pcfg.n_bins))
-    for start in range(0, keep_idx.size, chunk):
-        part = keep_idx[start:start + chunk]
-        matrix[start:start + part.size] = staging[part]
-    x_bytes = int(matrix.nbytes)
-    _close_memmap(matrix)
-    _close_memmap(staging)
-    del matrix, staging
-    gc.collect()
-    (tmp_dir / "X_unfiltered.npy").unlink()
-
-    spectrum_excluded = candidates.loc[~valid].drop(columns="group_key").assign(
-        reason=reasons[~valid], detail=details[~valid])
-    exclusions = pd.concat([exclusions, spectrum_excluded], ignore_index=True)
-    exclusions["reason"] = pd.Categorical(exclusions["reason"], categories=list(EXCLUSION_REASONS))
-    exclusions = exclusions.sort_values(["reason", "site", "year_folder"], kind="stable")
-
-    meta = candidates.loc[valid].reset_index(drop=True)
-    group_id, group_source = assign_group_ids(meta["group_key"])
-    meta = meta.drop(columns="group_key")
-    meta["group_id"] = group_id
-    meta["group_source"] = group_source
-    meta["label"] = meta["label"].astype(np.int8)
-    meta["raw_points"] = raw_points[valid]
-    meta["nonzero_bins"] = nonzero[valid]
-    meta.insert(0, "sample_index", np.arange(len(meta)))
-    meta["acquisition_date"] = pd.to_datetime(meta["acquisition_date"]).dt.strftime("%Y-%m-%d")
-    meta = meta[METADATA_COLUMNS]
-    assert not any(c in meta.columns or c in exclusions.columns for c in PRIVATE_COLUMNS)
-
-    meta.to_csv(tmp_dir / "metadata.csv", index=False)
-    exclusions[EXCLUSION_COLUMNS].to_csv(tmp_dir / "exclusions.csv", index=False)
-
-    summary = summarize(meta, exclusions, info, spec, pcfg, x_bytes)
-    summary["verification_against_driams_binned"] = verification
-    summary["elapsed_seconds"] = round(time.monotonic() - started, 1)
-    (tmp_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-
-    old_dir = output_root / f"{spec.name}.old"
-    shutil.rmtree(old_dir, ignore_errors=True)
-    try:
-        if out_dir.exists():
-            out_dir.rename(old_dir)
-        tmp_dir.rename(out_dir)
-    except PermissionError as exc:
-        raise DatasetError(f"Could not replace {out_dir}; close any program (e.g. a notebook) that has the "
-                           f"dataset open and run again. The new build is kept in {tmp_dir}.") from exc
-    shutil.rmtree(old_dir, ignore_errors=True)
-    log.info("%s: saved %d samples x %d features to %s", spec.name, len(meta), pcfg.n_bins, out_dir)
-    return summary
+    return reasons, details, raw_points, nonzero, verification
 
 
 def summarize(meta: pd.DataFrame, exclusions: pd.DataFrame, info: dict[str, Any], spec: CohortSpec,
