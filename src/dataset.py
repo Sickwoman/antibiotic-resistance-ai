@@ -287,11 +287,16 @@ def file_sha256(path: Path, chunk_bytes: int = 1 << 24) -> str:
 
 
 def _git_commit() -> str | None:
-    """Short commit hash of the code that built the dataset; '-dirty' if tracked files were modified."""
+    """Short commit hash of the code that built the dataset; '-dirty' if code or config was modified.
+
+    Generated reports (results/) and docs do not count, so building several datasets in a row from
+    one commit records the same hash.
+    """
     try:
         head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT,
                               capture_output=True, text=True, timeout=10).stdout.strip()
-        changes = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=PROJECT_ROOT,
+        changes = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--",
+                                  "src", "scripts", "config.yaml"], cwd=PROJECT_ROOT,
                                  capture_output=True, text=True, timeout=10).stdout.strip()
         return (head + ("-dirty" if changes else "")) or None
     except (OSError, subprocess.SubprocessError):
