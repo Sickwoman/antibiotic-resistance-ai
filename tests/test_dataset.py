@@ -318,7 +318,8 @@ def test_sensitivity_dataset_reuses_the_primary_splits(driams):
         split.save(out / "ecoli_ciprofloxacin" / "splits" / f"{name}.json", meta)
 
     derived = build_splits(variant, config, variant_name, out)
-    assert set(derived) == set(primary_splits)
+    assert list(derived) == list(primary_splits) == ["temporal", "external"]
+    assert any(note.startswith("[ecoli_ciprofloxacin] Removed") for note in derived["temporal"].notes)
     key = meta["code"] + "@" + meta["year_folder"]
     variant_key = variant["code"] + "@" + variant["year_folder"]
     for name, split in derived.items():

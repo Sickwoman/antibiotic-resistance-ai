@@ -32,6 +32,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from src.dataset import load_dataset, row_fingerprint, sample_keys
 
 PARTS = ("train", "validation", "test")
+SPLIT_ORDER = ("random", "within_year", "temporal", "external")   # order used in reports
 
 
 class LeakageError(RuntimeError):
@@ -101,8 +102,10 @@ def load_split(path: Path, meta: pd.DataFrame) -> Split:
 
 
 def load_splits(folder: Path, meta: pd.DataFrame) -> dict[str, Split]:
-    """All saved splits of a dataset, by name (checked like `load_split`)."""
-    splits = [load_split(p, meta) for p in sorted(Path(folder).glob("*.json"))]
+    """All saved splits of a dataset, by name in SPLIT_ORDER (checked like `load_split`)."""
+    splits = [load_split(p, meta) for p in Path(folder).glob("*.json")]
+    rank = {name: i for i, name in enumerate(SPLIT_ORDER)}
+    splits.sort(key=lambda s: (rank.get(s.name, len(rank)), s.name))
     return {s.name: s for s in splits}
 
 
@@ -274,7 +277,7 @@ def derive_split(reference: Split, reference_meta: pd.DataFrame, meta: pd.DataFr
     parts = {p: np.flatnonzero(mapped == p) for p in PARTS}
 
     notes = [f"Same partition as the '{reference.name}' split of dataset {reference_name}: every sample keeps "
-             "its part."] + list(reference.notes)
+             "its part."] + [f"[{reference_name}] {note}" for note in reference.notes]
     absent = int(np.equal(mapped, None).sum())
     unused = int((mapped == "").sum())
     if absent:
