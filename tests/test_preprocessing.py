@@ -42,7 +42,7 @@ def write_spectrum(path: Path, mz, intensity, header: bool = True) -> Path:
     lines = ["#  /some/instrument/fid", "#  code"]
     if header:
         lines.append('"mass.myspec..1..." "intensity.myspec..1..."')
-    lines += [f"{float(m)!r} {float(i):g}" for m, i in zip(mz, intensity)]
+    lines += [f"{float(m)!r} {float(i):g}" for m, i in zip(mz, intensity, strict=True)]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 

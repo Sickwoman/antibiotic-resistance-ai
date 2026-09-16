@@ -153,7 +153,7 @@ def test_acquisition_year_vs_folder():
     sd = make_site("DRIAMS-A", [("2018", SPECIES, "R", ""), ("2018", SPECIES, "S", "")])
     sd = _with_patients(sd, ["p1", "p2"], ["2017-12-30", "2018-01-02"], ["Urine", "Urine"])
     table = acquisition_vs_folder_table({"DRIAMS-A": sd})
-    assert set(zip(table["acquisition_year"], table["rows"])) == {("2017", 1), ("2018", 1)}
+    assert set(zip(table["acquisition_year"], table["rows"], strict=True)) == {("2017", 1), ("2018", 1)}
     assert acquisition_vs_folder_table({"DRIAMS-B": make_site("DRIAMS-B", EXTERNAL_OK)}).empty
 
 

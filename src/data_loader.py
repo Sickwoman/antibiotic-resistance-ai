@@ -8,9 +8,9 @@ Folder layout (DRIAMS README, confirmed by inspecting the archives):
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -120,7 +120,7 @@ def load_site_tables(root: str | Path, site: str, suffixes: str | Sequence[str] 
     if not years:
         raise MetadataError(f"No year folders found in {Path(root) / site / id_folder}")
     frames = [load_id_table(root, site, y, suffixes, missing_values, id_folder) for y in years]
-    dropped = {f"{site}/{y}": f.attrs.get("dropped_columns", []) for y, f in zip(years, frames)}
+    dropped = {f"{site}/{y}": f.attrs.get("dropped_columns", []) for y, f in zip(years, frames, strict=True)}
     table = pd.concat(frames, ignore_index=True, sort=False)
     table.attrs = {"dropped_columns": {k: v for k, v in dropped.items() if v}}
     return table
@@ -247,7 +247,8 @@ def read_spectrum_table(path: str | Path, allowed_suffixes: Iterable[str] = (".t
     """
     path = Path(path)
     if path.suffix.lower() not in {s.lower() for s in allowed_suffixes}:
-        raise SpectrumFormatError(f"Unsupported file type '{path.suffix}' for {path.name}; expected {sorted(allowed_suffixes)}.")
+        raise SpectrumFormatError(f"Unsupported file type '{path.suffix}' for {path.name}; "
+                                  f"expected {sorted(allowed_suffixes)}.")
     if not path.is_file():
         raise SpectrumFormatError(f"Spectrum file not found: {path}")
     if path.stat().st_size == 0:

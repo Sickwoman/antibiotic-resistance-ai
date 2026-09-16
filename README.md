@@ -8,7 +8,8 @@
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
 **Status: Version 0.2 – spectrum preprocessing, processed dataset and leakage-safe splits
-(no model trained yet).** Version 0.1 (download + exploration) is complete.
+(no model trained yet).** Version 0.1 (download + exploration) is complete. The evaluation protocol for
+the models is drafted in [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md) (awaiting approval).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -109,8 +110,9 @@ Exact package versions of the tested environment are in `requirements-lock.txt`.
 All commands run from `C:\Projects\antibiotic-resistance-ai` with the virtual environment active.
 
 ```powershell
-# 1. Tests (synthetic data, no download needed)
+# 1. Tests (synthetic data, no download needed) and code-style check
 python -m pytest -q
+python -m ruff check .
 
 # 2. Download + verify (resumable: re-run the same command after an interruption)
 python scripts/download_driams.py --list
@@ -224,20 +226,36 @@ confidence. Not included either: 61 (A) and 1 (B) mixed-culture rows (`MIX!Esche
 these copies are not referenced by any metadata row and are never used.
 
 **Sensitivity dataset** (`--intermediate-as exclude`): 4,407 samples, 965 R / 3,442 S
-(A 907 / 3,288, B 58 / 154); 96 I results removed.
+(A 907 / 3,288, B 58 / 154); 96 I results removed. It uses exactly the same partition as the primary
+dataset (see below).
 
 ### Splits (row indices only)
 
-| Split | Train | Validation | Test |
-|---|---|---|---|
-| random (A, stratified, patient-grouped, seed 42) | 2,977 | 426 | 856 |
-| temporal (A, by `acquisition_date`) | 2,505 (< 2017-10-01) | 465 (2017-10-01 … 2017-12-31) | 1,233 (≥ 2018-01-01) |
-| external (train A, test B) | 3,831 | 428 | 213 |
+| Split | Train | Validation | Test | Resistant in test |
+|---|---|---|---|---|
+| random (A, stratified, patient-grouped, seed 42) | 2,977 | 426 | 856 | 197 |
+| within_year (as random, A year folder 2017 only) | 1,284 | 183 | 366 | 85 |
+| temporal (A, by `acquisition_date`) | 2,505 (< 2017-10-01) | 465 (2017-10-01 … 2017-12-31) | 1,233 (≥ 2018-01-01) | 271 |
+| external (train A, test B) | 3,831 | 428 | 213 | 59 |
 
-Every split is checked: no sample and no patient group appears in two parts. The temporal split drops
-56 training samples whose patient group also appears later. Limitations: DRIAMS-A `patient_no` is
-re-hashed every year, so a person seen in two years cannot be linked; patients cannot be linked across
-hospitals; DRIAMS-B has no patient IDs, dates or sample types.
+- **Leakage checks:** every split is checked so that no sample and no patient group appears in two
+  parts. The temporal split drops 56 training samples whose patient group also appears later.
+- **Why `within_year` exists:** DRIAMS-A `patient_no` is re-hashed every year, so a person seen in two
+  years cannot be linked, and the pooled `random` split may place them in train and test.
+  - Repeat sampling is common: 76 % of the DRIAMS-A spectra (3,247 / 4,259) come from patients with more
+    than one spectrum in the same year.
+  - Inside one year folder, patient grouping is complete. Comparing `within_year` with `random` shows how
+    much this matters.
+- **Tied to one dataset build:** each split file stores the fingerprint of its dataset (sample keys,
+  labels, patient groups). `load_split(path, meta)` refuses a split made for another build.
+- **Sensitivity dataset (I excluded):** instead of drawing new splits, it reuses the primary dataset's
+  saved ones (each sample keeps its part), so the two datasets differ only by the removed I samples.
+  Sizes: random 2,930 / 421 / 844, within_year 1,268 / 179 / 365, temporal 2,473 / 459 / 1,208,
+  external 3,776 / 419 / 212.
+  - Before this change, independently drawn splits put 44 % of the shared samples in a different part of
+    the random split.
+- **Other limitations:** patients cannot be linked across hospitals; DRIAMS-B has no patient IDs, dates
+  or sample types.
 
 ### Commands
 
@@ -246,17 +264,25 @@ hospitals; DRIAMS-B has no patient IDs, dates or sample types.
 python scripts/extract_driams.py --site B --folders raw preprocessed --species "Escherichia coli"
 python scripts/extract_driams.py --site A --folders raw preprocessed --species "Escherichia coli"
 
-# build dataset + splits + reports (~4-5 min each)
+# build dataset + splits + reports (~4-5 min each); the primary dataset first,
+# because every other dataset reuses its splits
 python scripts/build_dataset.py
 python scripts/build_dataset.py --intermediate-as exclude
 ```
 
-Outputs: `data/processed/<name>/` (`X.npy`, `metadata.csv`, `exclusions.csv`, `summary.json`,
-`splits/*.json`; git-ignored) and identifier-free reports in `results/metrics/v0.2/<name>/`.
-Load with `src.dataset.load_dataset()` and `src.splits.load_split()`; the notebook
-`notebooks/02_preprocessing.ipynb` shows an example. To add DRIAMS-C/D later: download, extract
-(`id`, `binned_6000`, and `raw` for E. coli), then add the site to `dataset.sites` and
-`splits.external.test_sites` in `config.yaml`.
+**Outputs:**
+- `data/processed/<name>/`: `X.npy`, `metadata.csv`, `exclusions.csv`, `summary.json` and
+  `splits/*.json` (git-ignored).
+- `results/metrics/v0.2/<name>/`: reports without identifiers.
+
+`summary.json` records a rows fingerprint and the SHA-256 of `X.npy`.
+
+**Loading:** use `src.dataset.load_dataset()`, which checks the fingerprint (`verify_x=True` also
+re-hashes `X.npy`), and `src.splits.load_splits(folder, meta)` / `load_split(path, meta)`. The notebook
+`notebooks/02_preprocessing.ipynb` shows an example.
+
+**Adding DRIAMS-C/D later:** download, then extract `id`, `binned_6000` and (for E. coli) `raw`. Add the
+site to `dataset.sites` and `splits.external.test_sites` in `config.yaml`, and rebuild both datasets.
 
 ## Project structure (Version 0.2)
 
@@ -274,12 +300,15 @@ antibiotic-resistance-ai/
 │   ├── data_loader.py          metadata tables, label rules, spectrum readers with validation
 │   ├── exploration.py          exploration tables and figures
 │   ├── preprocessing.py        MALDIquant-equivalent preprocessing and binning
-│   ├── dataset.py              cohort selection, exclusion audit, dataset builder/loader
-│   └── splits.py               random / temporal / external splits with leakage checks
+│   ├── dataset.py              cohort selection, exclusion audit, dataset builder/loader, fingerprints
+│   └── splits.py               random / within_year / temporal / external splits, leakage checks,
+│                               split reuse for sensitivity datasets
+├── docs/evaluation_protocol.md how models will be evaluated (draft, fixed before any training)
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
-├── .github/workflows/tests.yml
+├── .github/workflows/tests.yml Ruff + pytest on Ubuntu and Windows
+├── ruff.toml                   code-style rules
 ├── LICENSE, CITATION.cff, CLAUDE.md
 ```
 

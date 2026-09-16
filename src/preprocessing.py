@@ -231,7 +231,8 @@ class SpectrumInfo:
     total_ion_current: float
 
 
-def preprocess_arrays(mz: np.ndarray, intensity: np.ndarray, cfg: PreprocessingConfig) -> tuple[np.ndarray, SpectrumInfo]:
+def preprocess_arrays(mz: np.ndarray, intensity: np.ndarray,
+                      cfg: PreprocessingConfig) -> tuple[np.ndarray, SpectrumInfo]:
     """Raw (m/z, intensity) arrays -> feature vector of length cfg.n_bins in cfg.dtype."""
     mz, y = validate_spectrum(mz, intensity, cfg.min_raw_points)
     raw_points = mz.size

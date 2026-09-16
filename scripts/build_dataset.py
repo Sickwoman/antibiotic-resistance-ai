@@ -5,6 +5,8 @@ No model is trained. Run from the project root with the virtual environment acti
     python scripts/build_dataset.py                          # primary dataset (I counted as resistant)
     python scripts/build_dataset.py --intermediate-as exclude  # sensitivity dataset (I removed)
 
+Build the primary dataset first: every other dataset reuses its saved splits.
+
 Needs the raw E. coli spectra, extracted with:
     python scripts/extract_driams.py --site A --folders raw preprocessed --species "Escherichia coli"
 
@@ -30,8 +32,16 @@ from src import exploration as ex  # noqa: E402  (plot style only)
 from src.data_loader import INTERMEDIATE_POLICIES, DataError, read_binned_spectrum, read_raw_spectrum  # noqa: E402
 from src.dataset import EXCLUSION_REASONS, CohortSpec, build_dataset, load_dataset, resolve_relpath  # noqa: E402
 from src.preprocessing import PreprocessingConfig, preprocess_file  # noqa: E402
-from src.splits import LeakageError, SplitError, check_split, make_splits  # noqa: E402
-from src.utils import ConfigError, driams_root, get_logger, keep_awake, load_config, project_path, set_seed  # noqa: E402
+from src.splits import LeakageError, SplitError, build_splits, load_split  # noqa: E402
+from src.utils import (  # noqa: E402
+    ConfigError,
+    driams_root,
+    get_logger,
+    keep_awake,
+    load_config,
+    project_path,
+    set_seed,
+)
 
 log = get_logger("build")
 
@@ -93,7 +103,8 @@ def main() -> int:
                         help="override labels.intermediate_as (default: config value)")
     parser.add_argument("--sites", nargs="+", default=None, help="override dataset.sites")
     parser.add_argument("--name", default=None, help="output dataset name")
-    parser.add_argument("--skip-splits", action="store_true")
+    parser.add_argument("--skip-splits", action="store_true",
+                        help="do not create splits (a dataset without splits cannot be used for training)")
     parser.add_argument("--compare", type=int, default=300,
                         help="number of samples compared with DRIAMS binned_6000 files (0 = skip)")
     parser.add_argument("--config", type=Path, default=None)
@@ -105,9 +116,10 @@ def main() -> int:
         set_seed(seed)
         spec = CohortSpec.from_config(config, intermediate_as=args.intermediate_as, sites=args.sites, name=args.name)
         with keep_awake():
-            summary = build_dataset(config, spec)
-            out_dir = project_path(config["dataset"]["output_dir"]) / spec.name
-            X, meta, summary = load_dataset(out_dir)
+            build_dataset(config, spec)
+            output_root = project_path(config["dataset"]["output_dir"])
+            out_dir = output_root / spec.name
+            X, meta, summary = load_dataset(out_dir, verify_x=True)
             report_dir = project_path("results/metrics/v0.2") / spec.name
             report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,6 +128,8 @@ def main() -> int:
                   f"(memory-mapped when loaded); metadata.csv {(out_dir / 'metadata.csv').stat().st_size / 1e6:.2f} MB")
             print(f"Samples: {summary['n_samples']:,}  resistant: {summary['resistant']:,}  "
                   f"susceptible: {summary['susceptible']:,}  (built in {summary['elapsed_seconds']} s)")
+            print(f"Fingerprints: rows {summary['row_fingerprint']}, X.npy sha256 {summary['x_sha256'][:16]}... "
+                  "(checked on load)")
             per_site = pd.DataFrame(summary["per_site"]).T[
                 ["target_species_rows", "samples", "resistant", "susceptible", "excluded",
                  "patient_groups", "samples_without_patient_id", "acquisition_date_min", "acquisition_date_max"]]
@@ -145,14 +159,17 @@ def main() -> int:
 
             if not args.skip_splits:
                 section("Splits (row indices only; patient groups kept together)")
+                if spec.name != config["dataset"]["name"]:
+                    print(f"Reusing the saved splits of the primary dataset {config['dataset']['name']}.")
                 skipped: list[str] = []
-                splits = make_splits(meta, config, skipped)
+                splits = build_splits(meta, config, spec.name, output_root, skipped)
                 for message in skipped:
                     print(f"skipped split - {message}")
                 split_rows, split_json = [], {}
                 for name, split in splits.items():
-                    check_split(meta, split)
-                    split.save(out_dir / "splits" / f"{name}.json", meta)
+                    path = out_dir / "splits" / f"{name}.json"
+                    split.save(path, meta)
+                    load_split(path, meta)       # read back: fingerprint and overlap checks
                     s = split.summary(meta)
                     split_json[name] = s
                     for part in ("train", "validation", "test"):
@@ -169,7 +186,7 @@ def main() -> int:
                         print(f"   note: {note}")
                 table.to_csv(report_dir / "split_summary.csv", index=False)
                 (report_dir / "split_summary.json").write_text(json.dumps(split_json, indent=2), encoding="utf-8")
-                print("All splits passed the sample and patient-group overlap checks.")
+                print("All splits passed the fingerprint and the sample / patient-group overlap checks.")
 
             section("Example preprocessing (privacy-safe)")
             row = 0
@@ -186,7 +203,8 @@ def main() -> int:
                        "read_and_preprocess_ms": round(elapsed_ms, 1)}
             print(json.dumps(example, indent=2))
             (report_dir / "example_preprocessing.json").write_text(json.dumps(example, indent=2), encoding="utf-8")
-            plot_example(config, X, meta, row, project_path("results/plots/v0.2") / f"{spec.name}_example_preprocessing.png")
+            plot_path = project_path("results/plots/v0.2") / f"{spec.name}_example_preprocessing.png"
+            plot_example(config, X, meta, row, plot_path)
             print(f"\nReports: {report_dir}")
             print("No model was trained.")
         return 0

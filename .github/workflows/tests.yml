@@ -16,9 +16,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -28,9 +28,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint (Ruff)
+        run: python -m ruff check .
+
       # The tests use small synthetic files only; DRIAMS is never downloaded in CI.
+      # They also validate every notebook and scan saved notebook outputs for identifier-like hashes.
       - name: Run tests
         run: python -m pytest -q
-
-      - name: Validate notebook format
-        run: python -c "import nbformat; nbformat.validate(nbformat.read('notebooks/01_data_exploration.ipynb', as_version=4))"

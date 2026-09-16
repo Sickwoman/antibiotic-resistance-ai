@@ -1,7 +1,7 @@
 {
   "dataset": "ecoli_ciprofloxacin",
-  "created": "2026-09-17 00:16:38",
-  "git_commit": "9a59ce0",
+  "created": "2026-09-17 01:34:59",
+  "git_commit": "83dc1aa",
   "species": "Escherichia coli",
   "antibiotic": "Ciprofloxacin",
   "sites": [
@@ -158,6 +158,8 @@
     "Intermediate (I) results are handled as: resistant.",
     "Only stateless preprocessing is applied; no scaling, PCA or feature selection is fitted here."
   ],
+  "row_fingerprint": "b4c1a749b8bab87a",
+  "x_sha256": "f3ae114c5e2b09c61f1b40c7da064d9554ccc6c874337bac877f4efe50da4e4c",
   "verification_against_driams_binned": {
     "enabled": true,
     "tolerance": 0.0001,
@@ -168,5 +170,5 @@
     "max_relative_difference_of_verified": 5.882646691054322e-08,
     "skipped_reason": null
   },
-  "elapsed_seconds": 305.5
+  "elapsed_seconds": 289.8
 }
