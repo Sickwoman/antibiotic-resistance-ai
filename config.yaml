@@ -178,10 +178,22 @@ dataset:
 splits:
   # All splits keep patient groups together where a patient ID exists (DRIAMS-A: patient_no,
   # which is re-hashed per year folder, so the same person in two years cannot be detected).
+  # Only the primary dataset (dataset.name) gets these splits; every other dataset built from the
+  # same data (e.g. --intermediate-as exclude) reuses the primary dataset's saved splits.
   random:
     sites: [DRIAMS-A]
     test_fraction: 0.2
     validation_fraction: 0.1        # of all samples, taken from the non-test part
+  within_year:
+    # Like `random`, but inside one year folder, where patient_no is consistent, so no patient can be
+    # in two parts. Comparing it with `random` shows how much cross-year patient overlap may inflate
+    # random-split results. Checked 2026-09-17: 76 % of DRIAMS-A E. coli spectra (3,247 / 4,259) come
+    # from patients with more than one spectrum in the same year. 2017 is the largest year folder
+    # (1,833 samples, 428 resistant, 865 patient groups).
+    sites: [DRIAMS-A]
+    year_folder: "2017"             # a grouping scope, not a time split (those use acquisition_date)
+    test_fraction: 0.2
+    validation_fraction: 0.1
   temporal:
     sites: [DRIAMS-A]
     date_column: acquisition_date   # never the year folder
