@@ -1,8 +1,7 @@
 name: tests
 
 on:
-  push:
-    branches: [main]
+  push:            # every branch, so work branches are tested before they are merged
   pull_request:
 
 permissions:
