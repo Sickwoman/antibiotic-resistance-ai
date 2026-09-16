@@ -7,7 +7,8 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.1 – dataset acquisition and exploration (no model yet).**
+**Status: Version 0.2 – spectrum preprocessing, processed dataset and leakage-safe splits
+(no model trained yet).** Version 0.1 (download + exploration) is complete.
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -164,7 +165,100 @@ site (C or D).
 
 Benchmark pair E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168.
 
-## Project structure (Version 0.1)
+## Version 0.2 – from raw spectrum to model-ready data
+
+### Preprocessing (stateless, one spectrum at a time)
+
+We re-implemented the exact DRIAMS pipeline in NumPy, from the authors' R scripts
+(`amr_maldi_ml/DRIAMS_preprocessing/*_preprocessed.r` in BorgwardtLab/maldi_amr) and the MALDIquant
+1.22.3 source code:
+
+| Step | Setting | Why |
+|---|---|---|
+| Validation | ≥ 100 points, finite values, strictly increasing m/z, no negative intensities | corrupt files are excluded, never repaired |
+| Intensity transform | square root | stabilises the variance of count data |
+| Smoothing | Savitzky–Golay, half-window 10, cubic, MALDIquant edge handling | reduces noise without flattening peaks |
+| Baseline | SNIP 20 iterations, then SNIP 100 iterations | the DRIAMS scripts call `removeBaseline(removeBaseline(x, SNIP, 20))`; the outer call uses the default of 100 |
+| Normalisation | divide by total ion current (trapezoidal area of the whole spectrum) | removes differences in overall signal strength |
+| Trim | 2,000–20,000 Da | the range used by DRIAMS |
+| Binning | sum per 3 Da bin → **6,000 features**, `float32` | fixed-length vector for every spectrum |
+
+**Deliberately not done:** peak picking, spectral alignment/warping, scaling/standardisation, PCA,
+feature selection, resampling. Peak picking and warping add tuning choices without evidence of
+benefit here and would break comparability with DRIAMS. Anything that learns from the data (scaling,
+PCA, feature selection) must be fitted on training data only, so it belongs inside the Version 0.3 model
+pipelines, not in the dataset.
+
+**Verification:** our features reproduce the published DRIAMS `binned_6000` files. For the 4,472 samples
+kept, the largest relative difference is 5.9 × 10⁻⁸ (float32 rounding). A single SNIP pass would differ by
+about 5 × 10⁻⁵, which is how the undocumented second pass was confirmed. The builder checks every sample
+against its published binned file (`dataset.verify_against_driams_binned`).
+
+### Primary dataset: E. coli + ciprofloxacin (built 2026-09-16)
+
+Rules: I counted as resistant; hospital-hygiene samples excluded; DRIAMS-A metadata from `strat` files.
+
+| | Samples | Resistant (R + I) | Susceptible | Patient groups |
+|---|---|---|---|---|
+| DRIAMS-A (11/2015–08/2018) | 4,259 | 971 (907 R + 64 I) | 3,288 | 2,137 |
+| DRIAMS-B (2018) | 213 | 59 (58 R + 1 I) | 154 | – (no patient IDs) |
+| **Total** | **4,472** | **1,030** | **3,442** | |
+
+X = 4,472 × 6,000 `float32` (107.3 MB, memory-mapped); metadata 0.8 MB.
+
+Every E. coli metadata row is either used or excluded with one reason (first reason that applies):
+
+| Reason | DRIAMS-A | DRIAMS-B |
+|---|---|---|
+| no ciprofloxacin result | 2,334 | 625 |
+| ambiguous result (e.g. `R(1), S(1)`) | 75 | 0 |
+| hospital-hygiene sample | 633 | not identifiable (no workstation column) |
+| malformed raw file (corrupt rows / m/z running backwards) | 8 | 0 |
+| raw file differs from the published binned file | 11 | 0 |
+| **E. coli rows in metadata** | **7,320** | **838** |
+
+The 11 "differs" cases: DRIAMS ships a raw file and a binned file for the same code that contain two
+different measurements (6–38 % relative difference), so the AST label cannot be tied to the raw file with
+confidence. Not included either: 61 (A) and 1 (B) mixed-culture rows (`MIX!Escherichia coli`). A further
+281 E. coli codes of the 2017 table also have an identical copy of their raw file in the 2018 folder;
+these copies are not referenced by any metadata row and are never used.
+
+**Sensitivity dataset** (`--intermediate-as exclude`): 4,407 samples, 965 R / 3,442 S
+(A 907 / 3,288, B 58 / 154); 96 I results removed.
+
+### Splits (row indices only)
+
+| Split | Train | Validation | Test |
+|---|---|---|---|
+| random (A, stratified, patient-grouped, seed 42) | 2,977 | 426 | 856 |
+| temporal (A, by `acquisition_date`) | 2,505 (< 2017-10-01) | 465 (2017-10-01 … 2017-12-31) | 1,233 (≥ 2018-01-01) |
+| external (train A, test B) | 3,831 | 428 | 213 |
+
+Every split is checked: no sample and no patient group appears in two parts. The temporal split drops
+56 training samples whose patient group also appears later. Limitations: DRIAMS-A `patient_no` is
+re-hashed every year, so a person seen in two years cannot be linked; patients cannot be linked across
+hospitals; DRIAMS-B has no patient IDs, dates or sample types.
+
+### Commands
+
+```powershell
+# raw E. coli spectra (one pass over each archive; A takes ~20 min)
+python scripts/extract_driams.py --site B --folders raw preprocessed --species "Escherichia coli"
+python scripts/extract_driams.py --site A --folders raw preprocessed --species "Escherichia coli"
+
+# build dataset + splits + reports (~4-5 min each)
+python scripts/build_dataset.py
+python scripts/build_dataset.py --intermediate-as exclude
+```
+
+Outputs: `data/processed/<name>/` (`X.npy`, `metadata.csv`, `exclusions.csv`, `summary.json`,
+`splits/*.json`; git-ignored) and identifier-free reports in `results/metrics/v0.2/<name>/`.
+Load with `src.dataset.load_dataset()` and `src.splits.load_split()`; the notebook
+`notebooks/02_preprocessing.ipynb` shows an example. To add DRIAMS-C/D later: download, extract
+(`id`, `binned_6000`, and `raw` for E. coli), then add the site to `dataset.sites` and
+`splits.external.test_sites` in `config.yaml`.
+
+## Project structure (Version 0.2)
 
 ```
 antibiotic-resistance-ai/
@@ -173,12 +267,16 @@ antibiotic-resistance-ai/
 ├── scripts/
 │   ├── download_driams.py      parallel resumable download + checksum verification
 │   ├── extract_driams.py       selective streaming extraction + file manifest
-│   └── explore_dataset.py      Version 0.1 exploration report
+│   ├── explore_dataset.py      Version 0.1 exploration report
+│   └── build_dataset.py        Version 0.2 dataset, splits and reports
 ├── src/
-│   ├── utils.py                config, paths, seeding, logging
-│   ├── data_loader.py          metadata tables, label encoding, spectrum readers with validation
-│   └── exploration.py          exploration tables and figures
-├── notebooks/01_data_exploration.ipynb
+│   ├── utils.py                config, paths, seeding, logging, keep-awake
+│   ├── data_loader.py          metadata tables, label rules, spectrum readers with validation
+│   ├── exploration.py          exploration tables and figures
+│   ├── preprocessing.py        MALDIquant-equivalent preprocessing and binning
+│   ├── dataset.py              cohort selection, exclusion audit, dataset builder/loader
+│   └── splits.py               random / temporal / external splits with leakage checks
+├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
 ├── .github/workflows/tests.yml
@@ -200,3 +298,7 @@ Weis et al. (2022) and the DRIAMS dataset.
    Antimicrobials and MALDI-TOF Mass Spectra. Dryad (2021, updated 2025).
    https://doi.org/10.5061/dryad.bzkh1899q
 3. maldi-learn (BorgwardtLab): https://github.com/BorgwardtLab/maldi-learn
+4. maldi_amr, DRIAMS preprocessing scripts (BorgwardtLab):
+   https://github.com/BorgwardtLab/maldi_amr/tree/public/amr_maldi_ml/DRIAMS_preprocessing
+5. Gibb S, Strimmer K. MALDIquant: a versatile R package for the analysis of mass spectrometry data.
+   *Bioinformatics* 28, 2270–2271 (2012). https://doi.org/10.1093/bioinformatics/bts447

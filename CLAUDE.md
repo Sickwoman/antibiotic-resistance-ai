@@ -25,3 +25,7 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
 - DRIAMS data lives outside the repo at `C:\DRIAMS` (`config.yaml` → `paths.driams_root`).
 - Run tests: `.\.venv\Scripts\python.exe -m pytest -q`
 - Verified data facts are recorded in `config.yaml` comments and `README.md`.
+- Version 0.2 dataset: `.\.venv\Scripts\python.exe scripts\build_dataset.py` writes
+  `data/processed/ecoli_ciprofloxacin/` (git-ignored). Never export patient_no / case_no / order_no.
+- Anything learned from data (scaling, PCA, feature selection) must be fitted inside model pipelines on
+  training rows only; `src/preprocessing.py` stays stateless.
