@@ -180,25 +180,57 @@ def label_counts(series: pd.Series, ambiguous_values: Iterable[str]) -> dict[str
     return counts
 
 
+INTERMEDIATE_POLICIES = ("resistant", "susceptible", "exclude")
+# Label status values returned by label_status (the dataset builder turns them into exclusion reasons).
+LABEL_OK, LABEL_MISSING, LABEL_AMBIGUOUS, LABEL_UNSUPPORTED, LABEL_I_EXCLUDED = (
+    "ok", "missing", "ambiguous", "unsupported", "intermediate_excluded")
+
+
+def label_status(series: pd.Series, intermediate_as: str = "resistant",
+                 ambiguous_values: Iterable[str] = ()) -> pd.DataFrame:
+    """Per-row label (1 resistant / 0 susceptible / NaN) and the reason when there is no label.
+
+    This is the single place where the intermediate (I) policy is applied:
+    'resistant' (Weis et al. 2022 convention), 'susceptible' or 'exclude'.
+    """
+    if intermediate_as not in INTERMEDIATE_POLICIES:
+        raise ValueError(f"intermediate_as must be one of {list(INTERMEDIATE_POLICIES)}, got {intermediate_as!r}")
+    values = series.astype("string").str.strip()
+    ambiguous = sorted({v.strip() for v in ambiguous_values})
+
+    def mask(condition: pd.Series) -> np.ndarray:  # string comparisons yield <NA> for missing values
+        return condition.fillna(False).to_numpy(dtype=bool)
+
+    is_r, is_s, is_i = mask(values == "R"), mask(values == "S"), mask(values == "I")
+    label = np.full(len(series), np.nan)
+    label[is_r] = 1.0
+    label[is_s] = 0.0
+    if intermediate_as == "resistant":
+        label[is_i] = 1.0
+    elif intermediate_as == "susceptible":
+        label[is_i] = 0.0
+
+    status = np.full(len(series), LABEL_UNSUPPORTED, dtype=object)
+    status[~np.isnan(label)] = LABEL_OK
+    status[values.isna().to_numpy(dtype=bool) | mask(values == "")] = LABEL_MISSING
+    status[mask(values.isin(ambiguous))] = LABEL_AMBIGUOUS
+    if intermediate_as == "exclude":
+        status[is_i] = LABEL_I_EXCLUDED
+    return pd.DataFrame({"label": label, "status": status, "value": values}, index=series.index)
+
+
 def encode_labels(series: pd.Series, intermediate_as: str = "resistant",
                   ambiguous_values: Iterable[str] = ()) -> pd.Series:
     """Map phenotype strings to 1 (resistant) / 0 (susceptible) / NaN (unusable).
 
-    intermediate_as: 'resistant' (Weis et al. 2022 convention), 'susceptible' or 'exclude'.
     Unknown strings raise an error rather than being dropped silently.
     """
-    i_value = {"resistant": 1.0, "susceptible": 0.0, "exclude": np.nan}
-    if intermediate_as not in i_value:
-        raise ValueError(f"intermediate_as must be one of {sorted(i_value)}, got {intermediate_as!r}")
-    mapping = {"R": 1.0, "S": 0.0, "I": i_value[intermediate_as]}
-    mapping.update({v.strip(): np.nan for v in ambiguous_values})
-    values = series.astype("string").str.strip()
-    unknown = values.dropna()
-    unknown = unknown[(unknown != "") & ~unknown.isin(list(mapping))]
+    result = label_status(series, intermediate_as, ambiguous_values)
+    unknown = result.loc[result["status"] == LABEL_UNSUPPORTED, "value"]
     if not unknown.empty:
-        examples = sorted(unknown.unique())[:5]
+        examples = sorted(unknown.astype(str).unique())[:5]
         raise MetadataError(f"Column {series.name!r} has unrecognised label values: {examples}")
-    out = values.map(mapping, na_action="ignore").astype("float64")
+    out = result["label"]
     out.name = series.name
     return out
 

@@ -127,3 +127,67 @@ extraction:
   # Folders pulled out of each archive in V0.1 (raw spectra are extracted per species in V0.2).
   default_folders: [id, binned_6000]
   min_free_disk_gb: 20
+
+# ------------------------------------------------------------------------------------------------
+# Version 0.2 - spectrum preprocessing (stateless: every spectrum is processed on its own).
+# Reproduces the DRIAMS pipeline: R scripts amr_maldi_ml/DRIAMS_preprocessing/*_preprocessed.r in
+# BorgwardtLab/maldi_amr, run with MALDIquant (algorithms checked against MALDIquant 1.22.3):
+#   transformIntensity(sqrt) -> smoothIntensity(SavitzkyGolay, halfWindowSize=10)
+#   -> removeBaseline(removeBaseline(., SNIP, iterations=20))   # outer call = SNIP, 100 iterations
+#   -> calibrateIntensity(TIC over the full spectrum) -> trim(2000, 20000)
+# plus DRIAMS binning: sum of intensities in 3 Da bins [2000, 20000] -> 6000 features.
+# Checked on 25 DRIAMS-B E. coli spectra: max relative difference 7.6e-14 to the published
+# preprocessed and binned_6000 files (a single SNIP pass differs by 5e-5).
+# ------------------------------------------------------------------------------------------------
+preprocessing:
+  spectrum_folder: raw              # input folder inside each site
+  min_raw_points: 100               # fewer points = malformed spectrum
+  intensity_transform: sqrt         # sqrt | none
+  smoothing:
+    method: savitzky_golay          # savitzky_golay | none
+    half_window_size: 10
+    polynomial_order: 3
+  baseline:
+    method: snip                    # snip | none
+    iterations: [20, 100]           # applied one after another, as in the DRIAMS scripts
+  normalization: tic                # tic | none   (trapezoidal area of the whole spectrum)
+  mz_min: 2000.0
+  mz_max: 20000.0
+  bin_width: 3.0                    # (mz_max - mz_min) / bin_width must be a whole number
+  dtype: float32
+
+dataset:
+  name: ecoli_ciprofloxacin         # output folder under output_dir
+  output_dir: data/processed        # git-ignored
+  # species and antibiotic come from target.species / target.preferred_antibiotic;
+  # the intermediate (I) policy comes from labels.intermediate_as.
+  sites: [DRIAMS-A, DRIAMS-B]       # add DRIAMS-C / DRIAMS-D here once downloaded and extracted
+  # Screening samples excluded from the primary cohort (kept in the exclusion list, never deleted).
+  # Sites without a workstation column (DRIAMS-B) cannot be filtered this way.
+  exclude_workstations: [HospitalHygiene]
+  require_acquisition_date: false   # only temporal splits need it; they check it themselves
+  flag_duplicate_spectra: true      # identical processed vectors: keep the first, exclude the rest
+  # Compare every processed spectrum with the published DRIAMS binned_6000 file for the same code
+  # (only when the preprocessing settings are the DRIAMS ones). Checked 2026-09-16: 4,472 of 4,483
+  # E. coli ciprofloxacin spectra agree to <= 5e-8; 11 DRIAMS-A codes differ by 6-38 % because the
+  # raw and the binned file hold different measurements, so the label cannot be tied to the raw file.
+  verify_against_driams_binned: true
+  verification_tolerance: 1.0e-4    # max |ours - DRIAMS| / max(DRIAMS)
+  chunk_size: 256                   # spectra processed before flushing to disk
+
+splits:
+  # All splits keep patient groups together where a patient ID exists (DRIAMS-A: patient_no,
+  # which is re-hashed per year folder, so the same person in two years cannot be detected).
+  random:
+    sites: [DRIAMS-A]
+    test_fraction: 0.2
+    validation_fraction: 0.1        # of all samples, taken from the non-test part
+  temporal:
+    sites: [DRIAMS-A]
+    date_column: acquisition_date   # never the year folder
+    validation_start: "2017-10-01"  # train < validation_start <= validation < test_start
+    test_start: "2018-01-01"
+  external:
+    train_sites: [DRIAMS-A]
+    test_sites: [DRIAMS-B]          # add DRIAMS-C / DRIAMS-D when available
+    validation_fraction: 0.1
