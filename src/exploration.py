@@ -243,7 +243,8 @@ def column_tables(sites: dict[str, SiteData], metadata_columns: list[str]) -> tu
     return pd.DataFrame(presence), pd.DataFrame(categories)
 
 
-def species_tables(sites: dict[str, SiteData], failed: list[str], mixed_prefix: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def species_tables(sites: dict[str, SiteData], failed: list[str],
+                   mixed_prefix: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows, qc = [], []
     for site, sd in sites.items():
         t = sd.table
@@ -260,7 +261,8 @@ def species_tables(sites: dict[str, SiteData], failed: list[str], mixed_prefix: 
     return pd.concat(rows, ignore_index=True), pd.DataFrame(qc)
 
 
-def antibiotic_label_table(sites: dict[str, SiteData], ambiguous: list[str], species: str | None = None) -> pd.DataFrame:
+def antibiotic_label_table(sites: dict[str, SiteData], ambiguous: list[str],
+                           species: str | None = None) -> pd.DataFrame:
     rows = []
     for site, sd in sites.items():
         t = sd.table if species is None else sd.table[sd.table[SPECIES_COL] == species]
@@ -304,7 +306,8 @@ def duplicate_table(sites: dict[str, SiteData], species: str, group_columns: lis
             "duplicated_code_rows": int(t[CODE_COL].dropna().duplicated().sum()),
             "fully_duplicated_rows": int(t.drop(columns=[c for c in ADDED_COLS if c in t.columns]).duplicated().sum()),
             "codes_in_more_than_one_year": int((years_per_code > 1).sum()),
-            "codes_shared_with_other_sites": int(sum(1 for c in t[CODE_COL].dropna().unique() if len(code_sites[c]) > 1)),
+            "codes_shared_with_other_sites": int(sum(1 for c in t[CODE_COL].dropna().unique()
+                                                     if len(code_sites[c]) > 1)),
             "group_column": gcol or "none available",
         }
         if gcol:
@@ -354,7 +357,8 @@ def group_concentration_table(sites: dict[str, SiteData], species: str, group_co
                 if col in g.columns and col != gcol:
                     row[f"distinct_{col}"] = g[col].nunique()
             if "acquisition_date" in g.columns:
-                row["distinct_acquisition_days"] = pd.to_datetime(g["acquisition_date"], errors="coerce").dt.date.nunique()
+                days = pd.to_datetime(g["acquisition_date"], errors="coerce").dt.date
+                row["distinct_acquisition_days"] = days.nunique()
             if "workstation" in g.columns:
                 row["distinct_workstations"] = g["workstation"].nunique()
                 row["workstations"] = ", ".join(f"{k}:{v}" for k, v in g["workstation"].value_counts().head(4).items())
@@ -420,7 +424,8 @@ def pair_candidates(sites: dict[str, SiteData], config: dict) -> tuple[pd.DataFr
             years_ok = sum(1 for v in by_year.values() if v["class1"] > 0 and v["class0"] > 0)
             test = by_year.get(str(ps["temporal_test_year"]), {"class1": 0})
             row.update({"dev_R": c["R"], "dev_I": c["I"], "dev_S": c["S"], "dev_class1": c["class1"],
-                        "dev_class0": c["class0"], "dev_minority_frac": round(min(c["class1"], c["class0"]) / n, 4) if n else 0.0,
+                        "dev_class0": c["class0"],
+                        "dev_minority_frac": round(min(c["class1"], c["class0"]) / n, 4) if n else 0.0,
                         "dev_years_with_both_classes": years_ok, "dev_years_total": len(by_year) if by_year else 0,
                         "dev_class1_test_year": test["class1"]})
             gcol = group_column(t, config.get("driams", {}).get("group_columns", []))
@@ -455,9 +460,11 @@ def pair_candidates(sites: dict[str, SiteData], config: dict) -> tuple[pd.DataFr
             if row["dev_minority_frac"] < ps["min_minority_fraction"]:
                 reasons.append(f"minority fraction {row['dev_minority_frac']:.3f} < {ps['min_minority_fraction']}")
             if row["dev_years_with_both_classes"] < ps["min_years_with_labels"]:
-                reasons.append(f"years with both classes {row['dev_years_with_both_classes']} < {ps['min_years_with_labels']}")
+                reasons.append(f"years with both classes {row['dev_years_with_both_classes']} "
+                               f"< {ps['min_years_with_labels']}")
             if row["dev_class1_test_year"] < ps["min_resistant_test_year"]:
-                reasons.append(f"resistant in {ps['temporal_test_year']} {row['dev_class1_test_year']} < {ps['min_resistant_test_year']}")
+                reasons.append(f"resistant in {ps['temporal_test_year']} {row['dev_class1_test_year']} "
+                               f"< {ps['min_resistant_test_year']}")
         if meeting < ps["min_external_sites"]:
             if meeting + len(missing) >= ps["min_external_sites"]:
                 pending.append(f"external sites not yet available: {', '.join(missing)}")
@@ -506,9 +513,11 @@ def pair_candidates(sites: dict[str, SiteData], config: dict) -> tuple[pd.DataFr
         if len(fallback):
             decision["selected_antibiotic"] = fallback["antibiotic"].iloc[0]
             decision["message"] = (f"{preferred} is not eligible ({decision['preferred_reasons']}); "
-                                   f"{decision['selected_antibiotic']} has the largest minority class among eligible antibiotics.")
+                                   f"{decision['selected_antibiotic']} has the largest minority class among "
+                                   "eligible antibiotics.")
         else:
-            decision["message"] = "No antibiotic meets the pre-registered rules; thresholds must be reconsidered explicitly."
+            decision["message"] = ("No antibiotic meets the pre-registered rules; thresholds must be reconsidered "
+                                   "explicitly.")
     return table, decision
 
 
@@ -558,7 +567,7 @@ def acquisition_months(sites: dict[str, SiteData]) -> pd.DataFrame:
 
 def _hbar_value_labels(ax, bars, values, fmt="{:,}") -> None:
     xmax = ax.get_xlim()[1]
-    for bar, v in zip(bars, values):
+    for bar, v in zip(bars, values, strict=True):
         ax.text(bar.get_x() + bar.get_width() + xmax * 0.01, bar.get_y() + bar.get_height() / 2,
                 fmt.format(v), va="center", ha="left", fontsize=8.5, color=INK_2)
 
@@ -575,7 +584,7 @@ def plot_samples_per_site(inventory: pd.DataFrame, path: Path) -> Path | None:
     sites = list(agg.index)[::-1]
     fig, axes = plt.subplots(1, len(cols), figsize=(4.2 * len(cols), 0.45 * len(sites) + 1.4), sharey=True)
     axes = np.atleast_1d(axes)
-    for ax, col in zip(axes, cols):
+    for ax, col in zip(axes, cols, strict=True):
         vals = [int(agg.loc[s, col]) for s in sites]
         y = np.arange(len(sites))
         bars = ax.barh(y, vals, height=_bar_size(fig, ax, len(sites), horizontal=True),
@@ -600,7 +609,7 @@ def plot_samples_per_site_year(inventory: pd.DataFrame, path: Path) -> Path | No
     fig, axes = plt.subplots(len(measures), 1, figsize=(max(6, 1.3 * len(years) + 2), 6.2), sharex=True)
     width = _bar_size(fig, axes[0], max(len(years), 3), horizontal=False, cap=0.8 / len(sites))
     x = np.arange(len(years))
-    for ax, (col, title) in zip(axes, measures):
+    for ax, (col, title) in zip(axes, measures, strict=True):
         ax.set_xlim(*_slot_limits(len(years)))
         for k, site in enumerate(sites):
             sub = inventory[inventory["site"] == site].set_index("year")[col]
@@ -648,7 +657,8 @@ def plot_top_species(species: pd.DataFrame, failed: list[str], path: Path, top: 
     pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index[:top]].iloc[::-1]
     return _stacked_hbar(pivot, {c: site_color(c) for c in pivot.columns}, path,
                          f"Top {len(pivot)} species by number of spectra",
-                         "All metadata rows; failed identifications ('no peaks found') excluded", "Spectra (metadata rows)")
+                         "All metadata rows; failed identifications ('no peaks found') excluded",
+                         "Spectra (metadata rows)")
 
 
 def plot_top_antibiotics(labels: pd.DataFrame, path: Path, top: int = 25) -> Path | None:
@@ -674,7 +684,7 @@ def plot_label_distribution(labels: pd.DataFrame, path: Path, title: str, subtit
     ax = fig.axes[0]
     if annotate_rate:
         xmax = ax.get_xlim()[1]
-        for i, (abx, r) in enumerate(agg.iterrows()):
+        for i, (_, r) in enumerate(agg.iterrows()):
             total = r.sum()
             rate = (r["R"] + r["I"]) / total if total else 0
             ax.text(total + xmax * 0.01, i, f"{rate:.0%} R+I", va="center", fontsize=8, color=INK_2)
@@ -729,7 +739,7 @@ def plot_pair_by_site_year(per_year: pd.DataFrame, antibiotic: str, species: str
                linewidth=1.5, label=LABEL_NAMES[lab])
         bottom += vals
     ymax = max(bottom.max(), 1)
-    for xi, total, rate in zip(x, bottom, df["class1_rate"]):
+    for xi, total, rate in zip(x, bottom, df["class1_rate"], strict=True):
         ax.text(xi, total + ymax * 0.015, f"n={int(total):,}\n{rate:.0%} R+I" if total else "n=0",
                 ha="center", va="bottom", fontsize=8, color=INK_2)
     ax.set_ylim(0, ymax * 1.25)
@@ -742,7 +752,8 @@ def plot_pair_by_site_year(per_year: pd.DataFrame, antibiotic: str, species: str
     return _save(fig, path)
 
 
-def plot_label_coverage(sites: dict[str, SiteData], species: str, path: Path, top: int = 25) -> tuple[Path | None, pd.DataFrame]:
+def plot_label_coverage(sites: dict[str, SiteData], species: str, path: Path,
+                        top: int = 25) -> tuple[Path | None, pd.DataFrame]:
     cols = {}
     for site, sd in sites.items():
         t = target_rows(sd, species)
@@ -775,7 +786,8 @@ def plot_label_coverage(sites: dict[str, SiteData], species: str, path: Path, to
 def plot_example_spectra(config: dict, sites: dict[str, SiteData], species: str, path: Path) -> Path | None:
     """Format sanity check: one binned spectrum (and a raw one if raw files were extracted)."""
     root = driams_root(config)
-    order = [config["pair_selection"]["development_site"]] + [s for s in sites if s != config["pair_selection"]["development_site"]]
+    dev = config["pair_selection"]["development_site"]
+    order = [dev] + [s for s in sites if s != dev]
     for site in [s for s in order if s in sites]:
         t = target_rows(sites[site], species)
         for _, r in t.iterrows():

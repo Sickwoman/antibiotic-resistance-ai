@@ -31,7 +31,15 @@ from src.data_loader import INTERMEDIATE_POLICIES, DataError, read_binned_spectr
 from src.dataset import EXCLUSION_REASONS, CohortSpec, build_dataset, load_dataset, resolve_relpath  # noqa: E402
 from src.preprocessing import PreprocessingConfig, preprocess_file  # noqa: E402
 from src.splits import LeakageError, SplitError, check_split, make_splits  # noqa: E402
-from src.utils import ConfigError, driams_root, get_logger, keep_awake, load_config, project_path, set_seed  # noqa: E402
+from src.utils import (  # noqa: E402
+    ConfigError,
+    driams_root,
+    get_logger,
+    keep_awake,
+    load_config,
+    project_path,
+    set_seed,
+)
 
 log = get_logger("build")
 
@@ -186,7 +194,8 @@ def main() -> int:
                        "read_and_preprocess_ms": round(elapsed_ms, 1)}
             print(json.dumps(example, indent=2))
             (report_dir / "example_preprocessing.json").write_text(json.dumps(example, indent=2), encoding="utf-8")
-            plot_example(config, X, meta, row, project_path("results/plots/v0.2") / f"{spec.name}_example_preprocessing.png")
+            plot_path = project_path("results/plots/v0.2") / f"{spec.name}_example_preprocessing.png"
+            plot_example(config, X, meta, row, plot_path)
             print(f"\nReports: {report_dir}")
             print("No model was trained.")
         return 0

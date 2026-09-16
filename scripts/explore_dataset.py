@@ -91,7 +91,8 @@ def main() -> int:
     print(f"Not available yet: {', '.join(missing) or 'none'}")
     for site, sd in sites.items():
         manifest = "yes" if sd.manifest is not None else "NO (run extract_driams.py to create it)"
-        print(f"  {site}: {len(sd.table):,} metadata rows, years {sorted(sd.table['driams_year'].unique())}, manifest: {manifest}")
+        years = sorted(sd.table["driams_year"].unique())
+        print(f"  {site}: {len(sd.table):,} metadata rows, years {years}, manifest: {manifest}")
 
     # ---------------------------------------------------------------- inventory
     inventory = ex.inventory_table(sites, d["spectra_folders"])

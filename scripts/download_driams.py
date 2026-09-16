@@ -30,7 +30,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -188,7 +188,7 @@ def fetch_segment(url: str, index: int, start: int, end: int, part: Path,
             active[0] -= 1
 
 
-def hash_file(path: Path, algo: str, label: str, hasher=None, limit: int | None = None) -> "hashlib._Hash":
+def hash_file(path: Path, algo: str, label: str, hasher=None, limit: int | None = None) -> hashlib._Hash:
     """Hash `path` (optionally only its first `limit` bytes), printing progress every 15 s."""
     hasher = hasher or hashlib.new(algo)
     total = path.stat().st_size if limit is None else limit
@@ -372,7 +372,8 @@ def verify_existing(config: dict, site: str, path: Path | None = None) -> bool:
         return False
     digest = hash_file(target, info["checksum_type"], info["site"]).hexdigest()
     if digest.lower() != info["checksum"].lower():
-        log.error("[%s] %s mismatch: got %s, expected %s", info["site"], info["checksum_type"], digest, info["checksum"])
+        log.error("[%s] %s mismatch: got %s, expected %s",
+                  info["site"], info["checksum_type"], digest, info["checksum"])
         return False
     log.info("[%s] size OK, %s OK (%s)", info["site"], info["checksum_type"], target)
     return True

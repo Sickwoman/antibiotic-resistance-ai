@@ -17,9 +17,11 @@ import json
 import shutil
 import subprocess
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -132,6 +134,11 @@ def _bool(values: Any) -> np.ndarray:
     return series.fillna(False).to_numpy(dtype=bool)
 
 
+def _assign_reason(reason: np.ndarray, mask: np.ndarray, name: str) -> None:
+    """Give `name` to masked rows that have no reason yet (the first applicable reason wins)."""
+    reason[mask & np.equal(reason, None)] = name
+
+
 def select_cohort(tables: dict[str, pd.DataFrame], spec: CohortSpec, ambiguous_values: Iterable[str],
                   spectrum_folder: str, spectrum_exists: Callable[[str], bool],
                   ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
@@ -153,9 +160,7 @@ def select_cohort(tables: dict[str, pd.DataFrame], spec: CohortSpec, ambiguous_v
         info["target_species_rows"][site] = len(t)
         n = len(t)
         reason = np.full(n, None, dtype=object)
-
-        def assign(mask: np.ndarray, name: str) -> None:
-            reason[mask & np.equal(reason, None)] = name
+        assign = partial(_assign_reason, reason)
 
         code = t[CODE_COL].astype("string")
         assign(_bool(code.isna()), "missing_code")
@@ -198,7 +203,8 @@ def select_cohort(tables: dict[str, pd.DataFrame], spec: CohortSpec, ambiguous_v
 
         years = t[YEAR_COL].astype(str).to_numpy()
         codes = code.fillna("").to_numpy(dtype=object)
-        relpaths = np.array([spectrum_relpath(site, spectrum_folder, y, c) for y, c in zip(years, codes)], dtype=object)
+        relpaths = np.array([spectrum_relpath(site, spectrum_folder, y, c)
+                             for y, c in zip(years, codes, strict=True)], dtype=object)
         pending = np.flatnonzero(np.equal(reason, None))
         exists = np.zeros(n, dtype=bool)
         exists[pending] = [spectrum_exists(relpaths[i]) for i in pending]
