@@ -1,0 +1,7 @@
+reason,site,count,meaning
+no_ast_result,DRIAMS-A,2334,no result for the antibiotic
+no_ast_result,DRIAMS-B,625,no result for the antibiotic
+ambiguous_ast_result,DRIAMS-A,75,"result that is not a single category, e.g. 'R(1), S(1)'"
+excluded_workstation,DRIAMS-A,633,sample type listed in dataset.exclude_workstations (e.g. HospitalHygiene)
+malformed_spectrum,DRIAMS-A,8,raw spectrum file unreadable or failed validation
+differs_from_driams_binned,DRIAMS-A,11,processed raw file does not match the published DRIAMS binned_6000 file for the same code (the two files hold different measurements)

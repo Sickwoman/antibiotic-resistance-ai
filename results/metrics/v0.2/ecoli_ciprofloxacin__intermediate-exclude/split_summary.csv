@@ -1,0 +1,10 @@
+split,part,samples,resistant,susceptible,groups,sites,dates
+random,train,2933,633,2300,1470,{'DRIAMS-A': 2933},2015-11-20 .. 2018-08-31
+random,validation,418,90,328,212,{'DRIAMS-A': 418},2015-11-20 .. 2018-08-29
+random,test,844,184,660,427,{'DRIAMS-A': 844},2015-11-25 .. 2018-08-31
+temporal,train,2473,536,1937,1235,{'DRIAMS-A': 2473},2015-11-20 .. 2017-09-30
+temporal,validation,459,104,355,235,{'DRIAMS-A': 459},2017-10-02 .. 2017-12-30
+temporal,test,1208,246,962,639,{'DRIAMS-A': 1208},2018-01-03 .. 2018-08-31
+external,train,3769,813,2956,1895,{'DRIAMS-A': 3769},2015-11-20 .. 2018-08-31
+external,validation,426,94,332,214,{'DRIAMS-A': 426},2015-11-30 .. 2018-08-31
+external,test,212,58,154,212,{'DRIAMS-B': 212},None .. None

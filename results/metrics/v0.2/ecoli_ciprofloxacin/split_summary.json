@@ -1,0 +1,123 @@
+{
+  "random": {
+    "name": "random",
+    "description": "Stratified, patient-grouped random split of ['DRIAMS-A']: test 20.1%, validation 10.0% of the samples (requested 20% / 10%), seed 42.",
+    "notes": [
+      "Group IDs are only valid within one DRIAMS-A year folder (patient_no is re-hashed per year)."
+    ],
+    "train": {
+      "samples": 2977,
+      "resistant": 677,
+      "susceptible": 2300,
+      "sites": {
+        "DRIAMS-A": 2977
+      },
+      "groups": 1491,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 426,
+      "resistant": 97,
+      "susceptible": 329,
+      "sites": {
+        "DRIAMS-A": 426
+      },
+      "groups": 218,
+      "date_min": "2015-12-07",
+      "date_max": "2018-08-30"
+    },
+    "test": {
+      "samples": 856,
+      "resistant": 197,
+      "susceptible": 659,
+      "sites": {
+        "DRIAMS-A": 856
+      },
+      "groups": 428,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    }
+  },
+  "temporal": {
+    "name": "temporal",
+    "description": "By acquisition_date at ['DRIAMS-A']: train < 2017-10-01 <= validation < 2018-01-01 <= test.",
+    "notes": [
+      "Removed 0 validation and 56 training sample(s) whose patient group also occurs in a later part.",
+      "Patient groups are only valid within one year folder; cross-year overlap cannot be detected."
+    ],
+    "train": {
+      "samples": 2505,
+      "resistant": 568,
+      "susceptible": 1937,
+      "sites": {
+        "DRIAMS-A": 2505
+      },
+      "groups": 1251,
+      "date_min": "2015-11-20",
+      "date_max": "2017-09-30"
+    },
+    "validation": {
+      "samples": 465,
+      "resistant": 110,
+      "susceptible": 355,
+      "sites": {
+        "DRIAMS-A": 465
+      },
+      "groups": 238,
+      "date_min": "2017-10-02",
+      "date_max": "2017-12-30"
+    },
+    "test": {
+      "samples": 1233,
+      "resistant": 271,
+      "susceptible": 962,
+      "sites": {
+        "DRIAMS-A": 1233
+      },
+      "groups": 648,
+      "date_min": "2018-01-03",
+      "date_max": "2018-08-31"
+    }
+  },
+  "external": {
+    "name": "external",
+    "description": "Train/validation on ['DRIAMS-A'], external test on ['DRIAMS-B'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
+    "notes": [
+      "Patients cannot be linked across hospitals, so cross-site patient overlap is not checked."
+    ],
+    "train": {
+      "samples": 3831,
+      "resistant": 873,
+      "susceptible": 2958,
+      "sites": {
+        "DRIAMS-A": 3831
+      },
+      "groups": 1919,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 428,
+      "resistant": 98,
+      "susceptible": 330,
+      "sites": {
+        "DRIAMS-A": 428
+      },
+      "groups": 218,
+      "date_min": "2015-11-22",
+      "date_max": "2018-08-28"
+    },
+    "test": {
+      "samples": 213,
+      "resistant": 59,
+      "susceptible": 154,
+      "sites": {
+        "DRIAMS-B": 213
+      },
+      "groups": 213,
+      "date_min": null,
+      "date_max": null
+    }
+  }
+}

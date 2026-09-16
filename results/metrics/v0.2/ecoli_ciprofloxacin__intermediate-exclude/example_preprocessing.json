@@ -1,0 +1,13 @@
+{
+  "sample_index": 0,
+  "site": "DRIAMS-A",
+  "raw_points": 20741,
+  "points_in_range": 20543,
+  "features": 6000,
+  "nonzero_bins": 5999,
+  "dtype": "float32",
+  "ast_value": "S",
+  "label": 0,
+  "matches_stored_row": true,
+  "read_and_preprocess_ms": 40.2
+}
