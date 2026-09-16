@@ -1,7 +1,7 @@
 {
   "dataset": "ecoli_ciprofloxacin__intermediate-exclude",
-  "created": "2026-09-17 00:22:22",
-  "git_commit": "9a59ce0",
+  "created": "2026-09-17 01:40:02",
+  "git_commit": "83dc1aa",
   "species": "Escherichia coli",
   "antibiotic": "Ciprofloxacin",
   "sites": [
@@ -160,6 +160,8 @@
     "Intermediate (I) results are handled as: exclude.",
     "Only stateless preprocessing is applied; no scaling, PCA or feature selection is fitted here."
   ],
+  "row_fingerprint": "2f202f7d91aba491",
+  "x_sha256": "5fbf7ead5b92155ac78bda46d82da9d887bdbe9f56e3a01e2bd6844d9912e74c",
   "verification_against_driams_binned": {
     "enabled": true,
     "tolerance": 0.0001,
@@ -170,5 +172,5 @@
     "max_relative_difference_of_verified": 5.882646691054322e-08,
     "skipped_reason": null
   },
-  "elapsed_seconds": 330.8
+  "elapsed_seconds": 292.5
 }

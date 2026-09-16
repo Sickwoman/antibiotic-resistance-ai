@@ -9,5 +9,5 @@
   "ast_value": "S",
   "label": 0,
   "matches_stored_row": true,
-  "read_and_preprocess_ms": 40.2
+  "read_and_preprocess_ms": 56.2
 }
