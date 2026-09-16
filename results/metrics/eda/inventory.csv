@@ -1,0 +1,2 @@
+site,year,id_rows,unique_codes,rows_with_RIS_label,raw_files,id_rows_with_raw,raw_files_without_id_row,preprocessed_files,id_rows_with_preprocessed,preprocessed_files_without_id_row,binned_6000_files,id_rows_with_binned_6000,binned_6000_files_without_id_row,labelled_rows_without_binned
+DRIAMS-B,2018,5897,5897,2384,6416,5708,708,6416,5708,708,2386,2386,0,0

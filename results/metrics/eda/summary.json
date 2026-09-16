@@ -1,0 +1,58 @@
+{
+  "version": "0.1.0",
+  "generated": "2026-09-16 15:40:05",
+  "driams_root": "C:\\DRIAMS",
+  "sites_available": [
+    "DRIAMS-B"
+  ],
+  "sites_not_available": [
+    "DRIAMS-A",
+    "DRIAMS-C",
+    "DRIAMS-D"
+  ],
+  "rows_per_site": {
+    "DRIAMS-B": 5897
+  },
+  "years_per_site": {
+    "DRIAMS-B": [
+      "2018"
+    ]
+  },
+  "absent_metadata_columns": {
+    "DRIAMS-B": [
+      "id",
+      "laboratory_species",
+      "case_no",
+      "acquisition_date",
+      "workstation"
+    ]
+  },
+  "antibiotic_columns_per_site": {
+    "DRIAMS-B": 40
+  },
+  "binary_marker_columns": {
+    "DRIAMS-B": [
+      "Cefoxitin_screen",
+      "Clindamycin_induced",
+      "ESBL",
+      "MRSA"
+    ]
+  },
+  "unknown_columns": {
+    "DRIAMS-B": []
+  },
+  "target_species": "Escherichia coli",
+  "target_rows_with_binned_spectrum": {
+    "DRIAMS-B": 213
+  },
+  "pair_decision": {
+    "species": "Escherichia coli",
+    "preferred_antibiotic": "Ciprofloxacin",
+    "intermediate_as": "resistant",
+    "selected_antibiotic": null,
+    "preferred_status": "pending",
+    "preferred_reasons": "DRIAMS-A not available; external sites not yet available: DRIAMS-C, DRIAMS-D",
+    "message": "No decision yet: the development site DRIAMS-A is not available. Counts above are preliminary and come only from the sites present."
+  },
+  "elapsed_seconds": 3.0
+}

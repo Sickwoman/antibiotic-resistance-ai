@@ -1,0 +1,116 @@
+# Central configuration for the antibiotic-resistance-ai project.
+# Every script reads this file; values below should not be hard-coded elsewhere.
+
+project:
+  name: antibiotic-resistance-ai
+  version: "0.1.0"
+  random_seed: 42
+
+paths:
+  # DRIAMS lives OUTSIDE the repository (it is ~145 GB compressed).
+  # Override with the environment variable DRIAMS_ROOT if you store it elsewhere.
+  driams_root: "C:/DRIAMS"
+  archives_subdir: archives        # downloaded .tar.gz files
+  manifests_subdir: manifests      # one CSV per site listing every file inside the archive
+  eda_metrics_dir: results/metrics/eda
+  eda_plots_dir: results/plots/eda
+
+# Verified on 2026-09-16 against the Zenodo API (record 5640517) and the Dryad API
+# (doi:10.5061/dryad.bzkh1899q, version 383184).
+# DRIAMS_A/B/D have identical sizes on both hosts. DRIAMS_C was re-uploaded to Dryad in
+# Aug 2025 (raw-file naming fix), so the Zenodo copy of C is outdated and is not used.
+driams:
+  archives:
+    A:
+      site: DRIAMS-A
+      institution: University Hospital Basel
+      period: "11/2015-08/2018"
+      filename: DRIAMS_A.tar.gz
+      url: "https://zenodo.org/records/5640517/files/DRIAMS_A.tar.gz?download=1"
+      size_bytes: 86161411795
+      checksum_type: md5
+      checksum: ca32ee8893afd57f6e80f4d7f3a37cf1
+    B:
+      site: DRIAMS-B
+      institution: Canton Hospital Basel-Land
+      period: "01/2018-06/2018"
+      filename: DRIAMS_B.tar.gz
+      url: "https://zenodo.org/records/5640517/files/DRIAMS_B.tar.gz?download=1"
+      size_bytes: 3688166065
+      checksum_type: md5
+      checksum: 86ef245c53b1a2cf547d04dee1dc79ea
+    C:
+      site: DRIAMS-C
+      institution: Canton Hospital Aarau
+      period: "01/2018-08/2018"
+      filename: DRIAMS_C.tar.gz
+      # Dryad blocks scripted downloads (HTTP 401/403). Download it in a browser from the
+      # page below, then register it with:
+      #   python scripts/download_driams.py --site C --from-file <path-to-downloaded-file>
+      url: null
+      manual_download_page: "https://datadryad.org/dataset/doi:10.5061/dryad.bzkh1899q"
+      size_bytes: 12433273727
+      checksum_type: sha256
+      checksum: 77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867
+    D:
+      site: DRIAMS-D
+      institution: Viollier AG (diagnostic laboratory)
+      period: "01/2018-06/2018"
+      filename: DRIAMS_D.tar.gz
+      url: "https://zenodo.org/records/5640517/files/DRIAMS_D.tar.gz?download=1"
+      size_bytes: 42557466856
+      checksum_type: md5
+      checksum: 21483b6232da155edc324febe5208ee1
+
+  # Sub-folders inside every site folder (DRIAMS README).
+  spectra_folders: [raw, preprocessed, binned_6000]
+  id_folder: id
+  # Metadata table per year: id/<year>/<year>_<id_suffix>.csv (maldi-learn default suffix).
+  id_suffix: clean
+  # Non-antibiotic columns. The first seven come from maldi-learn; combined_code was found in the
+  # real DRIAMS-B file. Not every site has every column: DRIAMS-B (checked 2026-09-16) only has
+  # species, code and combined_code (empty) - no case_no, acquisition_date or workstation.
+  metadata_columns: [id, code, combined_code, species, laboratory_species, case_no, acquisition_date, workstation]
+  # Screening results stored as 0/1 instead of R/I/S (DRIAMS-B: ESBL, MRSA, Cefoxitin_screen,
+  # Clindamycin_induced). Reported separately; never used as antibiotic targets.
+  binary_marker_values: ["0", "1"]
+  # Species entries that are identification failures or mixed cultures (seen in DRIAMS-B).
+  failed_identification_species: ["no peaks found"]
+  mixed_species_prefix: "MIX!"
+  # binned_6000 files: header "bin_index binned_intensity", 6000 rows (verified on DRIAMS-B).
+  n_bins: 6000
+
+labels:
+  # Susceptible = 0, Resistant = 1.
+  # Weis et al. (2022) labelled intermediate (I) as resistant (class 1). We follow that
+  # convention and report I counts separately so its effect is visible.
+  intermediate_as: resistant        # resistant | susceptible | exclude
+  # Bracketed / mixed entries are ambiguous (maldi-learn maps them to NaN).
+  ambiguous_values: ["S(2)", "R(1)", "R(2)", "L(1)", "I(1)", "I(1), S(1)", "R(1), I(1)",
+                     "R(1), S(1)", "R(1), I(1), S(1)"]
+  missing_values: ["-", ""]
+
+target:
+  species: Escherichia coli
+  preferred_antibiotic: Ciprofloxacin
+  # Fallback reference: Ceftriaxone is the E. coli target used by Weis et al. (2022).
+  reference_antibiotic: Ceftriaxone
+
+# Pre-registered eligibility rules for choosing the species-antibiotic pair.
+# Fixed BEFORE looking at DRIAMS-A so the choice is not tuned to the results.
+pair_selection:
+  development_site: DRIAMS-A
+  min_resistant_dev: 500            # class-1 samples (R, plus I when intermediate_as=resistant)
+  min_susceptible_dev: 500
+  min_minority_fraction: 0.10
+  min_years_with_labels: 3          # out of the DRIAMS-A years
+  temporal_test_year: "2018"
+  min_resistant_test_year: 50
+  external_sites: [DRIAMS-B, DRIAMS-C, DRIAMS-D]
+  min_per_class_external: 30
+  min_external_sites: 2
+
+extraction:
+  # Folders pulled out of each archive in V0.1 (raw spectra are extracted per species in V0.2).
+  default_folders: [id, binned_6000]
+  min_free_disk_gb: 20

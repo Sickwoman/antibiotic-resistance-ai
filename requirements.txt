@@ -1,0 +1,10 @@
+# Version 0.1 dependencies (data acquisition + exploration).
+# Later versions add scikit-learn, lightgbm/xgboost, torch, shap, fastapi, uvicorn only when needed.
+# Exact versions of the tested environment are recorded in requirements-lock.txt.
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8
+pyyaml>=6.0
+pytest>=8.0
+notebook>=7.0
+ipykernel>=6.29

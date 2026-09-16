@@ -1,0 +1,71 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Secrets / local settings ---
+.env
+*.key
+*.pem
+secrets/
+
+# --- Data (never commit datasets; DRIAMS lives in C:/DRIAMS) ---
+data/raw/*
+data/processed/*
+data/sample/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/sample/.gitkeep
+*.tar.gz
+*.tar
+*.zip
+*.parts/
+*.part
+*.assembling
+*.checksum-mismatch
+*.npy
+*.npz
+*.parquet
+*.h5
+*.hdf5
+
+# --- Models and caches ---
+models/*
+!models/.gitkeep
+*.joblib
+*.pkl
+*.pt
+*.pth
+*.onnx
+.cache/
+catboost_info/
+lightning_logs/
+mlruns/
+
+# --- Results: keep small tables/plots, ignore bulky intermediates ---
+results/**/*.tmp
+results/experiments/**/checkpoints/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Frontend (later versions) ---
+node_modules/
+dist/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,2 @@
+site,id_rows,rows_with_missing_code,duplicated_code_rows,fully_duplicated_rows,codes_in_more_than_one_year,codes_shared_with_other_sites,has_case_no
+DRIAMS-B,5897,0,0,0,0,0,False
