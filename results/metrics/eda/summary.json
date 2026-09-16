@@ -1,36 +1,75 @@
 {
   "version": "0.1.0",
-  "generated": "2026-09-16 15:40:05",
+  "generated": "2026-09-16 22:48:17",
   "driams_root": "C:\\DRIAMS",
   "sites_available": [
+    "DRIAMS-A",
     "DRIAMS-B"
   ],
   "sites_not_available": [
-    "DRIAMS-A",
     "DRIAMS-C",
     "DRIAMS-D"
   ],
   "rows_per_site": {
+    "DRIAMS-A": 111257,
     "DRIAMS-B": 5897
   },
   "years_per_site": {
+    "DRIAMS-A": [
+      "2015",
+      "2016",
+      "2017",
+      "2018"
+    ],
     "DRIAMS-B": [
       "2018"
     ]
   },
+  "metadata_files_used": {
+    "DRIAMS-A": [
+      "2015_strat.csv",
+      "2016_strat.csv",
+      "2017_strat.csv",
+      "2018_strat.csv"
+    ],
+    "DRIAMS-B": [
+      "2018_clean.csv"
+    ]
+  },
+  "ignored_index_columns": {
+    "DRIAMS-A": {
+      "DRIAMS-A/2018": [
+        "Unnamed: 0"
+      ]
+    },
+    "DRIAMS-B": {}
+  },
   "absent_metadata_columns": {
+    "DRIAMS-A": [
+      "id",
+      "combined_code"
+    ],
     "DRIAMS-B": [
       "id",
       "laboratory_species",
+      "patient_no",
       "case_no",
+      "order_no",
       "acquisition_date",
+      "acquisition_time",
       "workstation"
     ]
   },
+  "patient_group_column": {
+    "DRIAMS-A": "patient_no",
+    "DRIAMS-B": null
+  },
   "antibiotic_columns_per_site": {
+    "DRIAMS-A": 82,
     "DRIAMS-B": 40
   },
   "binary_marker_columns": {
+    "DRIAMS-A": [],
     "DRIAMS-B": [
       "Cefoxitin_screen",
       "Clindamycin_induced",
@@ -39,20 +78,27 @@
     ]
   },
   "unknown_columns": {
+    "DRIAMS-A": [],
     "DRIAMS-B": []
   },
   "target_species": "Escherichia coli",
   "target_rows_with_binned_spectrum": {
+    "DRIAMS-A": 7320,
     "DRIAMS-B": 213
   },
   "pair_decision": {
     "species": "Escherichia coli",
     "preferred_antibiotic": "Ciprofloxacin",
     "intermediate_as": "resistant",
-    "selected_antibiotic": null,
+    "selected_antibiotic": "Ciprofloxacin",
     "preferred_status": "pending",
-    "preferred_reasons": "DRIAMS-A not available; external sites not yet available: DRIAMS-C, DRIAMS-D",
-    "message": "No decision yet: the development site DRIAMS-A is not available. Counts above are preliminary and come only from the sites present."
+    "preferred_reasons": "external sites not yet available: DRIAMS-C, DRIAMS-D",
+    "message": "Ciprofloxacin meets every rule that can be checked now; final confirmation after: external sites not yet available: DRIAMS-C, DRIAMS-D."
   },
-  "elapsed_seconds": 3.0
+  "benchmark_pair": {
+    "antibiotic": "Ceftriaxone",
+    "status": "pending",
+    "reasons": "external sites not yet available: DRIAMS-C, DRIAMS-D"
+  },
+  "elapsed_seconds": 22.8
 }

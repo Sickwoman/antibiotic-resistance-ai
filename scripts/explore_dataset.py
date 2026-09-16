@@ -108,8 +108,13 @@ def main() -> int:
     print()
     for site, sd in sites.items():
         s = sd.split
-        print(f"{site}: {len(s.antibiotics)} R/I/S antibiotic columns | 0/1 marker columns: {s.binary_markers or 'none'}"
+        files = sorted(sd.table["driams_id_file"].unique())
+        print(f"{site}: metadata files used {files}")
+        print(f"   {len(s.antibiotics)} R/I/S antibiotic columns | 0/1 marker columns: {s.binary_markers or 'none'}"
               f" | all-empty columns: {s.empty or 'none'} | UNKNOWN columns: {s.unknown or 'none'}")
+        dropped = sd.table.attrs.get("dropped_columns", {})
+        if dropped:
+            print(f"   ignored leftover index columns: {dropped}")
     unknown = categories[categories["category"] == "unknown"] if not categories.empty else categories
     if not unknown.empty:
         print("\nColumns that are neither metadata nor R/I/S nor 0/1 (review before using):")
@@ -152,10 +157,23 @@ def main() -> int:
     print(f"Distinct antibiotic columns across sites: {labels_all['antibiotic'].nunique()}")
 
     # ---------------------------------------------------------------- duplicates
-    dups = ex.duplicate_table(sites, species)
+    group_cols = d["group_columns"]
+    dups = ex.duplicate_table(sites, species, group_cols)
     save_csv(dups, "duplicates.csv")
-    section("6. Duplicates and repeated patients (leakage checks)")
-    show(dups)
+    section("6. Duplicates and repeated patients (leakage checks; 'group' = patient_no, else case_no)")
+    show(dups.T.reset_index().rename(columns={"index": "check"}))
+    concentration = ex.group_concentration_table(sites, species, group_cols)
+    save_csv(concentration, "target_species_largest_patient_groups.csv")
+    if not concentration.empty:
+        print(f"\nLargest {species} patient groups (IDs not shown). Many spectra under one case/order spread over "
+              "months and sample types suggest a placeholder ID, not one real patient:")
+        show(concentration)
+    acq_vs_folder = ex.acquisition_vs_folder_table(sites)
+    save_csv(acq_vs_folder, "acquisition_year_vs_folder_year.csv")
+    mismatch = acq_vs_folder[acq_vs_folder["folder_year"] != acq_vs_folder["acquisition_year"]]
+    if not mismatch.empty:
+        print("\nSpectra whose acquisition year differs from their year folder:")
+        show(mismatch)
     if not args.skip_spectrum_hash:
         dup_spectra = ex.duplicate_spectra_table(config, sites, species)
         save_csv(dup_spectra, "duplicate_binned_spectra_target_species.csv")
@@ -172,7 +190,8 @@ def main() -> int:
             f"{config['labels']['intermediate_as']})")
     ext_cols = [c for c in candidates.columns if c.startswith("DRIAMS-") and c.endswith(("_class1", "_class0"))]
     base_cols = [c for c in ["antibiotic", "status", "dev_R", "dev_I", "dev_S", "dev_minority_frac",
-                             "dev_years_with_both_classes", "dev_class1_test_year"] if c in candidates.columns]
+                             "dev_years_with_both_classes", "dev_class1_test_year",
+                             "dev_groups_class1", "dev_groups_class0"] if c in candidates.columns]
     tested = candidates[candidates["pooled_available_class1"] + candidates["pooled_available_class0"] > 0]
     untested = candidates.loc[candidates["pooled_available_class1"] + candidates["pooled_available_class0"] == 0,
                               "antibiotic"].tolist()
@@ -195,6 +214,22 @@ def main() -> int:
     else:
         print("\nResistance rate by workstation (large differences mean sample type could act as a shortcut):")
         show(per_ws)
+
+    benchmark = config["target"].get("benchmark_antibiotic")
+    bench_year = pd.DataFrame()
+    bench_info = None
+    if benchmark:
+        bench_row = candidates[candidates["antibiotic"] == benchmark]
+        bench_info = {"antibiotic": benchmark,
+                      "status": bench_row["status"].iloc[0] if len(bench_row) else "absent",
+                      "reasons": bench_row["reasons"].iloc[0] if len(bench_row) else f"{benchmark} not found"}
+        if benchmark != focus:
+            bench_year, _ = ex.pair_detail_tables(sites, config, benchmark)
+            save_csv(bench_year, "benchmark_pair_by_site_year.csv")
+            section(f"8b. Benchmark pair {species} + {benchmark} (published AUROC 0.74 on DRIAMS-A)")
+            print(f"Status under the same rules: {bench_info['status']}"
+                  f"{' (' + bench_info['reasons'] + ')' if bench_info['reasons'] else ''}")
+            show(bench_year)
 
     months = ex.acquisition_months(sites)
     save_csv(months, "acquisition_months.csv")
@@ -222,6 +257,9 @@ def main() -> int:
         f"{species}: class balance per antibiotic", "Samples with a binned spectrum, all available sites pooled",
         top=20, annotate_rate=True, highlight=focus))
     figures.append(ex.plot_pair_by_site_year(per_year, focus, species, plots_dir / "08_focus_pair_by_site_year.png"))
+    if not bench_year.empty:
+        figures.append(ex.plot_pair_by_site_year(bench_year, benchmark, species,
+                                                 plots_dir / "08b_benchmark_pair_by_site_year.png"))
     coverage_fig, coverage = ex.plot_label_coverage(sites, species, plots_dir / "09_target_species_label_coverage.png")
     save_csv(coverage, "target_species_label_coverage.csv")
     figures.append(coverage_fig)
@@ -242,14 +280,18 @@ def main() -> int:
         "sites_not_available": missing,
         "rows_per_site": {s: len(sd.table) for s, sd in sites.items()},
         "years_per_site": {s: sorted(sd.table["driams_year"].unique()) for s, sd in sites.items()},
+        "metadata_files_used": {s: sorted(sd.table["driams_id_file"].unique()) for s, sd in sites.items()},
+        "ignored_index_columns": {s: sd.table.attrs.get("dropped_columns", {}) for s, sd in sites.items()},
         "absent_metadata_columns": {s: [c for c in d["metadata_columns"] if c not in sd.table.columns]
                                     for s, sd in sites.items()},
+        "patient_group_column": {s: ex.group_column(sd.table, group_cols) for s, sd in sites.items()},
         "antibiotic_columns_per_site": {s: len(sd.split.antibiotics) for s, sd in sites.items()},
         "binary_marker_columns": {s: sd.split.binary_markers for s, sd in sites.items()},
         "unknown_columns": {s: sd.split.unknown for s, sd in sites.items()},
         "target_species": species,
         "target_rows_with_binned_spectrum": {s: len(ex.target_rows(sd, species)) for s, sd in sites.items()},
         "pair_decision": decision,
+        "benchmark_pair": bench_info,
         "elapsed_seconds": round(time.monotonic() - started, 1),
     }
     summary_path = metrics_dir / "summary.json"

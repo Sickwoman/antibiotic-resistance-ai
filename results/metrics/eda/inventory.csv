@@ -1,2 +1,6 @@
 site,year,id_rows,unique_codes,rows_with_RIS_label,raw_files,id_rows_with_raw,raw_files_without_id_row,preprocessed_files,id_rows_with_preprocessed,preprocessed_files_without_id_row,binned_6000_files,id_rows_with_binned_6000,binned_6000_files_without_id_row,labelled_rows_without_binned
+DRIAMS-A,2015,3198,3198,1015,4288,3198,1090,4288,3198,1090,3198,3198,0,0
+DRIAMS-A,2016,34868,34868,12084,44229,34868,9361,44229,34868,9361,34868,34868,0,0
+DRIAMS-A,2017,43122,43122,15235,53936,43122,10814,53936,43122,10814,43122,43122,0,0
+DRIAMS-A,2018,30069,30069,9997,42888,30069,12819,42888,30069,12819,30069,30069,0,0
 DRIAMS-B,2018,5897,5897,2384,6416,5708,708,6416,5708,708,2386,2386,0,0

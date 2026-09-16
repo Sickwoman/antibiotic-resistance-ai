@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,10 @@ YEAR_PATTERN = re.compile(r"^\d{4}$")
 CLEAR_LABELS = ("R", "I", "S")
 SITE_COL = "driams_site"
 YEAR_COL = "driams_year"
+SOURCE_COL = "driams_id_file"
+ADDED_COLS = (SITE_COL, YEAR_COL, SOURCE_COL)
+DEFAULT_SUFFIXES = ("strat", "clean")
+INDEX_ARTIFACT_PREFIX = "Unnamed:"
 # Column names used by maldi-learn for DRIAMS id tables (checked on the real files by the explorer).
 CODE_COL = "code"
 SPECIES_COL = "species"
@@ -69,15 +73,25 @@ def spectrum_path(root: str | Path, site: str, folder: str, year: str, code: str
 # Metadata tables
 # ----------------------------------------------------------------------------------------------
 
-def load_id_table(root: str | Path, site: str, year: str, suffix: str = "clean",
-                  missing_values: Iterable[str] = ("-",), id_folder: str = "id") -> pd.DataFrame:
-    """Read one id/<year>/<year>_<suffix>.csv file as strings, marking '-' as missing.
+def find_id_file(root: str | Path, site: str, year: str, suffixes: str | Sequence[str] = DEFAULT_SUFFIXES,
+                 id_folder: str = "id") -> Path:
+    """First existing id/<year>/<year>_<suffix>.csv in the order given (DRIAMS-A: strat, then clean)."""
+    suffixes = [suffixes] if isinstance(suffixes, str) else list(suffixes)
+    tried = [id_file_path(root, site, year, s, id_folder) for s in suffixes]
+    for path in tried:
+        if path.is_file():
+            return path
+    raise MetadataError(f"Metadata file not found; tried: {', '.join(str(p) for p in tried)}")
 
-    Two columns are added: driams_site and driams_year.
+
+def load_id_table(root: str | Path, site: str, year: str, suffixes: str | Sequence[str] = DEFAULT_SUFFIXES,
+                  missing_values: Iterable[str] = ("-",), id_folder: str = "id") -> pd.DataFrame:
+    """Read one year's metadata table as strings, marking '-' as missing.
+
+    Leftover pandas index columns ('Unnamed: 0', found in DRIAMS-A 2018) are dropped and listed in
+    df.attrs['dropped_columns']. Added columns: driams_site, driams_year, driams_id_file.
     """
-    path = id_file_path(root, site, year, suffix, id_folder)
-    if not path.is_file():
-        raise MetadataError(f"Metadata file not found: {path}")
+    path = find_id_file(root, site, year, suffixes, id_folder)
     if path.stat().st_size == 0:
         raise MetadataError(f"Metadata file is empty: {path}")
     na_values = [v for v in missing_values if v != ""]
@@ -87,22 +101,29 @@ def load_id_table(root: str | Path, site: str, year: str, suffix: str = "clean",
         raise MetadataError(f"Could not parse {path}: {exc}") from exc
     if df.empty:
         raise MetadataError(f"Metadata file has no rows: {path}")
-    for col in (SITE_COL, YEAR_COL):
+    for col in ADDED_COLS:
         if col in df.columns:
             raise MetadataError(f"{path} already has a column named {col!r}; refusing to overwrite it.")
+    dropped = [c for c in df.columns if str(c).startswith(INDEX_ARTIFACT_PREFIX)]
+    df = df.drop(columns=dropped)
     df[SITE_COL] = site
     df[YEAR_COL] = str(year)
+    df[SOURCE_COL] = path.name
+    df.attrs["dropped_columns"] = dropped
     return df
 
 
-def load_site_tables(root: str | Path, site: str, suffix: str = "clean",
+def load_site_tables(root: str | Path, site: str, suffixes: str | Sequence[str] = DEFAULT_SUFFIXES,
                      missing_values: Iterable[str] = ("-",), id_folder: str = "id") -> pd.DataFrame:
     """All years of one site concatenated (columns are the union across years)."""
     years = discover_years(root, site, id_folder)
     if not years:
         raise MetadataError(f"No year folders found in {Path(root) / site / id_folder}")
-    frames = [load_id_table(root, site, y, suffix, missing_values, id_folder) for y in years]
-    return pd.concat(frames, ignore_index=True, sort=False)
+    frames = [load_id_table(root, site, y, suffixes, missing_values, id_folder) for y in years]
+    dropped = {f"{site}/{y}": f.attrs.get("dropped_columns", []) for y, f in zip(years, frames)}
+    table = pd.concat(frames, ignore_index=True, sort=False)
+    table.attrs = {"dropped_columns": {k: v for k, v in dropped.items() if v}}
+    return table
 
 
 @dataclass
@@ -124,7 +145,7 @@ def split_metadata_antibiotic_columns(df: pd.DataFrame, metadata_columns: Iterab
     markers (DRIAMS-B has ESBL, MRSA, Cefoxitin_screen, Clindamycin_induced). Anything else is
     reported as unknown instead of being silently used.
     """
-    meta = set(metadata_columns) | {SITE_COL, YEAR_COL}
+    meta = set(metadata_columns) | set(ADDED_COLS)
     vocab = set(CLEAR_LABELS) | {v.strip() for v in ambiguous_values}
     markers = {v.strip() for v in binary_marker_values}
     split = ColumnSplit()

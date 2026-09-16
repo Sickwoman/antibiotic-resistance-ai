@@ -21,9 +21,9 @@ from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 from matplotlib.ticker import FuncFormatter  # noqa: E402
 
 from src.data_loader import (  # noqa: E402
+    ADDED_COLS,
     CLEAR_LABELS,
     CODE_COL,
-    SITE_COL,
     SPECIES_COL,
     YEAR_COL,
     ColumnSplit,
@@ -131,7 +131,7 @@ def load_sites(config: dict) -> tuple[dict[str, SiteData], list[str]]:
     root = driams_root(config)
     sites: dict[str, SiteData] = {}
     for site in discover_sites(root, d["id_folder"]):
-        table = load_site_tables(root, site, d["id_suffix"], config["labels"]["missing_values"], d["id_folder"])
+        table = load_site_tables(root, site, d["id_suffixes"], config["labels"]["missing_values"], d["id_folder"])
         split = split_metadata_antibiotic_columns(table, d["metadata_columns"], config["labels"]["ambiguous_values"],
                                                   d["binary_marker_values"])
         sites[site] = SiteData(site, table, split, load_manifest(config, site))
@@ -162,6 +162,11 @@ def target_rows(sd: SiteData, species: str, require_binned: bool = True) -> pd.D
     if require_binned and binned is not None:
         mask &= binned
     return t.loc[mask].drop_duplicates(subset=[CODE_COL], keep="first")
+
+
+def group_column(df: pd.DataFrame, group_columns: list[str]) -> str | None:
+    """First patient-level grouping column present (patient_no, then case_no)."""
+    return next((c for c in group_columns if c in df.columns), None)
 
 
 def class_counts(values: pd.Series, intermediate_as: str) -> dict[str, int]:
@@ -211,7 +216,7 @@ def column_tables(sites: dict[str, SiteData], metadata_columns: list[str]) -> tu
     """(metadata presence table, per-column category table)."""
     meta_cols = list(dict.fromkeys(
         list(metadata_columns)
-        + [c for sd in sites.values() for c in sd.split.metadata if c not in (SITE_COL, YEAR_COL)]))
+        + [c for sd in sites.values() for c in sd.split.metadata if c not in ADDED_COLS]))
     presence = []
     for col in meta_cols:
         row: dict[str, Any] = {"column": col}
@@ -226,7 +231,7 @@ def column_tables(sites: dict[str, SiteData], metadata_columns: list[str]) -> tu
                   "unknown": sd.split.unknown}
         for category, cols in groups.items():
             for col in cols:
-                if col in (SITE_COL, YEAR_COL):
+                if col in ADDED_COLS:
                     continue
                 values = ""
                 if category in ("binary_marker_0_1", "unknown"):
@@ -272,7 +277,7 @@ def missing_value_table(sites: dict[str, SiteData]) -> pd.DataFrame:
                   ("unknown", sd.split.unknown)]
         for category, cols in groups:
             for col in cols:
-                if col in (SITE_COL, YEAR_COL):
+                if col in ADDED_COLS:
                     continue
                 miss = int(sd.table[col].isna().sum())
                 rows.append({"site": site, "column": col, "category": category, "rows": n,
@@ -280,7 +285,8 @@ def missing_value_table(sites: dict[str, SiteData]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def duplicate_table(sites: dict[str, SiteData], species: str) -> pd.DataFrame:
+def duplicate_table(sites: dict[str, SiteData], species: str, group_columns: list[str]) -> pd.DataFrame:
+    """Duplicate codes/rows and repeated patients (the main leakage risks). Never outputs IDs."""
     code_sites: dict[str, set[str]] = {}
     for site, sd in sites.items():
         for code in sd.table[CODE_COL].dropna().unique():
@@ -289,25 +295,86 @@ def duplicate_table(sites: dict[str, SiteData], species: str) -> pd.DataFrame:
     for site, sd in sites.items():
         t = sd.table
         years_per_code = t.groupby(CODE_COL)[YEAR_COL].nunique()
+        gcol = group_column(t, group_columns)
         row: dict[str, Any] = {
             "site": site, "id_rows": len(t),
             "rows_with_missing_code": int(t[CODE_COL].isna().sum()),
             "duplicated_code_rows": int(t[CODE_COL].dropna().duplicated().sum()),
-            "fully_duplicated_rows": int(t.drop(columns=[YEAR_COL]).duplicated().sum()),
+            "fully_duplicated_rows": int(t.drop(columns=[c for c in ADDED_COLS if c in t.columns]).duplicated().sum()),
             "codes_in_more_than_one_year": int((years_per_code > 1).sum()),
             "codes_shared_with_other_sites": int(sum(1 for c in t[CODE_COL].dropna().unique() if len(code_sites[c]) > 1)),
-            "has_case_no": "case_no" in t.columns,
+            "group_column": gcol or "none available",
         }
-        if "case_no" in t.columns:
-            per_case = t["case_no"].dropna().value_counts()
-            tgt = t.loc[t[SPECIES_COL] == species, "case_no"].dropna().value_counts()
-            row.update({"distinct_case_no": len(per_case), "cases_with_more_than_one_row": int((per_case > 1).sum()),
-                        "max_rows_per_case": int(per_case.max()) if len(per_case) else 0,
-                        "target_species_cases": len(tgt),
-                        "target_cases_with_more_than_one_row": int((tgt > 1).sum()),
-                        "target_rows_missing_case_no": int(t.loc[t[SPECIES_COL] == species, "case_no"].isna().sum())})
+        if gcol:
+            per_group = t[gcol].dropna().value_counts()
+            tgt_rows = t[t[SPECIES_COL] == species]
+            tgt = tgt_rows[gcol].dropna().value_counts()
+            years_per_group = t.dropna(subset=[gcol]).groupby(gcol)[YEAR_COL].nunique()
+            row.update({
+                "groups": len(per_group),
+                "groups_with_more_than_one_row": int((per_group > 1).sum()),
+                "max_rows_per_group": int(per_group.max()) if len(per_group) else 0,
+                "rows_missing_group": int(t[gcol].isna().sum()),
+                "groups_in_more_than_one_year": int((years_per_group > 1).sum()),
+                "target_rows": len(tgt_rows),
+                "target_groups": len(tgt),
+                "target_groups_with_more_than_one_row": int((tgt > 1).sum()),
+                "target_max_rows_per_group": int(tgt.max()) if len(tgt) else 0,
+                "target_share_in_top10_groups": round(float(tgt.head(10).sum() / max(len(tgt_rows), 1)), 4),
+            })
+            if "order_no" in t.columns:
+                per_order = tgt_rows["order_no"].dropna().value_counts()
+                row["target_orders_with_more_than_one_spectrum"] = int((per_order > 1).sum())
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def group_concentration_table(sites: dict[str, SiteData], species: str, group_columns: list[str],
+                              top: int = 15) -> pd.DataFrame:
+    """Largest patient groups of the target species, described without their IDs.
+
+    In DRIAMS-A some 'patients' have hundreds of spectra under one case and one order, spread over
+    months and all sample types, which suggests placeholder identifiers rather than real patients.
+    """
+    rows = []
+    for site, sd in sites.items():
+        t = target_rows(sd, species)
+        gcol = group_column(t, group_columns)
+        if gcol is None or t.empty:
+            continue
+        counts = t[gcol].value_counts().head(top)
+        for rank, (gid, n) in enumerate(counts.items(), 1):
+            g = t[t[gcol] == gid]
+            row: dict[str, Any] = {"site": site, "rank": rank, "spectra": int(n),
+                                   "share_of_target_spectra": round(n / len(t), 4),
+                                   "years": ",".join(sorted(g[YEAR_COL].unique()))}
+            for col in ("case_no", "order_no"):
+                if col in g.columns and col != gcol:
+                    row[f"distinct_{col}"] = g[col].nunique()
+            if "acquisition_date" in g.columns:
+                row["distinct_acquisition_days"] = pd.to_datetime(g["acquisition_date"], errors="coerce").dt.date.nunique()
+            if "workstation" in g.columns:
+                row["distinct_workstations"] = g["workstation"].nunique()
+                row["workstations"] = ", ".join(f"{k}:{v}" for k, v in g["workstation"].value_counts().head(4).items())
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def acquisition_vs_folder_table(sites: dict[str, SiteData]) -> pd.DataFrame:
+    """Rows per (year folder, acquisition year): shows spectra filed under a different year."""
+    frames = []
+    for site, sd in sites.items():
+        if "acquisition_date" not in sd.table.columns:
+            continue
+        years = pd.to_datetime(sd.table["acquisition_date"], errors="coerce").dt.year
+        ct = (pd.DataFrame({"folder_year": sd.table[YEAR_COL],
+                            "acquisition_year": years.astype("Int64").astype("string").fillna("missing")})
+              .value_counts().rename("rows").reset_index())
+        ct.insert(0, "site", site)
+        frames.append(ct)
+    if not frames:
+        return pd.DataFrame(columns=["site", "folder_year", "acquisition_year", "rows"])
+    return pd.concat(frames, ignore_index=True).sort_values(["site", "folder_year", "acquisition_year"])
 
 
 def duplicate_spectra_table(config: dict, sites: dict[str, SiteData], species: str) -> pd.DataFrame:
@@ -354,6 +421,12 @@ def pair_candidates(sites: dict[str, SiteData], config: dict) -> tuple[pd.DataFr
                         "dev_class0": c["class0"], "dev_minority_frac": round(min(c["class1"], c["class0"]) / n, 4) if n else 0.0,
                         "dev_years_with_both_classes": years_ok, "dev_years_total": len(by_year) if by_year else 0,
                         "dev_class1_test_year": test["class1"]})
+            gcol = group_column(t, config.get("driams", {}).get("group_columns", []))
+            if gcol:  # informational: spectra per class are not independent patients
+                class1_values = ["R"] + (["I"] if inter == "resistant" else [])
+                class0_values = ["S"] + (["I"] if inter == "susceptible" else [])
+                row["dev_groups_class1"] = t.loc[t[abx].isin(class1_values), gcol].nunique()
+                row["dev_groups_class0"] = t.loc[t[abx].isin(class0_values), gcol].nunique()
         meeting, missing = 0, []
         for ext in externals:
             if ext not in sites:
@@ -551,12 +624,17 @@ def plot_monthly(months: pd.DataFrame, path: Path) -> Path | None:
     if m.empty:
         return None
     fig, ax = plt.subplots(figsize=(9, 3.6))
+    sites = sorted(m["site"].unique())
     for site, g in m.groupby("site"):
         ax.plot(pd.PeriodIndex(g["month"], freq="M").to_timestamp(), g["spectra"], lw=2,
                 color=site_color(site), label=site, solid_capstyle="round")
     ax.set_ylabel("Spectra per month")
-    ax.set_title("Acquisition dates")
-    ax.legend(loc="upper left")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{int(v):,}"))
+    if len(sites) > 1:
+        ax.set_title("Spectra per month (acquisition date)")
+        ax.legend(loc="upper left")
+    else:
+        ax.set_title(f"Spectra per month (acquisition date), {sites[0]}")
     return _save(fig, path)
 
 

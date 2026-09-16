@@ -1,5 +1,8 @@
 # Adaptive AI for Rapid Antibiotic Resistance Prediction from MALDI-TOF Mass Spectrometry Data
 
+[![tests](https://github.com/Sickwoman/antibiotic-resistance-ai/actions/workflows/tests.yml/badge.svg)](https://github.com/Sickwoman/antibiotic-resistance-ai/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > **Research prototype only.** This project is not intended to replace laboratory antimicrobial
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
@@ -45,19 +48,38 @@ DRIAMS-X/
 └── id/<year>/<year>_clean.csv      metadata: species, code and one column per antibiotic (R / I / S)
 ```
 
-What we found in the real DRIAMS-B files (details in `results/metrics/eda/`):
+What we found in the real files (details in `results/metrics/eda/`):
 
+**DRIAMS-A** (University Hospital Basel)
+- 145,341 raw and preprocessed spectra (matches the paper); 111,257 metadata rows, each with a
+  binned spectrum (2015: 3,198 · 2016: 34,868 · 2017: 43,122 · 2018: 30,069).
+- Each year has `<year>_clean.csv` and `<year>_strat.csv` with identical rows and identical antibiotic
+  values; `strat` adds `patient_no`, `case_no`, `order_no`, `acquisition_date`, `acquisition_time` and
+  `workstation`, so the loader uses `strat`. `id/2016` also contains a macOS `._` metadata file (ignored).
+- `patient_no` / `case_no` are 32-character hashes that never repeat across years, so patients can be
+  grouped within a year but not followed across years.
+- 232 spectra in the 2018 folder were acquired in 2017.
+- Three E. coli "patients" have 274–533 spectra each under a single case and order, spread over
+  months and all sample types – most likely placeholder IDs. None of them has a ciprofloxacin result.
+- E. coli from hospital-hygiene samples are 78 % ciprofloxacin-resistant versus 20–32 % for the
+  clinical sample types – a possible shortcut that must be handled in modelling.
+
+**DRIAMS-B** (Canton Hospital Basel-Land)
 - `2018_clean.csv` has 5,897 rows and 47 columns: `species`, `code`, `combined_code` (empty),
   40 antibiotic columns with R/I/S values and 4 screening columns with 0/1 values
   (`ESBL`, `MRSA`, `Cefoxitin_screen`, `Clindamycin_induced`).
-- DRIAMS-B has **no** `case_no` (patient case), `acquisition_date` or `workstation` column.
+- No `patient_no`, `case_no`, `acquisition_date` or `workstation` column.
 - `binned_6000` exists only for the 2,386 samples that have resistance results; `raw` and
   `preprocessed` have 6,416 files each.
+
+**Across sites:** some antibiotic names differ (e.g. `Cotrimoxazole` in A, `Cotrimoxazol` in B).
+Ciprofloxacin and ceftriaxone are spelled the same everywhere.
 
 ### Disk space
 
 About 145 GB for all four archives, plus the extracted folders. Only `id/` and `binned_6000/` are
-extracted in Version 0.1, which is much smaller (DRIAMS-B: 382 MB extracted from the 3.7 GB archive).
+extracted in Version 0.1, which is much smaller: DRIAMS-A 17.6 GB (24 min to extract),
+DRIAMS-B 382 MB (under 1 min). Raw spectra inside DRIAMS-A alone would be 62.9 GB.
 Data lives **outside** the repository in `C:\DRIAMS` (change it in `config.yaml` or with the
 `DRIAMS_ROOT` environment variable).
 
@@ -106,8 +128,11 @@ python scripts/explore_dataset.py
 ```
 
 The downloader fetches 8 byte ranges in parallel because Zenodo limits each connection to about
-0.3 MB/s. It checks the final size and MD5/SHA-256 against the published values before the archive
-gets its final name. The extractor refuses unsafe paths (absolute, `..`, links) in the archive.
+0.3 MB/s (DRIAMS-A took about 4 hours at 5–9 MB/s). It waits and retries when Zenodo is temporarily
+down (`--max-wait-min`, default 30), and checks the final size and MD5/SHA-256 against the published
+values before the archive gets its final name. The extractor refuses unsafe paths (absolute, `..`,
+links) and skips macOS `._` files. Both scripts stop Windows from sleeping while they run; closing
+the laptop lid still sleeps and pauses the work (re-run the same command to continue).
 
 Outputs of step 4:
 
@@ -128,6 +153,17 @@ spectra in DRIAMS-A, minority class ≥ 10 %, both classes present in ≥ 3 DRIA
 in 2018 (temporal test), and ≥ 30 per class in at least 2 of DRIAMS-B/C/D (external test). If
 ciprofloxacin fails, the eligible antibiotic with the largest minority class is used.
 
+**Result (2026-09-16): E. coli + ciprofloxacin selected**, final confirmation pending one more external
+site (C or D).
+
+| | Resistant (R+I) | Susceptible | Patients R / S |
+|---|---|---|---|
+| DRIAMS-A 2015–2018 | 1,466 (1,371 R + 95 I) | 3,445 | 667 / 1,797 |
+| DRIAMS-A 2018 only | 382 | 993 | – |
+| DRIAMS-B 2018 | 59 (58 R + 1 I) | 154 | – |
+
+Benchmark pair E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168.
+
 ## Project structure (Version 0.1)
 
 ```
@@ -143,9 +179,17 @@ antibiotic-resistance-ai/
 │   ├── data_loader.py          metadata tables, label encoding, spectrum readers with validation
 │   └── exploration.py          exploration tables and figures
 ├── notebooks/01_data_exploration.ipynb
-├── tests/                      pytest suite (synthetic data)
+├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
+├── .github/workflows/tests.yml
+├── LICENSE, CITATION.cff, CLAUDE.md
 ```
+
+## License and citation
+
+Code: MIT (see `LICENSE`). The DRIAMS data is not part of this repository; it is CC0 and must be
+downloaded from its original source. If you use this work, cite it via `CITATION.cff` and cite
+Weis et al. (2022) and the DRIAMS dataset.
 
 ## References
 

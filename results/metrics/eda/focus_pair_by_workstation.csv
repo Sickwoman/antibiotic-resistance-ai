@@ -1,1 +1,9 @@
-
+site,workstation,labelled,class1,class1_rate
+DRIAMS-A,Blood,1184,248,0.2095
+DRIAMS-A,DeepTissue,1062,207,0.1949
+DRIAMS-A,Genital,24,3,0.125
+DRIAMS-A,HospitalHygiene,633,491,0.7757
+DRIAMS-A,Respiratory,358,89,0.2486
+DRIAMS-A,Stool,3,0,0.0
+DRIAMS-A,Urine,1474,372,0.2524
+DRIAMS-A,Varia,173,56,0.3237

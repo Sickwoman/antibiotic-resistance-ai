@@ -1,0 +1,16 @@
+site,rank,spectra,share_of_target_spectra,years,distinct_case_no,distinct_order_no,distinct_acquisition_days,distinct_workstations,workstations
+DRIAMS-A,1,533,0.0728,2017,1,1,211,8,"Stool:218, Genital:131, HospitalHygiene:45, Urine:43"
+DRIAMS-A,2,275,0.0376,2018,1,1,126,9,"Stool:136, Genital:49, HospitalHygiene:35, Urine:22"
+DRIAMS-A,3,274,0.0374,2016,1,1,136,8,"Stool:153, Genital:51, HospitalHygiene:22, Varia:22"
+DRIAMS-A,4,21,0.0029,2017,4,5,8,1,HospitalHygiene:21
+DRIAMS-A,5,20,0.0027,2015,1,1,13,3,"Stool:13, Genital:3, Varia:2"
+DRIAMS-A,6,19,0.0026,2017,4,13,9,4,"HospitalHygiene:9, DeepTissue:7, Blood:2, Varia:1"
+DRIAMS-A,7,19,0.0026,2017,2,9,5,4,"Varia:8, DeepTissue:5, Blood:4, HospitalHygiene:2"
+DRIAMS-A,8,18,0.0025,2017,1,9,7,3,"HospitalHygiene:10, DeepTissue:6, Urine:2"
+DRIAMS-A,9,16,0.0022,2018,3,4,5,2,"HospitalHygiene:11, DeepTissue:5"
+DRIAMS-A,10,15,0.002,2016,1,13,1,1,DeepTissue:15
+DRIAMS-A,11,15,0.002,2017,4,8,5,2,"DeepTissue:14, Varia:1"
+DRIAMS-A,12,15,0.002,2018,4,4,5,2,"Respiratory:13, HospitalHygiene:2"
+DRIAMS-A,13,14,0.0019,2016,1,8,7,3,"DeepTissue:8, Respiratory:4, Blood:2"
+DRIAMS-A,14,14,0.0019,2018,2,13,5,1,DeepTissue:14
+DRIAMS-A,15,13,0.0018,2017,6,9,8,3,"Respiratory:8, HospitalHygiene:4, DeepTissue:1"

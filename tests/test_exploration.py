@@ -5,7 +5,16 @@ from __future__ import annotations
 import pandas as pd
 
 from src.data_loader import ColumnSplit
-from src.exploration import SiteData, class_counts, inventory_table, pair_candidates, target_rows
+from src.exploration import (
+    SiteData,
+    acquisition_vs_folder_table,
+    class_counts,
+    duplicate_table,
+    group_concentration_table,
+    inventory_table,
+    pair_candidates,
+    target_rows,
+)
 
 SPECIES = "Escherichia coli"
 ABX = ["Ciprofloxacin", "Ceftriaxone"]
@@ -111,6 +120,51 @@ def test_target_rows_requires_binned_spectrum_and_dedups_codes():
     dup = pd.concat([sd.table, sd.table.iloc[:1]], ignore_index=True)
     sd.table = dup
     assert len(target_rows(sd, SPECIES, require_binned=False)) == 2
+
+
+def _with_patients(sd: SiteData, patients: list[str], dates: list[str], stations: list[str]) -> SiteData:
+    sd.table = sd.table.assign(patient_no=patients, case_no=["c" + p for p in patients],
+                               order_no=["o" + p for p in patients], acquisition_date=dates, workstation=stations)
+    return sd
+
+
+def test_duplicate_table_uses_patient_groups():
+    sd = make_site("DRIAMS-A", [("2018", SPECIES, "R", ""), ("2018", SPECIES, "S", ""),
+                                ("2018", SPECIES, "S", ""), ("2018", "Staphylococcus aureus", "R", "")])
+    sd = _with_patients(sd, ["p1", "p1", "p2", "p3"], ["2018-01-01"] * 4, ["Urine"] * 4)
+    row = duplicate_table({"DRIAMS-A": sd}, SPECIES, ["patient_no", "case_no"]).iloc[0]
+    assert row["group_column"] == "patient_no"
+    assert row["groups"] == 3 and row["groups_with_more_than_one_row"] == 1
+    assert row["target_groups"] == 2 and row["target_max_rows_per_group"] == 2
+    assert row["target_orders_with_more_than_one_spectrum"] == 1
+
+
+def test_group_concentration_never_outputs_ids():
+    sd = make_site("DRIAMS-A", [("2018", SPECIES, "R", "")] * 3 + [("2018", SPECIES, "S", "")])
+    sd = _with_patients(sd, ["secret-id", "secret-id", "secret-id", "other-id"],
+                        ["2018-01-01", "2018-02-01", "2018-02-01", "2018-03-01"], ["Stool", "Urine", "Stool", "Blood"])
+    table = group_concentration_table({"DRIAMS-A": sd}, SPECIES, ["patient_no"])
+    first = table.iloc[0]
+    assert first["spectra"] == 3 and first["distinct_acquisition_days"] == 2 and first["distinct_workstations"] == 2
+    assert "secret-id" not in table.to_csv()
+
+
+def test_acquisition_year_vs_folder():
+    sd = make_site("DRIAMS-A", [("2018", SPECIES, "R", ""), ("2018", SPECIES, "S", "")])
+    sd = _with_patients(sd, ["p1", "p2"], ["2017-12-30", "2018-01-02"], ["Urine", "Urine"])
+    table = acquisition_vs_folder_table({"DRIAMS-A": sd})
+    assert set(zip(table["acquisition_year"], table["rows"])) == {("2017", 1), ("2018", 1)}
+    assert acquisition_vs_folder_table({"DRIAMS-B": make_site("DRIAMS-B", EXTERNAL_OK)}).empty
+
+
+def test_pair_candidates_reports_patient_counts():
+    sd = make_site("DRIAMS-A", dev_rows(6, 6, 6, 6))
+    n = len(sd.table)
+    sd = _with_patients(sd, [f"p{i % 3}" for i in range(n)], ["2018-01-01"] * n, ["Urine"] * n)
+    cfg = config() | {"driams": {"group_columns": ["patient_no"]}}
+    table, _ = pair_candidates({"DRIAMS-A": sd, "DRIAMS-B": make_site("DRIAMS-B", EXTERNAL_OK)}, cfg)
+    cip = table.set_index("antibiotic").loc["Ciprofloxacin"]
+    assert cip["dev_groups_class1"] == 3 and cip["dev_groups_class0"] == 3
 
 
 def test_inventory_counts_files_without_metadata():

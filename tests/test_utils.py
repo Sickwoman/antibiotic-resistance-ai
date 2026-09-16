@@ -1,10 +1,12 @@
-"""Tests for configuration loading."""
+"""Tests for configuration loading and small utilities."""
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from src.utils import ConfigError, archive_info, human_bytes, load_config
+from src.utils import ConfigError, archive_info, human_bytes, keep_awake, load_config
 
 CONFIG = "paths:\n  driams_root: C:/DRIAMS\ndriams:\n  archives:\n    B: {site: DRIAMS-B}\n"
 
@@ -39,6 +41,11 @@ def test_dotenv_overrides_root_when_no_env_variable(tmp_path, monkeypatch):
     (tmp_path / ".env").write_text("# local settings\nDRIAMS_ROOT=\"E:/data\"\n", encoding="utf-8")
     monkeypatch.delenv("DRIAMS_ROOT", raising=False)
     assert load_config(cfg)["paths"]["driams_root"] == "E:/data"
+
+
+def test_keep_awake_context_manager():
+    with keep_awake() as awake:
+        assert awake is (sys.platform == "win32")
 
 
 def test_human_bytes_uses_decimal_units():

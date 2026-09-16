@@ -37,6 +37,7 @@ from src.utils import (  # noqa: E402
     free_disk_gb,
     get_logger,
     human_bytes,
+    keep_awake,
     load_config,
     manifests_dir,
 )
@@ -79,7 +80,7 @@ def safe_parts(name: str, site: str) -> tuple[str, ...]:
 
 def allowed_codes(config: dict, site: str, species: str) -> set[str]:
     """Spectrum codes of one species, taken from the already-extracted id tables."""
-    table = load_site_tables(driams_root(config), site, config["driams"]["id_suffix"],
+    table = load_site_tables(driams_root(config), site, config["driams"]["id_suffixes"],
                              config["labels"]["missing_values"], config["driams"]["id_folder"])
     if CODE_COL not in table.columns or SPECIES_COL not in table.columns:
         raise ExtractionError(f"id tables have no '{CODE_COL}'/'{SPECIES_COL}' columns; cannot filter by species.")
@@ -117,7 +118,7 @@ def extract(config: dict, site_letter: str, folders: list[str], species: str | N
 
     total_size = archive.stat().st_size
     stats = {"members_seen": 0, "files_written": 0, "files_skipped_existing": 0,
-             "files_filtered_out": 0, "bytes_written": 0, "per_folder": {}}
+             "files_filtered_out": 0, "macos_metadata_skipped": [], "bytes_written": 0, "per_folder": {}}
     started = time.monotonic()
     last_log = started
 
@@ -142,6 +143,9 @@ def extract(config: dict, site_letter: str, folders: list[str], species: str | N
                         log.warning("[%s] skipping non-regular member %s", site, member.name)
                         continue
                     parts = safe_parts(member.name, site)
+                    if parts[-1].startswith("._"):  # macOS AppleDouble metadata, not data (seen in DRIAMS-A id/2016)
+                        stats["macos_metadata_skipped"].append("/".join(parts))
+                        continue
                     folder = parts[1] if len(parts) > 1 else ""
                     year = parts[2] if len(parts) > 3 else ""
                     writer.writerow(["/".join(parts), folder, year, parts[-1], member.size])
@@ -186,6 +190,9 @@ def extract(config: dict, site_letter: str, folders: list[str], species: str | N
     for folder, fs in sorted(stats["per_folder"].items()):
         log.info("[%s]   %-14s %8d files  %10s in archive  %8d written",
                  site, folder, fs["files"], human_bytes(fs["bytes"]), fs["written"])
+    if stats["macos_metadata_skipped"]:
+        log.info("[%s] skipped %d macOS metadata file(s) ('._*'): %s", site,
+                 len(stats["macos_metadata_skipped"]), ", ".join(stats["macos_metadata_skipped"][:5]))
     log.info("[%s] manifest: %s", site, manifest_path)
     return stats
 
@@ -203,7 +210,10 @@ def main() -> int:
     try:
         config = load_config(args.config)
         folders = args.folders or list(config["extraction"]["default_folders"])
-        extract(config, args.site, folders, args.species, args.overwrite)
+        with keep_awake() as awake:
+            if awake:
+                log.info("Windows sleep is blocked while this command runs (closing the lid still sleeps).")
+            extract(config, args.site, folders, args.species, args.overwrite)
         return 0
     except (ExtractionError, ConfigError, DataError) as exc:
         log.error("%s", exc)

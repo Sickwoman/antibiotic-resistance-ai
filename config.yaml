@@ -65,12 +65,24 @@ driams:
   # Sub-folders inside every site folder (DRIAMS README).
   spectra_folders: [raw, preprocessed, binned_6000]
   id_folder: id
-  # Metadata table per year: id/<year>/<year>_<id_suffix>.csv (maldi-learn default suffix).
-  id_suffix: clean
-  # Non-antibiotic columns. The first seven come from maldi-learn; combined_code was found in the
-  # real DRIAMS-B file. Not every site has every column: DRIAMS-B (checked 2026-09-16) only has
-  # species, code and combined_code (empty) - no case_no, acquisition_date or workstation.
-  metadata_columns: [id, code, combined_code, species, laboratory_species, case_no, acquisition_date, workstation]
+  # Metadata table per year: id/<year>/<year>_<suffix>.csv, first existing suffix wins.
+  # Checked 2026-09-16: DRIAMS-A has both <year>_clean.csv and <year>_strat.csv for 2015-2018 with
+  # the same rows and identical antibiotic values (0 differing cells); strat adds acquisition_date,
+  # acquisition_time, case_no, order_no, patient_no and workstation. DRIAMS-B only has clean.
+  id_suffixes: [strat, clean]
+  # Non-antibiotic columns. patient_no / case_no / order_no are 32-character hashes that never
+  # repeat across DRIAMS-A years (re-hashed per year), so patients can only be grouped within a year.
+  # Not every site has every column: DRIAMS-B has only species, code and combined_code (empty).
+  metadata_columns: [id, code, combined_code, species, laboratory_species, patient_no, case_no, order_no,
+                     acquisition_date, acquisition_time, workstation]
+  # Grouping key for leakage checks (first column present wins).
+  group_columns: [patient_no, case_no]
+  # Leftover pandas index columns such as "Unnamed: 0" (DRIAMS-A 2018) are ignored.
+  index_artifact_prefix: "Unnamed:"
+  # Antibiotic names are NOT fully harmonised across sites (checked 2026-09-16): DRIAMS-A uses
+  # Cotrimoxazole / Ampicillin-Amoxicillin / Fosfomycin-Trometamol where DRIAMS-B uses Cotrimoxazol /
+  # Ampicillin / Fosfomycin. Ciprofloxacin and Ceftriaxone are spelled identically. No automatic
+  # renaming is done; any mapping must be added explicitly and justified.
   # Screening results stored as 0/1 instead of R/I/S (DRIAMS-B: ESBL, MRSA, Cefoxitin_screen,
   # Clindamycin_induced). Reported separately; never used as antibiotic targets.
   binary_marker_values: ["0", "1"]
@@ -93,8 +105,9 @@ labels:
 target:
   species: Escherichia coli
   preferred_antibiotic: Ciprofloxacin
-  # Fallback reference: Ceftriaxone is the E. coli target used by Weis et al. (2022).
-  reference_antibiotic: Ceftriaxone
+  # Sanity-check pair reported next to the main pair: Weis et al. (2022) report AUROC 0.74 for
+  # E. coli + Ceftriaxone on DRIAMS-A, which gives our later models a published reference point.
+  benchmark_antibiotic: Ceftriaxone
 
 # Pre-registered eligibility rules for choosing the species-antibiotic pair.
 # Fixed BEFORE looking at DRIAMS-A so the choice is not tuned to the results.

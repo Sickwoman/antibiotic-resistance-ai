@@ -1,0 +1,13 @@
+# Store text files with LF line endings in the repository (avoids CRLF warnings on Windows).
+* text=auto eol=lf
+
+# Windows scripts keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary files.
+*.png binary
+*.jpg binary
+*.gz binary
+*.joblib binary
+*.pt binary

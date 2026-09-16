@@ -29,7 +29,7 @@ def _config(root: Path) -> dict:
                                "size_bytes": 0, "checksum_type": "md5", "checksum": ""}},
             "spectra_folders": ["raw", "preprocessed", "binned_6000"],
             "id_folder": "id",
-            "id_suffix": "clean",
+            "id_suffixes": ["strat", "clean"],
         },
         "labels": {"missing_values": ["-", ""]},
         "extraction": {"default_folders": ["id", "binned_6000"], "min_free_disk_gb": 0},
@@ -73,6 +73,19 @@ def test_extract_selected_folders_and_manifest(archive_root):
 
     again = extract(_config(archive_root), "Z", ["id", "binned_6000"], None, overwrite=False)
     assert again["files_written"] == 0 and again["files_skipped_existing"] == 2
+
+
+def test_macos_metadata_files_are_skipped(tmp_path):
+    root = tmp_path / "DRIAMS"
+    (root / "archives").mkdir(parents=True)
+    with tarfile.open(root / "archives" / "DRIAMS_Z.tar.gz", "w:gz") as tar:
+        _add(tar, "DRIAMS-Z/id/2016/2016_clean.csv", b"code,species\na,Escherichia coli\n")
+        _add(tar, "DRIAMS-Z/id/2016/._2016_notes.csv", b"\x00\x05\x16\x07Mac OS X")
+    stats = extract(_config(root), "Z", ["id"], None, overwrite=False)
+    assert stats["macos_metadata_skipped"] == ["DRIAMS-Z/id/2016/._2016_notes.csv"]
+    assert not (root / "DRIAMS-Z" / "id" / "2016" / "._2016_notes.csv").exists()
+    with open(root / "manifests" / "DRIAMS-Z_manifest.csv", newline="", encoding="utf-8") as fh:
+        assert [r["filename"] for r in csv.DictReader(fh)] == ["2016_clean.csv"]
 
 
 def test_extract_species_filter(archive_root):

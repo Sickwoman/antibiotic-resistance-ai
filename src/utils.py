@@ -6,8 +6,10 @@ import logging
 import os
 import random
 import shutil
+import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
@@ -85,6 +87,30 @@ def free_disk_gb(path: Path) -> float:
     while not probe.exists() and probe.parent != probe:
         probe = probe.parent
     return shutil.disk_usage(probe).free / 1e9
+
+
+@contextmanager
+def keep_awake() -> Iterator[bool]:
+    """Ask Windows not to sleep while a long job (download, extraction) runs.
+
+    Laptops with Modern Standby sleep when the screen turns off and cut the network, which froze
+    the DRIAMS-A download several times (seen in the Windows event log on 2026-09-16). The display
+    is therefore kept on as well. Closing the lid still sleeps. Yields False on other systems.
+    """
+    if sys.platform != "win32":
+        yield False
+        return
+    import ctypes
+
+    es_continuous, es_system_required, es_display_required = 0x80000000, 0x00000001, 0x00000002
+    set_state = ctypes.windll.kernel32.SetThreadExecutionState
+    set_state.argtypes = [ctypes.c_uint32]
+    set_state.restype = ctypes.c_uint32
+    ok = set_state(es_continuous | es_system_required | es_display_required) != 0
+    try:
+        yield ok
+    finally:
+        set_state(es_continuous)
 
 
 def set_seed(seed: int) -> None:

@@ -1,0 +1,56 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it and the DRIAMS dataset it builds on."
+title: "Adaptive AI for Rapid Antibiotic Resistance Prediction from MALDI-TOF Mass Spectrometry Data"
+abstract: >-
+  Research prototype that predicts antibiotic resistance of bacterial isolates from MALDI-TOF
+  mass spectra (DRIAMS) and studies how well such models generalize across hospitals and time.
+  Not a clinically validated diagnostic tool.
+type: software
+authors:
+  - given-names: Moksh
+repository-code: "https://github.com/Sickwoman/antibiotic-resistance-ai"
+license: MIT
+version: 0.1.0
+keywords:
+  - antimicrobial resistance
+  - MALDI-TOF
+  - mass spectrometry
+  - machine learning
+  - domain generalization
+references:
+  - type: article
+    title: "Direct antimicrobial resistance prediction from clinical MALDI-TOF mass spectra using machine learning"
+    authors:
+      - family-names: Weis
+        given-names: Caroline
+      - family-names: Cuénod
+        given-names: Aline
+      - family-names: Rieck
+        given-names: Bastian
+      - family-names: Borgwardt
+        given-names: Karsten
+      - family-names: Egli
+        given-names: Adrian
+    journal: "Nature Medicine"
+    year: 2022
+    volume: 28
+    start: 164
+    end: 174
+    doi: "10.1038/s41591-021-01619-9"
+  - type: data
+    title: "DRIAMS: Database of Resistance Information on Antimicrobials and MALDI-TOF Mass Spectra"
+    authors:
+      - family-names: Weis
+        given-names: Caroline
+      - family-names: Cuénod
+        given-names: Aline
+      - family-names: Rieck
+        given-names: Bastian
+      - family-names: Borgwardt
+        given-names: Karsten
+      - family-names: Egli
+        given-names: Adrian
+    publisher:
+      name: Dryad
+    doi: "10.5061/dryad.bzkh1899q"
+    license: CC0-1.0

@@ -77,6 +77,27 @@ def test_load_site_tables_concatenates_years(driams_root):
     assert sorted(df["driams_year"].unique()) == ["2018", "2019"]
 
 
+def test_strat_table_is_preferred_over_clean(driams_root):
+    # DRIAMS-A ships both; strat has the same rows plus patient/case/date columns.
+    strat = driams_root / "DRIAMS-Z" / "id" / "2018" / "2018_strat.csv"
+    strat.write_text("code,species,patient_no,Ciprofloxacin\nc1,Escherichia coli,p1,R\n", encoding="utf-8")
+    df = load_id_table(driams_root, "DRIAMS-Z", "2018")
+    assert "patient_no" in df.columns and len(df) == 1
+    assert set(df["driams_id_file"]) == {"2018_strat.csv"}
+    clean_only = load_id_table(driams_root, "DRIAMS-Z", "2018", suffixes="clean")
+    assert set(clean_only["driams_id_file"]) == {"2018_clean.csv"} and len(clean_only) == 4
+
+
+def test_index_artifact_columns_are_dropped(driams_root):
+    path = driams_root / "DRIAMS-Z" / "id" / "2018" / "2018_clean.csv"
+    path.write_text("Unnamed: 0.1,Unnamed: 0,code,species,Ciprofloxacin\n0,0,c1,Escherichia coli,S\n", encoding="utf-8")
+    df = load_id_table(driams_root, "DRIAMS-Z", "2018")
+    assert not any(c.startswith("Unnamed") for c in df.columns)
+    assert df.attrs["dropped_columns"] == ["Unnamed: 0.1", "Unnamed: 0"]
+    site = load_site_tables(driams_root, "DRIAMS-Z")
+    assert site.attrs["dropped_columns"] == {"DRIAMS-Z/2018": ["Unnamed: 0.1", "Unnamed: 0"]}
+
+
 def test_missing_metadata_file_raises(driams_root):
     with pytest.raises(MetadataError, match="not found"):
         load_id_table(driams_root, "DRIAMS-Z", "2017")

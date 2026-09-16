@@ -42,6 +42,7 @@ from src.utils import (  # noqa: E402
     free_disk_gb,
     get_logger,
     human_bytes,
+    keep_awake,
     load_config,
 )
 
@@ -90,15 +91,35 @@ def _request(url: str, start: int, end: int) -> urllib.request.Request:
     return urllib.request.Request(url, headers={"Range": f"bytes={start}-{end}", "User-Agent": USER_AGENT})
 
 
-def probe_server(url: str, expected_size: int) -> None:
-    """Check that the server honours range requests and reports the expected total size."""
-    try:
-        with urllib.request.urlopen(_request(url, 0, 0), timeout=60) as resp:
-            status = resp.status
-            content_range = resp.headers.get("Content-Range", "")
-            resp.read()
-    except urllib.error.URLError as exc:
-        raise DownloadError(f"Could not reach the download server: {exc}") from exc
+def probe_server(url: str, expected_size: int, max_wait_s: float = 1800, sleep=time.sleep) -> None:
+    """Check that the server honours range requests and reports the expected total size.
+
+    Temporary failures (e.g. Zenodo answering 504 Gateway Time-out, seen on 2026-09-16) are retried
+    with growing pauses for up to `max_wait_s` seconds before giving up.
+    """
+    deadline = time.monotonic() + max_wait_s
+    delay = 10
+    while True:
+        try:
+            with urllib.request.urlopen(_request(url, 0, 0), timeout=60) as resp:
+                status = resp.status
+                content_range = resp.headers.get("Content-Range", "")
+                resp.read()
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRYABLE_HTTP:
+                raise DownloadError(f"Download server refused the request: HTTP {exc.code} {exc.reason}") from exc
+            problem = f"HTTP {exc.code} {exc.reason}"
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException, OSError) as exc:
+            problem = str(exc)
+        if time.monotonic() + delay > deadline:
+            raise DownloadError(
+                f"Download server still unavailable after {max_wait_s / 60:.0f} min (last error: {problem}). "
+                "Nothing was lost; run the same command again later."
+            )
+        log.warning("Download server not available (%s); retrying in %d s ...", problem, delay)
+        sleep(delay)
+        delay = min(delay * 2, 120)
     if status != 206:
         raise DownloadError(f"Server did not accept a range request (HTTP {status}); parallel download impossible.")
     total = content_range.rsplit("/", 1)[-1]
@@ -251,7 +272,7 @@ def assemble(label: str, segments: list[tuple[int, int, int]], parts_dir: Path, 
     log.info("[%s] size OK, %s OK -> %s", label, algo, final_path)
 
 
-def download(config: dict, site: str, connections: int, segment_mb: int) -> Path:
+def download(config: dict, site: str, connections: int, segment_mb: int, max_wait_min: float = 30) -> Path:
     info = archive_info(config, site)
     label = info["site"]
     if not info.get("url"):
@@ -304,7 +325,7 @@ def download(config: dict, site: str, connections: int, segment_mb: int) -> Path
              label, human_bytes(size), len(segments), human_bytes(segment_bytes), len(pending), human_bytes(on_disk))
 
     if pending:
-        probe_server(info["url"], size)
+        probe_server(info["url"], size, max_wait_s=max_wait_min * 60)
         progress = Progress(size, on_disk)
         stop = threading.Event()
         active = [0]
@@ -395,6 +416,8 @@ def main() -> int:
     parser.add_argument("--verify-only", action="store_true", help="only verify an already downloaded archive")
     parser.add_argument("--from-file", type=Path, help="verify a browser-downloaded archive and move it into place")
     parser.add_argument("--list", action="store_true", help="show the status of all archives")
+    parser.add_argument("--max-wait-min", type=float, default=30,
+                        help="minutes to keep retrying if the server is temporarily down (default 30)")
     parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
 
@@ -407,12 +430,15 @@ def main() -> int:
             parser.error("--site is required (or use --list)")
         if not 1 <= args.connections <= 16:
             parser.error("--connections must be between 1 and 16")
-        if args.from_file:
-            register_manual_file(config, args.site, args.from_file)
-        elif args.verify_only:
-            return 0 if verify_existing(config, args.site) else 1
-        else:
-            download(config, args.site, args.connections, args.segment_mb)
+        with keep_awake() as awake:
+            if awake:
+                log.info("Windows sleep is blocked while this command runs (closing the lid still sleeps).")
+            if args.from_file:
+                register_manual_file(config, args.site, args.from_file)
+            elif args.verify_only:
+                return 0 if verify_existing(config, args.site) else 1
+            else:
+                download(config, args.site, args.connections, args.segment_mb, args.max_wait_min)
         return 0
     except (DownloadError, ConfigError) as exc:
         log.error("%s", exc)
