@@ -11,6 +11,7 @@ bleach==6.4.0
 certifi==2026.7.22
 cffi==2.1.1
 charset-normalizer==3.5.1
+cloudpickle==3.1.2
 colorama==0.4.6
 comm==0.2.3
 contourpy==1.4.0
@@ -32,6 +33,7 @@ ipython_pygments_lexers==1.1.1
 isoduration==20.11.0
 jedi==0.20.0
 Jinja2==3.1.6
+joblib==1.6.0
 json5==0.15.0
 jsonpointer==3.1.1
 jsonschema==4.26.0
@@ -52,6 +54,7 @@ MarkupSafe==3.0.3
 matplotlib==3.11.2
 matplotlib-inline==0.2.2
 mistune==3.3.4
+narwhals==2.26.0
 nbclient==0.11.0
 nbconvert==7.17.1
 nbformat==5.11.1
@@ -85,11 +88,14 @@ rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rfc3987-syntax==1.1.0
 rpds-py==2026.6.3
+scikit-learn==1.9.1
+scipy==1.18.1
 Send2Trash==2.1.0
 six==1.17.0
 soupsieve==2.9.2
 stack-data==0.6.3
 terminado==0.18.1
+threadpoolctl==3.7.0
 tinycss2==1.5.1
 tornado==6.5.10
 traitlets==5.16.1

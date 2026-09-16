@@ -7,13 +7,15 @@ when they exist (DRIAMS-B, for example, has no case_no, acquisition_date or work
 from __future__ import annotations
 
 import hashlib
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import matplotlib
 
-matplotlib.use("Agg")
+if "ipykernel" not in sys.modules:  # headless for scripts; notebooks keep their inline backend
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
