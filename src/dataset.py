@@ -76,6 +76,9 @@ PRIVATE_COLUMNS = ("patient_no", "case_no", "order_no")
 METADATA_COLUMNS = ["sample_index", "site", "year_folder", "code", "spectrum_relpath", "acquisition_date",
                     "workstation", "ast_value", "label", "group_id", "group_source", "raw_points", "nonzero_bins"]
 EXCLUSION_COLUMNS = ["site", "year_folder", "code", "reason", "detail", "workstation", "ast_value"]
+# A sample is identified by these columns; the fingerprint also covers its label and patient group.
+SAMPLE_KEY_COLUMNS = ("site", "year_folder", "code")
+FINGERPRINT_COLUMNS = (*SAMPLE_KEY_COLUMNS, "label", "group_id")
 
 log = get_logger("dataset")
 
@@ -250,6 +253,39 @@ def assign_group_ids(group_keys: pd.Series) -> tuple[np.ndarray, np.ndarray]:
     return codes, source
 
 
+def sample_keys(meta: pd.DataFrame) -> np.ndarray:
+    """'site|year_folder|code' per row; unique within a built dataset."""
+    cols = [meta[c].astype(str) for c in SAMPLE_KEY_COLUMNS]
+    keys = cols[0].str.cat(cols[1:], sep="|")
+    if keys.duplicated().any():
+        raise DatasetError("Sample keys (site, year_folder, code) are not unique.")
+    return keys.to_numpy(dtype=object)
+
+
+def row_fingerprint(meta: pd.DataFrame) -> str:
+    """Short hash of which sample is in which row, with its label and patient group.
+
+    Split files store row numbers only; this fingerprint ties them to the dataset they were made for, so
+    a changed or different dataset can never be paired with them by mistake (an identical rebuild keeps
+    the same fingerprint).
+    """
+    missing = [c for c in FINGERPRINT_COLUMNS if c not in meta.columns]
+    if missing:
+        raise DatasetError(f"Cannot fingerprint the metadata: column(s) {missing} missing.")
+    cols = [meta[c].astype("int64").astype(str) if c in ("label", "group_id") else meta[c].astype(str)
+            for c in FINGERPRINT_COLUMNS]
+    text = "\n".join(cols[0].str.cat(cols[1:], sep="|"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def file_sha256(path: Path, chunk_bytes: int = 1 << 24) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while block := fh.read(chunk_bytes):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _git_commit() -> str | None:
     """Short commit hash of the code that built the dataset; '-dirty' if tracked files were modified."""
     try:
@@ -361,6 +397,8 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     exclusions[EXCLUSION_COLUMNS].to_csv(tmp_dir / "exclusions.csv", index=False)
 
     summary = summarize(meta, exclusions, info, spec, pcfg, x_bytes)
+    summary["row_fingerprint"] = row_fingerprint(meta)
+    summary["x_sha256"] = file_sha256(tmp_dir / "X.npy")
     summary["verification_against_driams_binned"] = verification
     summary["elapsed_seconds"] = round(time.monotonic() - started, 1)
     (tmp_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -513,8 +551,12 @@ def summarize(meta: pd.DataFrame, exclusions: pd.DataFrame, info: dict[str, Any]
     }
 
 
-def load_dataset(path: str | Path) -> tuple[np.ndarray, pd.DataFrame, dict[str, Any]]:
-    """Open a built dataset. X is memory-mapped read-only (no full copy in RAM)."""
+def load_dataset(path: str | Path, *, verify_x: bool = False) -> tuple[np.ndarray, pd.DataFrame, dict[str, Any]]:
+    """Open a built dataset. X is memory-mapped read-only (no full copy in RAM).
+
+    The metadata is always checked against the fingerprint in summary.json; `verify_x=True` also
+    re-hashes X.npy (about a second for 100 MB) to detect a changed or replaced matrix.
+    """
     path = Path(path)
     for name in ("X.npy", "metadata.csv", "summary.json"):
         if not (path / name).is_file():
@@ -527,4 +569,13 @@ def load_dataset(path: str | Path) -> tuple[np.ndarray, pd.DataFrame, dict[str, 
         raise DatasetError(f"X shape {X.shape} does not match metadata ({len(meta)}) / summary.")
     if not np.array_equal(meta["sample_index"].to_numpy(), np.arange(len(meta))):
         raise DatasetError("metadata.csv sample_index is not 0..n-1 in order.")
+    if "row_fingerprint" not in summary:
+        raise DatasetError(f"{path} was built by an older version without fingerprints; rebuild it with "
+                           "scripts/build_dataset.py.")
+    if row_fingerprint(meta) != summary["row_fingerprint"]:
+        raise DatasetError("metadata.csv does not match the fingerprint in summary.json (the file was changed "
+                           "after the build); rebuild the dataset.")
+    if verify_x and file_sha256(path / "X.npy") != summary["x_sha256"]:
+        raise DatasetError("X.npy does not match the checksum in summary.json (the file was changed after the "
+                           "build); rebuild the dataset.")
     return X, meta, summary

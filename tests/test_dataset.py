@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import gc
 import hashlib
+import json
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -21,6 +23,7 @@ from src.dataset import (
     spectrum_relpath,
 )
 from src.preprocessing import PreprocessingConfig, preprocess_file
+from src.splits import SplitError, build_splits
 from src.utils import load_config
 from tests.test_preprocessing import synthetic_spectrum, write_spectrum
 
@@ -256,11 +259,75 @@ def test_required_acquisition_date_excludes_undated_sites(driams):
 
 def test_build_is_reproducible(driams):
     config, out = driams
-    _build(config, name="run1")
-    _build(config, name="run2")
+    s1, *_ = _build(config, name="run1")
+    s2, *_ = _build(config, name="run2")
     assert (out / "run1" / "X.npy").read_bytes() == (out / "run2" / "X.npy").read_bytes()
     assert (out / "run1" / "metadata.csv").read_bytes() == (out / "run2" / "metadata.csv").read_bytes()
+    assert (s1["row_fingerprint"], s1["x_sha256"]) == (s2["row_fingerprint"], s2["x_sha256"])
     assert not (out / "run1.building").exists()
+
+
+def test_fingerprints_detect_files_changed_after_the_build(driams):
+    config, out = driams
+    summary = _build(config)[0]                           # keep no reference to the memory-mapped X
+    folder = out / "ecoli_ciprofloxacin"
+    assert len(summary["row_fingerprint"]) == 16 and len(summary["x_sha256"]) == 64
+    load_dataset(folder, verify_x=True)
+    gc.collect()                                          # release the memory map before editing X.npy
+
+    x_path = folder / "X.npy"
+    data = bytearray(x_path.read_bytes())
+    data[-1] ^= 0xFF
+    x_path.write_bytes(bytes(data))
+    load_dataset(folder)                                  # the quick check does not read X
+    with pytest.raises(DatasetError, match="X.npy does not match"):
+        load_dataset(folder, verify_x=True)
+    gc.collect()
+
+    meta_path = folder / "metadata.csv"
+    edited = pd.read_csv(meta_path, dtype=str, keep_default_na=False)
+    edited.loc[0, "label"] = "0" if edited.loc[0, "label"] == "1" else "1"   # same shape, other label
+    edited.to_csv(meta_path, index=False)
+    with pytest.raises(DatasetError, match="fingerprint"):
+        load_dataset(folder)
+
+    summary_path = folder / "summary.json"
+    old = json.loads(summary_path.read_text(encoding="utf-8"))
+    del old["row_fingerprint"]
+    summary_path.write_text(json.dumps(old), encoding="utf-8")
+    with pytest.raises(DatasetError, match="older version"):
+        load_dataset(folder)
+
+
+def test_sensitivity_dataset_reuses_the_primary_splits(driams):
+    config, out = driams
+    # the synthetic sites are DRIAMS-Y (dated, patient IDs) and DRIAMS-Z; random/within_year stay on the
+    # absent DRIAMS-A and are skipped
+    config["splits"]["temporal"].update(sites=["DRIAMS-Y"], validation_start="2017-06-15")
+    config["splits"]["external"].update(train_sites=["DRIAMS-Y"], test_sites=["DRIAMS-Z"], validation_fraction=0.5)
+    _, _, meta, _ = _build(config)
+    _, _, variant, _ = _build(config, intermediate_as="exclude")
+    variant_name = "ecoli_ciprofloxacin__intermediate-exclude"
+    with pytest.raises(SplitError, match="Build it first"):
+        build_splits(variant, config, variant_name, out)
+
+    skipped: list[str] = []
+    primary_splits = build_splits(meta, config, "ecoli_ciprofloxacin", out, skipped)
+    assert set(primary_splits) == {"temporal", "external"} and len(skipped) == 2
+    for name, split in primary_splits.items():
+        split.save(out / "ecoli_ciprofloxacin" / "splits" / f"{name}.json", meta)
+
+    derived = build_splits(variant, config, variant_name, out)
+    assert set(derived) == set(primary_splits)
+    key = meta["code"] + "@" + meta["year_folder"]
+    variant_key = variant["code"] + "@" + variant["year_folder"]
+    for name, split in derived.items():
+        assert split.derived_from["dataset"] == "ecoli_ciprofloxacin"
+        for part, idx in split.parts().items():
+            expected = set(key.iloc[primary_splits[name].parts()[part]]) - {"y03@2017"}   # the I sample
+            assert set(variant_key.iloc[idx]) == expected
+    assert set(key.iloc[primary_splits["temporal"].train]) == {"y01@2017", "y02@2017", "y03@2017"}
+    assert "y03@2017" in set(key.iloc[np.concatenate(list(primary_splits["external"].parts().values()))])
 
 
 def test_rebuild_replaces_previous_output(driams):
