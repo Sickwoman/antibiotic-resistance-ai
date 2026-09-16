@@ -1,0 +1,11 @@
+# Ruff linter settings (run from the project root: python -m ruff check .)
+line-length = 120
+target-version = "py312"
+
+[lint]
+# E/W pycodestyle, F pyflakes, I import order, B bugbear (likely bugs), UP modern Python syntax
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[lint.per-file-ignores]
+# notebooks add the project root to sys.path before importing src
+"*.ipynb" = ["E402"]

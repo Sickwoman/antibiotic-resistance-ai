@@ -131,7 +131,7 @@ def _build(config, **kwargs):
 
 
 def reasons(exclusions: pd.DataFrame) -> dict[str, str]:
-    return dict(zip(exclusions["code"] + "@" + exclusions["year_folder"], exclusions["reason"]))
+    return dict(zip(exclusions["code"] + "@" + exclusions["year_folder"], exclusions["reason"], strict=True))
 
 
 def test_primary_dataset_contents(driams):
@@ -141,7 +141,7 @@ def test_primary_dataset_contents(driams):
     assert set(meta["code"] + "@" + meta["year_folder"]) == {
         "y01@2017", "y02@2017", "y03@2017", "y14@2017", "y15@2018", "y16@2018", "y17@2018", "y20@2018",
         "z01@2018", "z02@2018", "z03@2018"}
-    labels = dict(zip(meta["code"] + "@" + meta["year_folder"], meta["label"]))
+    labels = dict(zip(meta["code"] + "@" + meta["year_folder"], meta["label"], strict=True))
     assert labels["y01@2017"] == 1 and labels["y02@2017"] == 0 and labels["y03@2017"] == 1   # I -> resistant
     assert reasons(exclusions) == {
         "y01@2018": "duplicate_record", "y04@2017": "no_ast_result", "y05@2017": "ambiguous_ast_result",
@@ -170,8 +170,9 @@ def test_rows_of_x_match_their_spectra(driams):
 
     _, X, meta, _ = _build(config)
     pcfg = PreprocessingConfig.from_config(config)
+    root = config["paths"]["driams_root"]
     for i in (0, 4, len(meta) - 1):
-        expected, _ = preprocess_file(resolve_relpath(config["paths"]["driams_root"], meta.loc[i, "spectrum_relpath"]), pcfg)
+        expected, _ = preprocess_file(resolve_relpath(root, meta.loc[i, "spectrum_relpath"]), pcfg)
         assert np.array_equal(X[i], expected)
 
 
@@ -333,8 +334,9 @@ def test_relative_paths_are_portable(tmp_path):
     resolved = resolve_relpath(tmp_path, rel)
     assert resolved.parts[-4:] == ("DRIAMS-A", "raw", "2018", "abc.txt")
     # the same relative path maps onto both Windows and POSIX roots
-    assert PureWindowsPath("C:/DRIAMS").joinpath(*PurePosixPath(rel).parts) == PureWindowsPath(r"C:\DRIAMS\DRIAMS-A\raw\2018\abc.txt")
-    assert PurePosixPath("/data/DRIAMS").joinpath(*PurePosixPath(rel).parts) == PurePosixPath("/data/DRIAMS/DRIAMS-A/raw/2018/abc.txt")
+    parts = PurePosixPath(rel).parts
+    assert PureWindowsPath("C:/DRIAMS").joinpath(*parts) == PureWindowsPath(r"C:\DRIAMS\DRIAMS-A\raw\2018\abc.txt")
+    assert PurePosixPath("/data/DRIAMS").joinpath(*parts) == PurePosixPath("/data/DRIAMS/DRIAMS-A/raw/2018/abc.txt")
 
 
 def test_assign_group_ids():

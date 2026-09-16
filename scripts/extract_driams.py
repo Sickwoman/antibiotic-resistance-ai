@@ -181,7 +181,8 @@ def extract(config: dict, site_letter: str, folders: list[str], species: str | N
     stats["elapsed_s"] = round(time.monotonic() - started, 1)
     stats.update({"site": site, "archive": str(archive), "folders_extracted": folders,
                   "species_filter": species, "manifest": str(manifest_path)})
-    summary_path = man_dir / f"{site}_extraction_{'_'.join(folders)}{'_' + species.replace(' ', '_') if species else ''}.json"
+    species_suffix = "_" + species.replace(" ", "_") if species else ""
+    summary_path = man_dir / f"{site}_extraction_{'_'.join(folders)}{species_suffix}.json"
     summary_path.write_text(json.dumps(stats, indent=2), encoding="utf-8")
 
     log.info("[%s] done in %.0f s: %d files written (%s), %d already present, %d filtered out",
