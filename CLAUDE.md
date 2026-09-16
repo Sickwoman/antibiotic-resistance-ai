@@ -23,9 +23,16 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
 
 - Windows 11, PowerShell, Python 3.12 venv in `.venv`, 7.7 GB RAM, no CUDA GPU.
 - DRIAMS data lives outside the repo at `C:\DRIAMS` (`config.yaml` → `paths.driams_root`).
-- Run tests: `.\.venv\Scripts\python.exe -m pytest -q`
+- Run tests: `.\.venv\Scripts\python.exe -m pytest -q`; lint: `.\.venv\Scripts\python.exe -m ruff check .`
+  (both run in CI).
 - Verified data facts are recorded in `config.yaml` comments and `README.md`.
 - Version 0.2 dataset: `.\.venv\Scripts\python.exe scripts\build_dataset.py` writes
   `data/processed/ecoli_ciprofloxacin/` (git-ignored). Never export patient_no / case_no / order_no.
+- Build the primary dataset before any variant (e.g. `--intermediate-as exclude`): variants reuse the
+  primary dataset's saved splits. Load splits only with `load_split(path, meta)` / `load_splits`, which
+  check the dataset fingerprint.
 - Anything learned from data (scaling, PCA, feature selection) must be fitted inside model pipelines on
   training rows only; `src/preprocessing.py` stays stateless.
+- Models are evaluated as described in `docs/evaluation_protocol.md` (test parts used once per final
+  model; every test evaluation logged). Change it only through a dated amendment, never because of test
+  results.
