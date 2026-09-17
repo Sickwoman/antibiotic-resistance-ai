@@ -1,7 +1,7 @@
 {
   "compared": 300,
   "reference_file_missing": 0,
-  "max_relative_difference": 5.382726442033718e-08,
-  "median_relative_difference": 3.4171350964754415e-08,
+  "max_relative_difference": 5.924844593072881e-08,
+  "median_relative_difference": 3.365982200828766e-08,
   "note": "relative difference = max |ours - DRIAMS| / max(DRIAMS); float32 storage alone gives ~1e-7"
 }

@@ -10,4 +10,4 @@ temporal,validation,459,104,355,235,{'DRIAMS-A': 459},2017-10-02 .. 2017-12-30
 temporal,test,1208,246,962,639,{'DRIAMS-A': 1208},2018-01-03 .. 2018-08-31
 external,train,3776,818,2958,1893,{'DRIAMS-A': 3776},2015-11-20 .. 2018-08-31
 external,validation,419,89,330,216,{'DRIAMS-A': 419},2015-11-22 .. 2018-08-28
-external,test,212,58,154,212,{'DRIAMS-B': 212},None .. None
+external,test,2150,428,1722,2150,"{'DRIAMS-B': 212, 'DRIAMS-D': 1938}",None .. None
