@@ -22,7 +22,8 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
 ## Working notes
 
 - Windows 11, PowerShell, Python 3.12 venv in `.venv`, 7.7 GB RAM, no CUDA GPU.
-- DRIAMS data lives outside the repo at `C:\DRIAMS` (`config.yaml` → `paths.driams_root`).
+- DRIAMS data lives outside the repo at `C:\DRIAMS` (`config.yaml` → `paths.driams_root`). Extracted: A, B and
+  D (`id`, `binned_6000`, raw E. coli spectra); DRIAMS-C still needs a browser download from Dryad.
 - Run tests: `.\.venv\Scripts\python.exe -m pytest -q`; lint: `.\.venv\Scripts\python.exe -m ruff check .`
   (both run in CI).
 - Verified data facts are recorded in `config.yaml` comments and `README.md`.

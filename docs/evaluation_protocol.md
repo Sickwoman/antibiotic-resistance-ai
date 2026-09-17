@@ -16,8 +16,8 @@ Label 1 = R or I (I counted as resistant), label 0 = S.
 
 | Dataset | Rows fingerprint | Samples | Resistant | Use |
 |---|---|---|---|---|
-| `ecoli_ciprofloxacin` | `b4c1a749b8bab87a` | 4,472 (A 4,259, B 213) | 1,030 | all main results |
-| `ecoli_ciprofloxacin__intermediate-exclude` | `2f202f7d91aba491` | 4,407 (A 4,195, B 212) | 965 | sensitivity analysis (I removed) |
+| `ecoli_ciprofloxacin` | `151415a4d03dbcc5` | 6,410 (A 4,259, B 213, D 1,938) | 1,400 | all main results |
+| `ecoli_ciprofloxacin__intermediate-exclude` | `9a23af98751e0770` | 6,345 (A 4,195, B 212, D 1,938) | 1,335 | sensitivity analysis (I removed) |
 
 Both datasets use the same partition: each sample is in the same part of each split in both datasets.
 Every run records the dataset name, both fingerprints (rows and `X.npy`), the split name, the git commit,
@@ -30,16 +30,17 @@ the full configuration and the random seed.
 | `random` | How well does a model work on new patients from the same hospital (A, 2015–2018)? | 2,977 / 426 / 856 | 23.0 % |
 | `within_year` | Is `random` optimistic because patient IDs change between years? (A, year folder 2017) | 1,284 / 183 / 366 | 23.2 % |
 | `temporal` | Does a model trained on older data work on later data? (A; test = 2018) | 2,505 / 465 / 1,233 | 22.0 % |
-| `external` | Does a model trained at hospital A work at another hospital? (test = DRIAMS-B) | 3,831 / 428 / 213 | 27.7 % |
+| `external` | Does a model trained at hospital A work at other sites? (test = DRIAMS-B and DRIAMS-D) | 3,831 / 428 / 2,151 (B 213, D 1,938) | B 27.7 %, D 19.1 % |
 
-DRIAMS-D (and C, if downloaded) will be added as further external test sites once the pre-registered
-antibiotic-selection rule has been confirmed on them. That confirmation must happen before any model is
-trained.
+The antibiotic choice was confirmed on DRIAMS-D on 2026-09-17, before any model was trained. DRIAMS-C is
+added the same way if it is downloaded. The pre-registered selection rule must be checked on it first.
 
 Pre-specified comparisons:
 
 - **Generalisation gap:** the `random` test result minus the `temporal` test result, and minus the
-  `external` test result.
+  `external` test result **for each external site separately**. DRIAMS-B (a hospital) and DRIAMS-D (a
+  diagnostic laboratory) differ in size and resistance rate, so a pooled external number is only
+  secondary.
 - **Patient-overlap check:** `random` versus `within_year`. The `within_year` split has fewer training
   samples, so it is also compared with a `random` model trained on a patient-grouped random subsample of
   its training part of the same size (1,284 samples, seed 42). That way, less training data is not
@@ -84,7 +85,7 @@ Pre-specified comparisons:
 ## 6. Uncertainty of the estimates
 
 - **95 % confidence intervals:** percentile bootstrap with 2,000 resamples, seed 42. Whole patient groups
-  are resampled within the test set. In DRIAMS-B each spectrum is its own group.
+  are resampled within the test set. In DRIAMS-B and DRIAMS-D each spectrum is its own group.
 - **Two models on the same test set:** a paired bootstrap of the difference (the same resamples for
   both). A model is called better only if the 95 % interval of the difference excludes 0.
 - **Different test sets** (e.g. `random` versus `temporal`): both intervals are reported, plus the
@@ -96,6 +97,11 @@ Pre-specified comparisons:
 
 - The DRIAMS-B test set has only 59 resistant isolates, so its intervals will be wide and its results are
   indicative only.
+- DRIAMS-B and DRIAMS-D have no patient IDs. Repeated isolates of one patient count as independent
+  samples, which makes their intervals somewhat too narrow.
+- DRIAMS-D spectra start at about 2,000 Da, while A and B spectra usually start near 1,960 Da. The lowest
+  bins therefore differ systematically between sites. This matters for models that are trained on more
+  than one site.
 - Validation parts hold about 40–110 resistant isolates. Thresholds chosen there are noisy, so both
   validation and test sensitivity are reported.
 - DRIAMS-A patient IDs change every year, so `random` and `temporal` cannot rule out that one patient
@@ -108,8 +114,8 @@ Pre-specified comparisons:
 1. **I excluded:** repeat the headline metrics on the `…__intermediate-exclude` dataset, using the same
    partition.
 2. **Patient overlap:** `within_year` versus `random` and the size-matched `random` run (section 3).
-3. **Later:** additional external sites (D, C) once they are available and the selection rule is
-   confirmed.
+3. **Later:** DRIAMS-C as a further external site, once it is downloaded and the selection rule is
+   confirmed on it.
 4. **Optional, later:** hospital-hygiene samples as a separate test set. This needs a small builder
    option first.
 

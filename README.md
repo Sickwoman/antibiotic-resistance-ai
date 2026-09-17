@@ -213,12 +213,12 @@ benefit here and would break comparability with DRIAMS. Anything that learns fro
 PCA, feature selection) must be fitted on training data only, so it belongs inside the Version 0.3 model
 pipelines, not in the dataset.
 
-**Verification:** our features reproduce the published DRIAMS `binned_6000` files. For the 4,472 samples
-kept, the largest relative difference is 5.9 × 10⁻⁸ (float32 rounding). A single SNIP pass would differ by
+**Verification:** our features reproduce the published DRIAMS `binned_6000` files. For the 6,410 samples
+kept (sites A, B and D), the largest relative difference is 5.9 × 10⁻⁸ (float32 rounding). A single SNIP pass would differ by
 about 5 × 10⁻⁵, which is how the undocumented second pass was confirmed. The builder checks every sample
 against its published binned file (`dataset.verify_against_driams_binned`).
 
-### Primary dataset: E. coli + ciprofloxacin (built 2026-09-16)
+### Primary dataset: E. coli + ciprofloxacin (built 2026-09-17, with DRIAMS-D)
 
 Rules: I counted as resistant; hospital-hygiene samples excluded; DRIAMS-A metadata from `strat` files.
 
@@ -226,30 +226,39 @@ Rules: I counted as resistant; hospital-hygiene samples excluded; DRIAMS-A metad
 |---|---|---|---|---|
 | DRIAMS-A (11/2015–08/2018) | 4,259 | 971 (907 R + 64 I) | 3,288 | 2,137 |
 | DRIAMS-B (2018) | 213 | 59 (58 R + 1 I) | 154 | – (no patient IDs) |
-| **Total** | **4,472** | **1,030** | **3,442** | |
+| DRIAMS-D (2018) | 1,938 | 370 (370 R + 0 I) | 1,568 | – (no patient IDs) |
+| **Total** | **6,410** | **1,400** | **5,010** | |
 
-X = 4,472 × 6,000 `float32` (107.3 MB, memory-mapped); metadata 0.8 MB.
+X = 6,410 × 6,000 `float32` (153.8 MB, memory-mapped); metadata 1.1 MB. Adding DRIAMS-D appended its rows
+after A and B; the A and B rows and their splits are unchanged.
 
 Every E. coli metadata row is either used or excluded with one reason (first reason that applies):
 
-| Reason | DRIAMS-A | DRIAMS-B |
-|---|---|---|
-| no ciprofloxacin result | 2,334 | 625 |
-| ambiguous result (e.g. `R(1), S(1)`) | 75 | 0 |
-| hospital-hygiene sample | 633 | not identifiable (no workstation column) |
-| malformed raw file (corrupt rows / m/z running backwards) | 8 | 0 |
-| raw file differs from the published binned file | 11 | 0 |
-| **E. coli rows in metadata** | **7,320** | **838** |
+| Reason | DRIAMS-A | DRIAMS-B | DRIAMS-D |
+|---|---|---|---|
+| no ciprofloxacin result | 2,334 | 625 | 74 |
+| ambiguous result (e.g. `R(1), S(1)`) | 75 | 0 | 0 |
+| hospital-hygiene sample | 633 | not identifiable | not identifiable |
+| malformed raw file (corrupt rows / m/z running backwards) | 8 | 0 | 0 |
+| raw file differs from the published binned file | 11 | 0 | 1 |
+| **E. coli rows in metadata** | **7,320** | **838** | **2,013** |
 
-The 11 "differs" cases: DRIAMS ships a raw file and a binned file for the same code that contain two
-different measurements (6–38 % relative difference), so the AST label cannot be tied to the raw file with
-confidence. Not included either: 61 (A) and 1 (B) mixed-culture rows (`MIX!Escherichia coli`). A further
-281 E. coli codes of the 2017 table also have an identical copy of their raw file in the 2018 folder;
-these copies are not referenced by any metadata row and are never used.
+Notes on the exclusions and the data:
+- **The 12 "differs" cases:** DRIAMS ships a raw file and a binned file for the same code that contain
+  two different measurements (6–38 % relative difference; the DRIAMS-D case differs by 16 %). The AST
+  label therefore cannot be tied to the raw file with confidence.
+- **Mixed cultures:** 61 (A) and 1 (B) rows labelled `MIX!Escherichia coli` are not included (D has
+  none).
+- **Unused raw copies:** a further 281 E. coli codes of the 2017 table have an identical copy of their raw
+  file in the 2018 folder. No metadata row refers to these copies, and they are never used.
+- **Where DRIAMS-D spectra start:** they begin at 1,995–2,009 Da (median 1,999.9 Da), right at the
+  2,000 Da lower limit. DRIAMS-A spectra usually begin near 1,960 Da (checked on 200 random spectra;
+  DRIAMS-B the same). The lowest bins of D spectra are therefore systematically sparser, a possible site
+  signature to watch when sites are pooled. The published binned files show the same.
 
-**Sensitivity dataset** (`--intermediate-as exclude`): 4,407 samples, 965 R / 3,442 S
-(A 907 / 3,288, B 58 / 154); 96 I results removed. It uses exactly the same partition as the primary
-dataset (see below).
+**Sensitivity dataset** (`--intermediate-as exclude`): 6,345 samples, 1,335 R / 5,010 S (A 907 / 3,288,
+B 58 / 154, D 370 / 1,568); 96 I results removed (DRIAMS-D has none). It uses exactly the same partition
+as the primary dataset (see below).
 
 ### Splits (row indices only)
 
@@ -258,7 +267,7 @@ dataset (see below).
 | random (A, stratified, patient-grouped, seed 42) | 2,977 | 426 | 856 | 197 |
 | within_year (as random, A year folder 2017 only) | 1,284 | 183 | 366 | 85 |
 | temporal (A, by `acquisition_date`) | 2,505 (< 2017-10-01) | 465 (2017-10-01 … 2017-12-31) | 1,233 (≥ 2018-01-01) | 271 |
-| external (train A, test B) | 3,831 | 428 | 213 | 59 |
+| external (train A, test B + D) | 3,831 | 428 | 2,151 (B 213, D 1,938) | 429 (B 59, D 370) |
 
 - **Leakage checks:** every split is checked so that no sample and no patient group appears in two
   parts. The temporal split drops 56 training samples whose patient group also appears later.
@@ -273,20 +282,26 @@ dataset (see below).
 - **Sensitivity dataset (I excluded):** instead of drawing new splits, it reuses the primary dataset's
   saved ones (each sample keeps its part), so the two datasets differ only by the removed I samples.
   Sizes: random 2,930 / 421 / 844, within_year 1,268 / 179 / 365, temporal 2,473 / 459 / 1,208,
-  external 3,776 / 419 / 212.
+  external 3,776 / 419 / 2,150.
   - Before this change, independently drawn splits put 44 % of the shared samples in a different part of
     the random split.
-- **Other limitations:** patients cannot be linked across hospitals; DRIAMS-B has no patient IDs, dates
-  or sample types.
+- **External test part:** it holds both outside sites. Their resistance rates differ (B 27.7 %,
+  D 19.1 %), so results are reported per site.
+- **Other limitations:**
+  - Patients cannot be linked across hospitals.
+  - DRIAMS-B and DRIAMS-D have no patient IDs, dates or sample types. Repeated isolates of one patient at
+    those sites are counted as independent samples; they are only ever test data, but this makes
+    confidence intervals too narrow.
 
 ### Commands
 
 ```powershell
-# raw E. coli spectra (one pass over each archive; A takes ~20 min)
+# raw E. coli spectra (one pass over each archive; A ~20 min, D ~13 min)
 python scripts/extract_driams.py --site B --folders raw preprocessed --species "Escherichia coli"
 python scripts/extract_driams.py --site A --folders raw preprocessed --species "Escherichia coli"
+python scripts/extract_driams.py --site D --folders raw preprocessed --species "Escherichia coli"
 
-# build dataset + splits + reports (~4-5 min each); the primary dataset first,
+# build dataset + splits + reports (~8 min each with A, B and D); the primary dataset first,
 # because every other dataset reuses its splits
 python scripts/build_dataset.py
 python scripts/build_dataset.py --intermediate-as exclude
@@ -303,8 +318,9 @@ python scripts/build_dataset.py --intermediate-as exclude
 re-hashes `X.npy`), and `src.splits.load_splits(folder, meta)` / `load_split(path, meta)`. The notebook
 `notebooks/02_preprocessing.ipynb` shows an example.
 
-**Adding DRIAMS-C/D later:** download, then extract `id`, `binned_6000` and (for E. coli) `raw`. Add the
-site to `dataset.sites` and `splits.external.test_sites` in `config.yaml`, and rebuild both datasets.
+**Adding DRIAMS-C later:** download it in a browser from Dryad, then extract `id`, `binned_6000` and (for
+E. coli) `raw`. Add the site to `dataset.sites` and `splits.external.test_sites` in `config.yaml`, and
+rebuild both datasets. DRIAMS-D was added this way on 2026-09-17.
 
 ## Project structure (Version 0.2)
 
