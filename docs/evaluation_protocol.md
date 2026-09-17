@@ -1,8 +1,9 @@
 # Evaluation protocol (pre-registration)
 
-**Status: DRAFT – waiting for approval.** Written on 2026-09-17, before any model was trained. After
-approval, this protocol changes only through a dated amendment at the end of this file that gives the
-reason. No change may be motivated by a test-set result.
+**Status: APPROVED on 2026-09-17** by the project owner, before any model was trained. The decisions
+table (section 10) records the approved choices. This protocol now changes only through a dated
+amendment at the end of this file that gives the reason. No change may be motivated by a test-set
+result.
 
 This is a research prototype. It predicts a laboratory label from a spectrum; it is not a clinically
 validated diagnostic and must never be used to choose a patient's antibiotic.
@@ -126,9 +127,9 @@ Pre-specified comparisons:
 - Metrics are never typed by hand; tables are generated from the saved run logs.
 - No claim of clinical usefulness and no treatment advice.
 
-## 10. Decisions needed before Version 0.3
+## 10. Decisions (approved 2026-09-17)
 
-| # | Decision | Proposal |
+| # | Decision | Approved choice |
 |---|---|---|
 | 1 | Primary metric | AUROC, with PR-AUC as co-primary |
 | 2 | Threshold rule | highest threshold with validation sensitivity ≥ 0.90 |
@@ -136,8 +137,11 @@ Pre-specified comparisons:
 | 4 | Confidence intervals | 2,000 patient-group bootstrap resamples, 95 % percentile interval |
 | 5 | Patient-overlap check | add the size-matched `random` training run |
 | 6 | Seeds | 5 seeds (42–46) for models with random training |
+| 7 | Test parts used before Version 0.7 | `random` and `within_year` (with the size-matched run) only; the `temporal` and `external` test parts stay locked until Version 0.7 so they cannot influence model choices in Versions 0.3–0.6 |
 
-Approval: not yet approved.
+In code, decision 7 is `evaluation.locked_test_splits` in `config.yaml`. Test parts are scored only
+when a script is run with `--evaluate-test`, and every scoring is appended to
+`results/experiments/test_evaluations.csv`.
 
 ## Amendments
 

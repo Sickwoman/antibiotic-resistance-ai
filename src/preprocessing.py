@@ -116,6 +116,13 @@ class PreprocessingConfig:
         d["n_bins"] = self.n_bins
         return d
 
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> PreprocessingConfig:
+        """Inverse of to_dict (e.g. the settings stored inside a saved model)."""
+        values = {k: v for k, v in d.items() if k != "n_bins"}
+        values["baseline_iterations"] = tuple(int(i) for i in values["baseline_iterations"])
+        return cls(**values)
+
     @property
     def matches_driams_binning(self) -> bool:
         """True when the settings are the DRIAMS ones, so results are comparable with binned_6000 files."""
