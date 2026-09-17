@@ -1,18 +1,19 @@
 {
   "version": "0.1.0",
-  "generated": "2026-09-16 22:48:17",
+  "generated": "2026-09-17 02:45:27",
   "driams_root": "C:\\DRIAMS",
   "sites_available": [
     "DRIAMS-A",
-    "DRIAMS-B"
+    "DRIAMS-B",
+    "DRIAMS-D"
   ],
   "sites_not_available": [
-    "DRIAMS-C",
-    "DRIAMS-D"
+    "DRIAMS-C"
   ],
   "rows_per_site": {
     "DRIAMS-A": 111257,
-    "DRIAMS-B": 5897
+    "DRIAMS-B": 5897,
+    "DRIAMS-D": 10436
   },
   "years_per_site": {
     "DRIAMS-A": [
@@ -22,6 +23,9 @@
       "2018"
     ],
     "DRIAMS-B": [
+      "2018"
+    ],
+    "DRIAMS-D": [
       "2018"
     ]
   },
@@ -34,6 +38,9 @@
     ],
     "DRIAMS-B": [
       "2018_clean.csv"
+    ],
+    "DRIAMS-D": [
+      "2018_clean.csv"
     ]
   },
   "ignored_index_columns": {
@@ -42,15 +49,29 @@
         "Unnamed: 0"
       ]
     },
-    "DRIAMS-B": {}
+    "DRIAMS-B": {},
+    "DRIAMS-D": {}
   },
   "absent_metadata_columns": {
     "DRIAMS-A": [
       "id",
-      "combined_code"
+      "combined_code",
+      "genus"
     ],
     "DRIAMS-B": [
       "id",
+      "genus",
+      "laboratory_species",
+      "patient_no",
+      "case_no",
+      "order_no",
+      "acquisition_date",
+      "acquisition_time",
+      "workstation"
+    ],
+    "DRIAMS-D": [
+      "id",
+      "combined_code",
       "laboratory_species",
       "patient_no",
       "case_no",
@@ -62,11 +83,13 @@
   },
   "patient_group_column": {
     "DRIAMS-A": "patient_no",
-    "DRIAMS-B": null
+    "DRIAMS-B": null,
+    "DRIAMS-D": null
   },
   "antibiotic_columns_per_site": {
     "DRIAMS-A": 82,
-    "DRIAMS-B": 40
+    "DRIAMS-B": 40,
+    "DRIAMS-D": 36
   },
   "binary_marker_columns": {
     "DRIAMS-A": [],
@@ -75,30 +98,33 @@
       "Clindamycin_induced",
       "ESBL",
       "MRSA"
-    ]
+    ],
+    "DRIAMS-D": []
   },
   "unknown_columns": {
     "DRIAMS-A": [],
-    "DRIAMS-B": []
+    "DRIAMS-B": [],
+    "DRIAMS-D": []
   },
   "target_species": "Escherichia coli",
   "target_rows_with_binned_spectrum": {
     "DRIAMS-A": 7320,
-    "DRIAMS-B": 213
+    "DRIAMS-B": 213,
+    "DRIAMS-D": 2013
   },
   "pair_decision": {
     "species": "Escherichia coli",
     "preferred_antibiotic": "Ciprofloxacin",
     "intermediate_as": "resistant",
     "selected_antibiotic": "Ciprofloxacin",
-    "preferred_status": "pending",
-    "preferred_reasons": "external sites not yet available: DRIAMS-C, DRIAMS-D",
-    "message": "Ciprofloxacin meets every rule that can be checked now; final confirmation after: external sites not yet available: DRIAMS-C, DRIAMS-D."
+    "preferred_status": "eligible",
+    "preferred_reasons": "",
+    "message": "Ciprofloxacin meets every pre-registered rule."
   },
   "benchmark_pair": {
     "antibiotic": "Ceftriaxone",
-    "status": "pending",
-    "reasons": "external sites not yet available: DRIAMS-C, DRIAMS-D"
+    "status": "eligible",
+    "reasons": ""
   },
-  "elapsed_seconds": 22.8
+  "elapsed_seconds": 171.4
 }

@@ -5,7 +5,7 @@
     "notes": [
       "Group IDs are only valid within one DRIAMS-A year folder (patient_no is re-hashed per year), so a patient seen in two years can be in two parts; compare with the within_year split."
     ],
-    "dataset_fingerprint": "b4c1a749b8bab87a",
+    "dataset_fingerprint": "151415a4d03dbcc5",
     "derived_from": null,
     "train": {
       "samples": 2977,
@@ -47,7 +47,7 @@
     "notes": [
       "Only year folder 2017 (1833 samples); patient IDs are consistent within it, so patient groups are complete. Differences to the random split estimate how much cross-year patient overlap affects the random split."
     ],
-    "dataset_fingerprint": "b4c1a749b8bab87a",
+    "dataset_fingerprint": "151415a4d03dbcc5",
     "derived_from": null,
     "train": {
       "samples": 1284,
@@ -90,7 +90,7 @@
       "Removed 0 validation and 56 training sample(s) whose patient group also occurs in a later part.",
       "Patient groups are only valid within one year folder; cross-year overlap cannot be detected."
     ],
-    "dataset_fingerprint": "b4c1a749b8bab87a",
+    "dataset_fingerprint": "151415a4d03dbcc5",
     "derived_from": null,
     "train": {
       "samples": 2505,
@@ -128,11 +128,11 @@
   },
   "external": {
     "name": "external",
-    "description": "Train/validation on ['DRIAMS-A'], external test on ['DRIAMS-B'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
+    "description": "Train/validation on ['DRIAMS-A'], external test on ['DRIAMS-B', 'DRIAMS-D'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
     "notes": [
       "Patients cannot be linked across hospitals, so cross-site patient overlap is not checked."
     ],
-    "dataset_fingerprint": "b4c1a749b8bab87a",
+    "dataset_fingerprint": "151415a4d03dbcc5",
     "derived_from": null,
     "train": {
       "samples": 3831,
@@ -157,13 +157,14 @@
       "date_max": "2018-08-28"
     },
     "test": {
-      "samples": 213,
-      "resistant": 59,
-      "susceptible": 154,
+      "samples": 2151,
+      "resistant": 429,
+      "susceptible": 1722,
       "sites": {
-        "DRIAMS-B": 213
+        "DRIAMS-B": 213,
+        "DRIAMS-D": 1938
       },
-      "groups": 213,
+      "groups": 2151,
       "date_min": null,
       "date_max": null
     }

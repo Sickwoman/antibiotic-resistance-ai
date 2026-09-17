@@ -1,9 +1,11 @@
 reason,site,count,meaning
 no_ast_result,DRIAMS-A,2334,no result for the antibiotic
 no_ast_result,DRIAMS-B,625,no result for the antibiotic
+no_ast_result,DRIAMS-D,74,no result for the antibiotic
 ambiguous_ast_result,DRIAMS-A,75,"result that is not a single category, e.g. 'R(1), S(1)'"
 intermediate_excluded,DRIAMS-A,95,I result while labels.intermediate_as is 'exclude'
 intermediate_excluded,DRIAMS-B,1,I result while labels.intermediate_as is 'exclude'
 excluded_workstation,DRIAMS-A,602,sample type listed in dataset.exclude_workstations (e.g. HospitalHygiene)
 malformed_spectrum,DRIAMS-A,8,raw spectrum file unreadable or failed validation
 differs_from_driams_binned,DRIAMS-A,11,processed raw file does not match the published DRIAMS binned_6000 file for the same code (the two files hold different measurements)
+differs_from_driams_binned,DRIAMS-D,1,processed raw file does not match the published DRIAMS binned_6000 file for the same code (the two files hold different measurements)

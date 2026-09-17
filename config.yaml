@@ -72,8 +72,9 @@ driams:
   id_suffixes: [strat, clean]
   # Non-antibiotic columns. patient_no / case_no / order_no are 32-character hashes that never
   # repeat across DRIAMS-A years (re-hashed per year), so patients can only be grouped within a year.
-  # Not every site has every column: DRIAMS-B has only species, code and combined_code (empty).
-  metadata_columns: [id, code, combined_code, species, laboratory_species, patient_no, case_no, order_no,
+  # Not every site has every column: DRIAMS-B has only species, code and combined_code (empty);
+  # DRIAMS-D (checked 2026-09-17) has only code, species and genus.
+  metadata_columns: [id, code, combined_code, species, genus, laboratory_species, patient_no, case_no, order_no,
                      acquisition_date, acquisition_time, workstation]
   # Grouping key for leakage checks (first column present wins).
   group_columns: [patient_no, case_no]
@@ -161,9 +162,9 @@ dataset:
   output_dir: data/processed        # git-ignored
   # species and antibiotic come from target.species / target.preferred_antibiotic;
   # the intermediate (I) policy comes from labels.intermediate_as.
-  sites: [DRIAMS-A, DRIAMS-B]       # add DRIAMS-C / DRIAMS-D here once downloaded and extracted
+  sites: [DRIAMS-A, DRIAMS-B, DRIAMS-D]   # add DRIAMS-C here once downloaded and extracted
   # Screening samples excluded from the primary cohort (kept in the exclusion list, never deleted).
-  # Sites without a workstation column (DRIAMS-B) cannot be filtered this way.
+  # Sites without a workstation column (DRIAMS-B, DRIAMS-D) cannot be filtered this way.
   exclude_workstations: [HospitalHygiene]
   require_acquisition_date: false   # only temporal splits need it; they check it themselves
   flag_duplicate_spectra: true      # identical processed vectors: keep the first, exclude the rest
@@ -201,5 +202,7 @@ splits:
     test_start: "2018-01-01"
   external:
     train_sites: [DRIAMS-A]
-    test_sites: [DRIAMS-B]          # add DRIAMS-C / DRIAMS-D when available
+    # One test part holding every external site; results are reported per site (their resistance
+    # rates differ: B 27.7 %, D 19.1 % of E. coli with a ciprofloxacin result).
+    test_sites: [DRIAMS-B, DRIAMS-D]  # add DRIAMS-C when available
     validation_fraction: 0.1

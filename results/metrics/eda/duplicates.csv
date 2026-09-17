@@ -1,3 +1,4 @@
 site,id_rows,rows_with_missing_code,duplicated_code_rows,fully_duplicated_rows,codes_in_more_than_one_year,codes_shared_with_other_sites,group_column,groups,groups_with_more_than_one_row,max_rows_per_group,rows_missing_group,groups_in_more_than_one_year,target_rows,target_groups,target_groups_with_more_than_one_row,target_max_rows_per_group,target_share_in_top10_groups,target_orders_with_more_than_one_spectrum
 DRIAMS-A,111257,0,0,0,0,0,patient_no,45110.0,18283.0,737.0,0.0,0.0,7320.0,2785.0,1516.0,533.0,0.1653,1554.0
 DRIAMS-B,5897,0,0,0,0,0,none available,,,,,,,,,,,
+DRIAMS-D,10436,0,0,0,0,0,none available,,,,,,,,,,,

@@ -514,11 +514,19 @@ def summarize(meta: pd.DataFrame, exclusions: pd.DataFrame, info: dict[str, Any]
             "workstation_column_present": info["workstation_column_present"].get(site, False),
             "other_spellings_not_included": info["other_spellings_not_included"].get(site, {}),
         }
+    no_ids = [s for s in spec.sites if not info["patient_id_column_present"].get(s, False)]
+    no_ws = [s for s in spec.sites if not info["workstation_column_present"].get(s, False)]
     notes = [
         "patient_no is re-hashed for every DRIAMS-A year folder: patient groups are only valid within a "
         "year, so the same person appearing in two years cannot be detected.",
-        "Sites without patient IDs (DRIAMS-B) treat every spectrum as its own group.",
-        "Sites without a workstation column (DRIAMS-B) cannot be filtered for hospital-hygiene samples.",
+    ]
+    if no_ids:
+        notes.append(f"Sites without patient IDs ({', '.join(no_ids)}) treat every spectrum as its own group, so "
+                     "repeated isolates of one patient there cannot be detected.")
+    if no_ws:
+        notes.append(f"Sites without a workstation column ({', '.join(no_ws)}) cannot be filtered for "
+                     "hospital-hygiene samples.")
+    notes += [
         f"Intermediate (I) results are handled as: {spec.intermediate_as}.",
         "Only stateless preprocessing is applied; no scaling, PCA or feature selection is fitted here.",
     ]

@@ -165,6 +165,8 @@ def test_primary_dataset_contents(driams):
     assert summary["per_site"]["DRIAMS-Y"]["ast_values"] == {"I": 1, "R": 2, "S": 5}
     assert summary["per_site"]["DRIAMS-Z"]["samples_without_patient_id"] == 3
     assert summary["x_shape"] == [11, 6000]
+    assert any(n.startswith("Sites without patient IDs (DRIAMS-Z)") for n in summary["notes"])
+    assert any(n.startswith("Sites without a workstation column (DRIAMS-Z)") for n in summary["notes"])
 
 
 def test_rows_of_x_match_their_spectra(driams):

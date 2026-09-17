@@ -1,3 +1,4 @@
 site,id_rows,distinct_species_strings,failed_identification_rows,mixed_culture_rows,missing_species_rows
 DRIAMS-A,111257,1227,0,4774,0
 DRIAMS-B,5897,338,189,208,0
+DRIAMS-D,10436,54,0,0,0
