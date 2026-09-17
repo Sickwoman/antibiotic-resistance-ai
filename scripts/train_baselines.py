@@ -42,6 +42,7 @@ from src.evaluate import (  # noqa: E402
     summarize_bootstrap,
     unpaired_difference,
 )
+from src.model_plots import plot_confusion  # noqa: E402
 from src.predict import (  # noqa: E402
     BUNDLE_FORMAT,
     ModelError,
@@ -157,33 +158,6 @@ def plot_calibration(results: list[RunResult], y: np.ndarray, n_bins: int, title
     return ex._save(fig, path)
 
 
-def plot_confusion(r: RunResult, title: str, path: Path) -> Path:
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import LinearSegmentedColormap
-
-    ex.apply_style()
-    t = r.test
-    cells = np.array([[t["tn"], t["fp"]], [t["fn"], t["tp"]]])
-    row_share = cells / cells.sum(axis=1, keepdims=True)
-    fig, ax = plt.subplots(figsize=(5.4, 4.6))
-    ax.imshow(row_share, cmap=LinearSegmentedColormap.from_list("blue", ex.BLUE_RAMP), vmin=0, vmax=1)
-    names = ["Susceptible", "Resistant"]
-    for i in range(2):
-        for j in range(2):
-            dark = row_share[i, j] > 0.55
-            ax.text(j, i, f"{cells[i, j]:,}\n{row_share[i, j]:.1%} of true {names[i].lower()}", ha="center",
-                    va="center", fontsize=10, color=ex.SURFACE if dark else ex.INK)
-    ax.set_xticks([0, 1], [f"Predicted {n.lower()}" for n in names])
-    ax.set_yticks([0, 1], [f"True {n.lower()}" for n in names])
-    ax.grid(False)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.set_title(title, pad=22)
-    ex._subtitle(ax, f"Threshold {r.threshold:.3g} (from validation); sensitivity {t['sensitivity']:.3f}, "
-                     f"specificity {t['specificity']:.3f}")
-    return ex._save(fig, path)
-
-
 # ------------------------------------------------------------------------------------------------ main
 
 def main() -> int:
@@ -240,8 +214,8 @@ def main() -> int:
                                           threshold_rule=ev["threshold"], log=log)
         train_seconds = round(time.monotonic() - started, 1)
 
-        report_dir = project_path("results/metrics/v0.3") / dataset_name
-        plot_dir = project_path("results/plots/v0.3")
+        report_dir = project_path(bl["report_dir"]) / dataset_name
+        plot_dir = project_path(bl["plot_dir"])
         report_dir.mkdir(parents=True, exist_ok=True)
         validation = pd.DataFrame([r.row("validation") for r in results])
         validation.to_csv(report_dir / "validation_metrics.csv", index=False, lineterminator="\n")
@@ -340,7 +314,8 @@ def main() -> int:
                      plot_calibration(main_seed, y[main_te], int(ev["calibration_bins"]),
                                       f"Calibration, {main_name} split (test)",
                                       plot_dir / f"{dataset_name}_{main_name}_calibration.png"),
-                     plot_confusion(best, f"{DISPLAY.get(best.model, best.model)}, {main_name} split (test)",
+                     plot_confusion(best.threshold, best.test,
+                                    f"{DISPLAY.get(best.model, best.model)}, {main_name} split (test)",
                                     plot_dir / f"{dataset_name}_{main_name}_confusion_{best.model}.png")]
             for p in plots:
                 print(f"saved {p.relative_to(project_path('.'))}")

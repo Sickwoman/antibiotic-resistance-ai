@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "0.3.0"
+  version: "0.4.0"
   random_seed: 42
 
 paths:
@@ -231,6 +231,8 @@ baselines:
     size_of: within_year              # of `size_of`
   seeds: [42, 43, 44, 45, 46]         # stochastic models run once per seed; seed 42 is reported and saved
   model_dir: models/v0.3              # git-ignored
+  report_dir: results/metrics/v0.3
+  plot_dir: results/plots/v0.3
   models:
     prevalence:                       # always predicts the training resistance rate (no-skill reference)
       kind: dummy
@@ -259,6 +261,8 @@ tuning:
   seeds: [42, 43, 44, 45, 46]         # stochastic families; seed 42 is reported and can be saved
   retune_experiments: [within_year, random_size_matched]   # chosen family only (patient-overlap check)
   model_dir: models/v0.4              # git-ignored; also holds the cache of searches and fitted models
+  report_dir: results/metrics/v0.4
+  plot_dir: results/plots/v0.4
   families:
     logistic_regression:
       kind: logistic_regression
