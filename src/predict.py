@@ -46,7 +46,9 @@ def save_bundle(bundle: dict[str, Any], path: Path) -> Path:
     return path
 
 
-def load_bundle(path: str | Path) -> dict[str, Any]:
+def load_bundle(path: str | Path, n_jobs: int | None = 1) -> dict[str, Any]:
+    """Load a bundle. `n_jobs` sets the model's thread count (1 is fastest for single spectra because no
+    threads are started per call; None keeps the saved setting). Predictions do not depend on it."""
     path = Path(path)
     if not path.is_file():
         raise ModelError(f"Model file not found: {path}. Train and save a model first with "
@@ -57,6 +59,9 @@ def load_bundle(path: str | Path) -> dict[str, Any]:
         raise ModelError(f"Could not read the model file {path} ({type(exc).__name__}).") from exc
     if not isinstance(bundle, dict) or bundle.get("format") != BUNDLE_FORMAT:
         raise ModelError(f"{path} is not a model bundle of this project.")
+    model = bundle["pipeline"].steps[-1][1]
+    if n_jobs is not None and "n_jobs" in model.get_params():
+        model.set_params(n_jobs=n_jobs)
     return bundle
 
 

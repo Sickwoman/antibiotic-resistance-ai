@@ -85,8 +85,10 @@ def section(title: str) -> None:
 
 
 def show(df: pd.DataFrame) -> None:
+    """Print a table; thresholds keep 3 significant digits because some are tiny (e.g. 2e-05)."""
+    formatters = {"threshold": "{:.3g}".format} if "threshold" in df.columns else None
     with pd.option_context("display.max_columns", 40, "display.width", 250, "display.float_format", "{:.3f}".format):
-        print(df.to_string(index=False))
+        print(df.to_string(index=False, formatters=formatters))
 
 
 def versions() -> dict[str, str]:
@@ -177,7 +179,7 @@ def plot_confusion(r: RunResult, title: str, path: Path) -> Path:
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.set_title(title, pad=22)
-    ex._subtitle(ax, f"Threshold {r.threshold:.3f} (from validation); sensitivity {t['sensitivity']:.3f}, "
+    ex._subtitle(ax, f"Threshold {r.threshold:.3g} (from validation); sensitivity {t['sensitivity']:.3f}, "
                      f"specificity {t['specificity']:.3f}")
     return ex._save(fig, path)
 
@@ -384,12 +386,17 @@ def main() -> int:
                                 for rel in meta["spectrum_relpath"].iloc[timed_rows]])
         agrees = bool(np.allclose(timings["resistance_probability"],
                                   np.round(predict_features(loaded, load_rows(X, timed_rows))[0], 4), atol=1e-4))
+        batch_bundle = load_bundle(model_path, n_jobs=None)          # saved setting (all CPU threads)
         batch = load_rows(X, val_rows)
+        predict_features(batch_bundle, batch[:10])                   # warm-up
         started = time.perf_counter()
-        predict_features(loaded, batch)
+        predict_features(batch_bundle, batch)
         batch_ms = (time.perf_counter() - started) * 1000 / len(batch)
         timing = {"samples": len(timings), "model": loaded["model_version"],
-                  "matches_stored_features": agrees, "batch_inference_ms_per_sample": round(batch_ms, 4)}
+                  "matches_stored_features": agrees,
+                  "single_spectrum_threads": loaded["pipeline"].steps[-1][1].get_params().get("n_jobs"),
+                  "batch_threads": batch_bundle["pipeline"].steps[-1][1].get_params().get("n_jobs"),
+                  "batch_size": len(batch), "batch_inference_ms_per_sample": round(batch_ms, 4)}
         for col in ("preprocessing_ms", "inference_ms", "total_ms"):
             timing[col] = {"median": round(float(timings[col].median()), 2),
                            "p95": round(float(timings[col].quantile(0.95)), 2),
