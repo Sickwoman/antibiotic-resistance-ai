@@ -1,11 +1,11 @@
 {
   "stage": "v0.3-baselines",
-  "created": "2026-09-17 16:09:42",
-  "git_commit": "2b1c4eb",
+  "created": "2026-09-17 16:25:52",
+  "git_commit": "25a9bbf",
   "dataset": "ecoli_ciprofloxacin",
   "rows_fingerprint": "151415a4d03dbcc5",
   "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
-  "test_parts_scored": false,
+  "test_parts_scored": true,
   "experiments": {
     "random": {
       "split": "random",
@@ -87,7 +87,7 @@
       }
     }
   },
-  "training_seconds": 700.8,
+  "training_seconds": 265.4,
   "versions": {
     "python": "3.12.10",
     "numpy": "2.5.3",

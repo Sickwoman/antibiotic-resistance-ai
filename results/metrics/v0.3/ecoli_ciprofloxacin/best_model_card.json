@@ -1,8 +1,8 @@
 {
   "format": "amr-model-bundle/1",
   "model_version": "v0.3.0-random_forest-random-seed42",
-  "created": "2026-09-17 16:09:13",
-  "git_commit": "2b1c4eb",
+  "created": "2026-09-17 16:25:32",
+  "git_commit": "25a9bbf",
   "model": "random_forest",
   "model_kind": "random_forest",
   "params": {
@@ -95,7 +95,28 @@
       "calibration_slope": 2.0555443250836913,
       "calibration_intercept": -0.11700477061397557
     },
-    "test": null
+    "test": {
+      "n": 856,
+      "n_resistant": 197,
+      "prevalence": 0.23014018691588786,
+      "threshold": 0.196,
+      "roc_auc": 0.7263543439914346,
+      "pr_auc": 0.5018266976833438,
+      "brier": 0.15537264485981309,
+      "accuracy": 0.5070093457943925,
+      "balanced_accuracy": 0.6246581884565909,
+      "sensitivity": 0.8426395939086294,
+      "recall": 0.8426395939086294,
+      "specificity": 0.40667678300455234,
+      "precision": 0.2980251346499102,
+      "f1": 0.4403183023872679,
+      "tp": 166,
+      "fp": 391,
+      "tn": 268,
+      "fn": 31,
+      "calibration_slope": 1.7990322220564976,
+      "calibration_intercept": -0.08300900601003015
+    }
   },
   "versions": {
     "python": "3.12.10",
