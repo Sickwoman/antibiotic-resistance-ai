@@ -74,14 +74,28 @@ What we found in the real files (details in `results/metrics/eda/`):
 - `binned_6000` exists only for the 2,386 samples that have resistance results; `raw` and
   `preprocessed` have 6,416 files each.
 
-**Across sites:** some antibiotic names differ (e.g. `Cotrimoxazole` in A, `Cotrimoxazol` in B).
-Ciprofloxacin and ceftriaxone are spelled the same everywhere.
+**DRIAMS-D** (Viollier AG, diagnostic laboratory; checked 2026-09-17)
+- `id/2018/2018_clean.csv` has 10,436 rows and 55 columns: `code`, `species`, `genus` and 52 antibiotic
+  columns. 16 of these are completely empty, and `Cefuroxime` appears twice in the header.
+- No `patient_no`, `case_no`, `acquisition_date` or `workstation` column (like DRIAMS-B).
+- Codes are 41 characters: a UUID plus `_3312` or `_3313`. The meaning of this suffix is not documented.
+  `raw`, `preprocessed` and `binned_6000` files carry the same name.
+- 75,813 raw and preprocessed spectra, of which only 10,436 have a metadata row. Every metadata row has a
+  binned spectrum.
+- 54 species strings, with no failed identifications and no mixed cultures.
+- `Cotrimoxazole` holds only R values (1,280 rows, not a single S), so that column looks selectively
+  reported.
+
+**Across sites:**
+- Some antibiotic names differ (e.g. `Cotrimoxazole` in A and D, `Cotrimoxazol` in B). Ciprofloxacin and
+  ceftriaxone are spelled the same everywhere.
+- No spectrum code appears at more than one site.
 
 ### Disk space
 
 About 145 GB for all four archives, plus the extracted folders. Only `id/` and `binned_6000/` are
 extracted in Version 0.1, which is much smaller: DRIAMS-A 17.6 GB (24 min to extract),
-DRIAMS-B 382 MB (under 1 min). Raw spectra inside DRIAMS-A alone would be 62.9 GB.
+DRIAMS-B 382 MB (under 1 min), DRIAMS-D 1.67 GB (13 min). Raw spectra inside DRIAMS-A alone would be 62.9 GB.
 Data lives **outside** the repository in `C:\DRIAMS` (change it in `config.yaml` or with the
 `DRIAMS_ROOT` environment variable).
 
@@ -125,6 +139,7 @@ python scripts/download_driams.py --site C --from-file "$env:USERPROFILE\Downloa
 # 3. Extract only the metadata and binned spectra
 python scripts/extract_driams.py --site B
 python scripts/extract_driams.py --site A
+python scripts/extract_driams.py --site D
 
 # 4. Explore (tables + figures, no model)
 python scripts/explore_dataset.py
@@ -156,16 +171,23 @@ spectra in DRIAMS-A, minority class ≥ 10 %, both classes present in ≥ 3 DRIA
 in 2018 (temporal test), and ≥ 30 per class in at least 2 of DRIAMS-B/C/D (external test). If
 ciprofloxacin fails, the eligible antibiotic with the largest minority class is used.
 
-**Result (2026-09-16): E. coli + ciprofloxacin selected**, final confirmation pending one more external
-site (C or D).
+**Result: E. coli + ciprofloxacin.** It was selected on 2026-09-16 while one external site was still
+missing. It was confirmed on 2026-09-17 once DRIAMS-D was available: it now meets every
+pre-registered rule, with both DRIAMS-B and DRIAMS-D having at least 30 samples per class.
 
-| | Resistant (R+I) | Susceptible | Patients R / S |
-|---|---|---|---|
-| DRIAMS-A 2015–2018 | 1,466 (1,371 R + 95 I) | 3,445 | 667 / 1,797 |
-| DRIAMS-A 2018 only | 382 | 993 | – |
-| DRIAMS-B 2018 | 59 (58 R + 1 I) | 154 | – |
+| | Resistant (R+I) | Susceptible | Resistant share | Patients R / S |
+|---|---|---|---|---|
+| DRIAMS-A 2015–2018 | 1,466 (1,371 R + 95 I) | 3,445 | 29.9 % | 667 / 1,797 |
+| DRIAMS-A 2018 only | 382 | 993 | 27.8 % | – |
+| DRIAMS-B 2018 | 59 (58 R + 1 I) | 154 | 27.7 % | – |
+| DRIAMS-D 2018 | 371 (371 R + 0 I) | 1,568 | 19.1 % | – |
 
-Benchmark pair E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168.
+Counts are samples with a binned spectrum, before the Version 0.2 exclusions.
+
+- **Resistance rate differs between sites:** it is lower at DRIAMS-D, so external results are reported
+  per site.
+- **Benchmark pair** E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168,
+  D 198 / 1,796.
 
 ## Version 0.2 – from raw spectrum to model-ready data
 
