@@ -74,6 +74,15 @@ def project_path(relative: str | Path) -> Path:
     return p if p.is_absolute() else PROJECT_ROOT / p
 
 
+def show_path(path: str | Path) -> str:
+    """For printing: relative to the project root when inside it, otherwise the full path."""
+    p = Path(path)
+    try:
+        return str(p.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(p)
+
+
 def archive_info(config: dict[str, Any], site_letter: str) -> dict[str, Any]:
     """Return the archive entry for a site letter (A, B, C or D)."""
     letter = site_letter.upper().replace("DRIAMS-", "").replace("DRIAMS_", "")

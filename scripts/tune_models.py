@@ -87,6 +87,7 @@ from src.utils import (  # noqa: E402
     load_config,
     project_path,
     set_seed,
+    show_path,
 )
 
 log = get_logger("tuning")
@@ -141,7 +142,7 @@ class Finalist:
     setting: dict[str, Any]
     model: Any
     train_size: int
-    fit_seconds: float            # 5 cross-fitted models for calibration + the final fit
+    fit_seconds: float            # the cross-fitted models used for calibration + the final fit
     threshold: float
     validation: dict[str, Any]
     validation_uncalibrated: dict[str, Any] | None
@@ -195,7 +196,9 @@ class Context:
         if name in self.splits:
             s = self.splits[name]
             return name, s.train, s.validation, s.test
-        sm = self.bl["size_matched"]
+        sm = self.bl.get("size_matched")
+        if not sm:
+            raise SplitError(f"Experiment {name!r} needs baselines.size_matched in config.yaml.")
         if name == f"{sm['split']}_size_matched":
             ref = self.splits[sm["split"]]
             rows = grouped_subsample(self.meta, ref.train, len(self.splits[sm["size_of"]].train), self.seed)
@@ -212,11 +215,16 @@ class Context:
         if path.is_file():
             stored = json.loads(path.read_text(encoding="utf-8"))
             if stored != info:
-                raise TuningError(f"The cache in {self.cache_dir} was made with other features or scipy "
+                raise TuningError(f"The cache in {show_path(self.cache_dir)} was made with other features or scipy "
                                   f"({stored} vs {info}); delete that folder to recompute.")
-        else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(info, indent=2), encoding="utf-8")
+            return
+        cached_files = sorted(self.cache_dir.rglob("*.joblib")) if self.cache_dir.is_dir() else []
+        if cached_files:
+            raise TuningError(f"{show_path(self.cache_dir)} holds {len(cached_files)} cached file(s) but no "
+                              "cache_info.json, so the features they were made with cannot be checked. Delete the "
+                              "folder to recompute, or write cache_info.json after checking that X.npy is unchanged.")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(info, indent=2), encoding="utf-8")
 
     def get(self, path: Path, key: str, compute):
         """Cached result; in --evaluate-test mode a missing cache entry stops the run (unless --allow-refit)."""
@@ -229,12 +237,23 @@ class Context:
         return cached(path, key, compute, log)
 
 
-def write_run_config(ctx: Context, specs: list[FamilySpec], status: str, **extra: Any) -> None:
-    record = {"stage": STAGE, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
-              "git_commit": ctx.commit, "code_fingerprint": ctx.code, "dataset": ctx.dataset_name,
-              "rows_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"],
-              "feature_fingerprint": ctx.summary["feature_fingerprint"], "test_parts_scored": ctx.evaluate_test,
-              "families": [s.name for s in specs], "versions": ctx.versions, **extra, "config": ctx.config}
+def run_record(ctx: Context, specs: list[FamilySpec], status: str, **extra: Any) -> dict[str, Any]:
+    return {"stage": STAGE, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "git_commit": ctx.commit, "code_fingerprint": ctx.code, "dataset": ctx.dataset_name,
+            "rows_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"],
+            "feature_fingerprint": ctx.summary["feature_fingerprint"], "test_parts_scored": ctx.evaluate_test,
+            "families": [s.name for s in specs], "versions": ctx.versions, **extra, "config": ctx.config}
+
+
+def write_run_status(ctx: Context, specs: list[FamilySpec], status: str, **extra: Any) -> None:
+    """Progress of the current run (running / failed / finished); written even when a run stops early."""
+    record = run_record(ctx, specs, status, **extra)
+    (ctx.report_dir / "run_status.json").write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+
+
+def write_run_config(ctx: Context, specs: list[FamilySpec], **extra: Any) -> None:
+    """The record of a finished run; a failed run never replaces the last successful one."""
+    record = run_record(ctx, specs, "finished", **extra)
     (ctx.report_dir / "run_config.json").write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
 
 
@@ -312,34 +331,44 @@ def preflight(ctx: Context, allow_rescore: bool) -> dict[str, Any]:
     if log_path.is_file() and log_path.stat().st_size:
         existing = pd.read_csv(log_path)
         if existing.columns.tolist() != TEST_LOG_COLUMNS:
-            raise EvaluationError(f"{log_path} has unexpected columns.")
+            raise EvaluationError(f"{show_path(log_path)} has unexpected columns.")
         done = existing[(existing["stage"] == STAGE) & (existing["dataset"] == ctx.dataset_name)]
         if len(done) and not allow_rescore:
             raise EvaluationError(f"{len(done)} Version 0.4 test evaluations of {ctx.dataset_name} are already "
                                   "logged. Scoring again is a second look at the test data; pass --allow-rescore "
                                   "only on purpose (the new rows are logged as an additional run).")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+        writable = log_path                                   # append to the existing file
+    else:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        writable = log_path.with_name(log_path.name + ".writetest")   # do not create the log itself yet
     try:
-        with open(log_path, "a", encoding="utf-8"):
+        with open(writable, "a", encoding="utf-8"):
             pass
+        if writable != log_path:
+            writable.unlink()
     except OSError as exc:
-        raise EvaluationError(f"The test log {log_path} cannot be written ({exc}); close programs using it.") from exc
+        raise EvaluationError(f"The test log {show_path(log_path)} cannot be written ({exc}); "
+                              "close programs using it.") from exc
     return {"bundle": v03, "logged_roc_auc": float(logged["roc_auc"].iloc[0]), "report_dir": v03_report}
 
 
 def compare_with_previous(previous: pd.DataFrame | None, current: pd.DataFrame) -> str:
     """The test run must reproduce the development run's validation results exactly."""
     if previous is None:
-        return "no earlier validation results to compare with"
+        raise TuningError("No earlier validation results to compare with: run without --evaluate-test first "
+                          "(or pass --allow-refit on purpose).")
     keys = ["experiment", "model", "seed", "calibrated"]
     merged = current.merge(previous, on=keys, how="left", suffixes=("", "_before"), indicator=True)
     if (merged["_merge"] != "both").any():
         missing = merged.loc[merged["_merge"] != "both", keys].to_dict("records")
         raise TuningError(f"The development run has no validation results for {missing}; run it again first.")
     for col in ("roc_auc", "pr_auc", "threshold", "brier", "sensitivity", "specificity"):
-        gap = np.nanmax(np.abs(merged[col].to_numpy(float) - merged[f"{col}_before"].to_numpy(float)))
-        if gap > 1e-12:
-            raise TuningError(f"Validation {col} differs from the development run by {gap:.3g}; not scoring test.")
+        now, before = merged[col].to_numpy(float), merged[f"{col}_before"].to_numpy(float)
+        same = (np.isnan(now) & np.isnan(before)) | (np.abs(now - before) <= 1e-12)   # NaN only matches NaN
+        if not same.all():
+            differing = merged.loc[~same, keys].to_dict("records")
+            raise TuningError(f"Validation {col} differs from the development run for {differing}; "
+                              "not scoring test.")
     return f"{len(merged)} validation rows identical to the development run"
 
 
@@ -359,7 +388,7 @@ def reference_rows(ctx: Context, part: str, experiments: list[str]) -> pd.DataFr
 
 # ------------------------------------------------------------------------------------------------ figures
 
-def plot_search(summary_tables: dict[str, pd.DataFrame], title: str, path: Path) -> Path:
+def plot_search(summary_tables: dict[str, pd.DataFrame], n_folds: int, title: str, path: Path) -> Path:
     import matplotlib.pyplot as plt
 
     ex.apply_style()
@@ -375,7 +404,7 @@ def plot_search(summary_tables: dict[str, pd.DataFrame], title: str, path: Path)
         ax.text(i + 0.26, scores[best], f"{scores[best]:.3f}", va="center", fontsize=9, color=ex.INK_2)
     ax.set_xticks(range(len(summary_tables)), [DISPLAY.get(f, f) for f in summary_tables])
     ax.set_xlim(-0.6, len(summary_tables) - 0.2)
-    ax.set_ylabel("Cross-validated AUROC (mean of 5 folds)")
+    ax.set_ylabel(f"Cross-validated AUROC (mean of {n_folds} folds)")
     ax.grid(axis="x", visible=False)
     ax.set_title(title, pad=22)
     ex._subtitle(ax, "One dot per setting; diamond = chosen setting (training part only)")
@@ -505,6 +534,7 @@ def main() -> int:
     parser.add_argument("--dataset", default=None)
     parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
+    ctx, specs = None, None
     try:
         config = load_config(args.config)
         set_seed(int(config["project"]["random_seed"]))
@@ -525,7 +555,7 @@ def main() -> int:
         previous_path = ctx.report_dir / "validation_metrics.csv"
         previous = pd.read_csv(previous_path) if previous_path.is_file() else None
         ref = preflight(ctx, args.allow_rescore) if args.evaluate_test else None
-        write_run_config(ctx, specs, "running")
+        write_run_status(ctx, specs, "running")
         section(f"Version 0.4 on {ctx.dataset_name} (rows fingerprint {ctx.summary['row_fingerprint']}); "
                 f"test parts {'WILL' if args.evaluate_test else 'will NOT'} be scored; families: "
                 f"{', '.join(s.name for s in specs)}")
@@ -573,7 +603,7 @@ def main() -> int:
             "created": time.strftime("%Y-%m-%d %H:%M:%S"), "git_commit": ctx.commit, "code_fingerprint": ctx.code,
             "pipeline": chosen.model, "model": chosen.name, "model_kind": chosen.family,
             "params": chosen.setting, "seed": chosen.seed,
-            "calibration": {"method": ctx.tc["calibration"],
+            "calibration": {"method": ctx.tc["calibration"], "folds": int(ctx.tc["cv_folds"]),
                             "fitted_on": f"out-of-fold predictions of {ctx.tc['cv_folds']} patient-grouped folds of "
                                          "the training part"},
             "species": ctx.summary["species"], "antibiotic": ctx.summary["antibiotic"],
@@ -601,7 +631,7 @@ def main() -> int:
                                                                  encoding="utf-8")
 
         save_chosen()
-        print(f"\nSaved {model_path.relative_to(project_path('.'))} ({model_path.stat().st_size / 1e6:.2f} MB)")
+        print(f"\nSaved {show_path(model_path)} ({model_path.stat().st_size / 1e6:.2f} MB)")
 
         # ---------------------------------------------------------------- test stage
         if args.evaluate_test:
@@ -701,7 +731,7 @@ def main() -> int:
                        [(name_of[f.family], f.test_prob, f.test) for f in main_seed])]
             plots = [
                 plot_search({s.name: pd.read_csv(ctx.report_dir / f"search_{main_name}_{s.name}.csv") for s in specs},
-                            f"Settings searched on the {main_name} training part",
+                            int(ctx.tc["cv_folds"]), f"Settings searched on the {main_name} training part",
                             ctx.plot_dir / f"{ctx.dataset_name}_search_overview.png"),
                 plot_roc_pr(curves, y_te, f"Tuned and calibrated models, {main_name} split, test part "
                                           f"(n={len(main_te):,}, {int(y_te.sum())} resistant)",
@@ -713,7 +743,7 @@ def main() -> int:
                                ctx.plot_dir / f"{ctx.dataset_name}_{main_name}_confusion_{chosen.name}.png"),
             ]
             for p in plots:
-                print(f"saved {p.relative_to(project_path('.'))}")
+                print(f"saved {show_path(p)}")
             bundle["metrics"]["test"] = chosen.test
             save_chosen()
 
@@ -744,11 +774,15 @@ def main() -> int:
         section("Prediction time with the saved model")
         print(json.dumps(timing, indent=2))
 
-        write_run_config(ctx, specs, "finished", chosen_family=chosen.family, seconds=seconds)
-        print(f"\nReports: {ctx.report_dir}\nThis is a research prototype; predictions are not clinical results.")
+        write_run_status(ctx, specs, "finished", chosen_family=chosen.family, seconds=seconds)
+        write_run_config(ctx, specs, chosen_family=chosen.family, seconds=seconds)
+        print(f"\nReports: {show_path(ctx.report_dir)}\n"
+              "This is a research prototype; predictions are not clinical results.")
         return 0
     except (DataError, ConfigError, SplitError, TrainingError, TuningError, EvaluationError, ModelError) as exc:
         log.error("%s", exc)
+        if ctx is not None and specs is not None:            # record why the run stopped
+            write_run_status(ctx, specs, "failed", error=f"{type(exc).__name__}: {exc}")
         return 1
 
 
