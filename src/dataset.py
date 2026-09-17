@@ -15,7 +15,6 @@ import gc
 import hashlib
 import json
 import shutil
-import subprocess
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -42,7 +41,7 @@ from src.data_loader import (
     read_binned_spectrum,
 )
 from src.preprocessing import PreprocessingConfig, PreprocessingError, preprocess_file
-from src.utils import PROJECT_ROOT, driams_root, get_logger, project_path
+from src.utils import driams_root, get_logger, git_commit, project_path
 
 # Exclusion reasons in the order they are checked; a row gets the first reason that applies.
 EXCLUSION_REASONS: dict[str, str] = {
@@ -286,23 +285,6 @@ def file_sha256(path: Path, chunk_bytes: int = 1 << 24) -> str:
     return digest.hexdigest()
 
 
-def _git_commit() -> str | None:
-    """Short commit hash of the code that built the dataset; '-dirty' if code or config was modified.
-
-    Generated reports (results/) and docs do not count, so building several datasets in a row from
-    one commit records the same hash.
-    """
-    try:
-        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT,
-                              capture_output=True, text=True, timeout=10).stdout.strip()
-        changes = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--",
-                                  "src", "scripts", "config.yaml"], cwd=PROJECT_ROOT,
-                                 capture_output=True, text=True, timeout=10).stdout.strip()
-        return (head + ("-dirty" if changes else "")) or None
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-
 def _stats(values: np.ndarray) -> dict[str, float]:
     if values.size == 0:
         return {}
@@ -533,7 +515,7 @@ def summarize(meta: pd.DataFrame, exclusions: pd.DataFrame, info: dict[str, Any]
     return {
         "dataset": spec.name,
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "git_commit": _git_commit(),
+        "git_commit": git_commit(),
         "species": spec.species,
         "antibiotic": spec.antibiotic,
         "sites": list(spec.sites),

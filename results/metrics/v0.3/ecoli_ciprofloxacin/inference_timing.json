@@ -1,0 +1,24 @@
+{
+  "samples": 200,
+  "model": "v0.3.0-random_forest-random-seed42",
+  "matches_stored_features": true,
+  "single_spectrum_threads": 1,
+  "batch_threads": -1,
+  "batch_size": 426,
+  "batch_inference_ms_per_sample": 0.8233,
+  "preprocessing_ms": {
+    "median": 51.09,
+    "p95": 70.77,
+    "max": 157.07
+  },
+  "inference_ms": {
+    "median": 29.15,
+    "p95": 40.68,
+    "max": 124.56
+  },
+  "total_ms": {
+    "median": 81.62,
+    "p95": 109.96,
+    "max": 281.63
+  }
+}

@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "0.1.0"
+  version: "0.3.0"
   random_seed: 42
 
 paths:
@@ -206,3 +206,45 @@ splits:
     # rates differ: B 27.7 %, D 19.1 % of E. coli with a ciprofloxacin result).
     test_sites: [DRIAMS-B, DRIAMS-D]  # add DRIAMS-C when available
     validation_fraction: 0.1
+
+evaluation:
+  # Fixed in docs/evaluation_protocol.md (approved 2026-09-17) before any model was trained.
+  threshold:
+    rule: min_sensitivity             # highest cut-off whose validation sensitivity for resistance >= target
+    min_sensitivity: 0.90
+  primary_metric: roc_auc             # PR-AUC is reported next to it (co-primary)
+  bootstrap:
+    resamples: 2000                   # whole patient groups resampled within the test part
+    level: 0.95
+    seed: 42
+  calibration_bins: 10                # equal-count bins for reliability plots
+  # Test parts of these splits stay unused until Version 0.7 (the generalisation experiment).
+  locked_test_splits: [temporal, external]
+  test_log: results/experiments/test_evaluations.csv   # append-only, one row per test evaluation
+  timing_samples: 200                 # validation spectra timed end to end (read + preprocess + predict)
+
+baselines:
+  # Version 0.3: fixed settings chosen before training; nothing is tuned here (tuning is Version 0.4).
+  splits: [random, within_year]
+  size_matched:                       # patient-overlap check: `split` trained on a patient-grouped random
+    split: random                     # subsample of its training part, as large as the training part
+    size_of: within_year              # of `size_of`
+  seeds: [42, 43, 44, 45, 46]         # stochastic models run once per seed; seed 42 is reported and saved
+  model_dir: models/v0.3              # git-ignored
+  models:
+    prevalence:                       # always predicts the training resistance rate (no-skill reference)
+      kind: dummy
+    logistic_regression:
+      kind: logistic_regression
+      scale: true                     # StandardScaler, fitted on training rows only
+      params: {C: 1.0, max_iter: 5000}   # scikit-learn default L2 strength
+    random_forest:
+      kind: random_forest
+      stochastic: true
+      params: {n_estimators: 500}     # R randomForest default; more trees only reduce variance
+    lightgbm:
+      # LightGBM 4.7 defaults (100 trees, learning rate 0.1, 31 leaves, no row or column subsampling).
+      # Checked 2026-09-17: with these settings training is deterministic (seeds 42 and 43 gave identical
+      # probabilities), so it is trained once.
+      kind: lightgbm
+      params: {}

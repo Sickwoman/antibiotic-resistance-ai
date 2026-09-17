@@ -1,0 +1,129 @@
+{
+  "format": "amr-model-bundle/1",
+  "model_version": "v0.3.0-random_forest-random-seed42",
+  "created": "2026-09-17 16:25:32",
+  "git_commit": "25a9bbf",
+  "model": "random_forest",
+  "model_kind": "random_forest",
+  "params": {
+    "n_estimators": 500
+  },
+  "scaled": false,
+  "seed": 42,
+  "species": "Escherichia coli",
+  "antibiotic": "Ciprofloxacin",
+  "label_map": {
+    "0": "susceptible (S)",
+    "1": "resistant (R or I)"
+  },
+  "threshold": 0.196,
+  "threshold_rule": {
+    "rule": "min_sensitivity",
+    "min_sensitivity": 0.9
+  },
+  "preprocessing": {
+    "intensity_transform": "sqrt",
+    "smoothing_method": "savitzky_golay",
+    "half_window_size": 10,
+    "polynomial_order": 3,
+    "baseline_method": "snip",
+    "baseline_iterations": [
+      20,
+      100
+    ],
+    "normalization": "tic",
+    "mz_min": 2000.0,
+    "mz_max": 20000.0,
+    "bin_width": 3.0,
+    "dtype": "float32",
+    "min_raw_points": 100,
+    "spectrum_folder": "raw",
+    "n_bins": 6000
+  },
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "n_features": 6000,
+  "dataset": {
+    "name": "ecoli_ciprofloxacin",
+    "row_fingerprint": "151415a4d03dbcc5",
+    "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+    "sites": [
+      "DRIAMS-A",
+      "DRIAMS-B",
+      "DRIAMS-D"
+    ],
+    "intermediate_as": "resistant"
+  },
+  "split": {
+    "name": "random",
+    "experiment": "random",
+    "train_size": 2977,
+    "dataset_fingerprint": "151415a4d03dbcc5",
+    "train_sites": [
+      "DRIAMS-A"
+    ]
+  },
+  "selection": {
+    "metric": "roc_auc",
+    "part": "validation",
+    "candidates": {
+      "prevalence": 0.5,
+      "logistic_regression": 0.698696455989722,
+      "random_forest": 0.7485037445555103,
+      "lightgbm": 0.7386644940933162
+    }
+  },
+  "metrics": {
+    "validation": {
+      "n": 426,
+      "n_resistant": 97,
+      "prevalence": 0.22769953051643194,
+      "threshold": 0.196,
+      "roc_auc": 0.7485037445555103,
+      "pr_auc": 0.5306921137446167,
+      "brier": 0.1522937276995305,
+      "accuracy": 0.5093896713615024,
+      "balanced_accuracy": 0.6496568796415254,
+      "sensitivity": 0.9072164948453608,
+      "recall": 0.9072164948453608,
+      "specificity": 0.39209726443769,
+      "precision": 0.3055555555555556,
+      "f1": 0.45714285714285713,
+      "tp": 88,
+      "fp": 200,
+      "tn": 129,
+      "fn": 9,
+      "calibration_slope": 2.0555443250836913,
+      "calibration_intercept": -0.11700477061397557
+    },
+    "test": {
+      "n": 856,
+      "n_resistant": 197,
+      "prevalence": 0.23014018691588786,
+      "threshold": 0.196,
+      "roc_auc": 0.7263543439914346,
+      "pr_auc": 0.5018266976833438,
+      "brier": 0.15537264485981309,
+      "accuracy": 0.5070093457943925,
+      "balanced_accuracy": 0.6246581884565909,
+      "sensitivity": 0.8426395939086294,
+      "recall": 0.8426395939086294,
+      "specificity": 0.40667678300455234,
+      "precision": 0.2980251346499102,
+      "f1": 0.4403183023872679,
+      "tp": 166,
+      "fp": 391,
+      "tn": 268,
+      "fn": 31,
+      "calibration_slope": 1.7990322220564976,
+      "calibration_intercept": -0.08300900601003015
+    }
+  },
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  }
+}

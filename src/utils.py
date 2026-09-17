@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import shutil
+import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -124,6 +125,23 @@ def set_seed(seed: int) -> None:
         np.random.seed(seed)
     except ImportError:
         pass
+
+
+def git_commit() -> str | None:
+    """Short commit hash of the running code; '-dirty' if code or config was modified.
+
+    Generated reports (results/) and docs do not count, so several runs in a row from one commit record
+    the same hash.
+    """
+    try:
+        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT,
+                              capture_output=True, text=True, timeout=10).stdout.strip()
+        changes = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--",
+                                  "src", "scripts", "config.yaml"], cwd=PROJECT_ROOT,
+                                 capture_output=True, text=True, timeout=10).stdout.strip()
+        return (head + ("-dirty" if changes else "")) or None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def get_logger(name: str) -> logging.Logger:
