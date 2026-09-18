@@ -132,6 +132,30 @@ def check_split(meta: pd.DataFrame, split: Split) -> None:
                 raise LeakageError(f"{split.name}: {len(shared)} patient group(s) shared between {a} and {b}.")
 
 
+def assert_usable(meta: pd.DataFrame, split: Split, parts: Iterable[str] = ("train", "validation", "test"),
+                  min_per_class: int = 1) -> None:
+    """Refuse a split whose parts cannot carry the protocol's metrics.
+
+    Building a split is a diagnostic step and may legitimately produce a thin part (a tiny dataset, or a
+    date boundary that leaves little behind after overlapping patient groups are removed). Training or
+    scoring on such a part is not: AUROC, PR-AUC and the sensitivity cut-off are undefined with one class,
+    so the model scripts call this before they use a split and stop with a readable message instead of a
+    confusing failure somewhere in scikit-learn.
+    """
+    labels = meta["label"].to_numpy()
+    available = split.parts()
+    for part in parts:
+        idx = available[part]
+        if idx.size == 0:
+            raise SplitError(f"{split.name}: the {part} part is empty, so it cannot be used. See the split's "
+                             "notes for how many samples were removed.")
+        resistant = int(labels[idx].sum())
+        if min(resistant, idx.size - resistant) < min_per_class:
+            raise SplitError(f"{split.name}: the {part} part holds {resistant} resistant of {idx.size} samples, "
+                             f"fewer than {min_per_class} of one class. AUROC, PR-AUC and the sensitivity "
+                             "cut-off are undefined there.")
+
+
 def _rows_for_sites(meta: pd.DataFrame, sites: Iterable[str]) -> np.ndarray:
     sites = list(sites)
     unknown = sorted(set(sites) - set(meta["site"]))

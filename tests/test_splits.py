@@ -16,6 +16,7 @@ from src.splits import (
     LeakageError,
     Split,
     SplitError,
+    assert_usable,
     build_splits,
     check_split,
     derive_split,
@@ -260,3 +261,32 @@ def test_make_splits_from_project_config():
         check_split(meta, split)
     only_a = meta[meta["site"] == "DRIAMS-A"].reset_index(drop=True)
     assert set(make_splits(only_a, config)) == {"random", "within_year", "temporal"}
+
+
+# --- review fix: a split that cannot carry the metrics must not reach a model -------------------------------------
+
+def test_assert_usable_accepts_a_real_split():
+    meta = make_meta()
+    assert assert_usable(meta, random_split(meta, ["DRIAMS-A"], 0.2, 0.1, seed=42)) is None
+
+
+def test_assert_usable_refuses_empty_and_single_class_parts():
+    meta = make_meta()
+    resistant = np.flatnonzero(meta["label"].to_numpy() == 1)
+    susceptible = np.flatnonzero(meta["label"].to_numpy() == 0)
+    both = np.concatenate([resistant[:10], susceptible[:10]])
+    empty = Split("bad", both, np.array([], dtype=int), np.concatenate([resistant[10:20], susceptible[10:20]]), "")
+    with pytest.raises(SplitError, match="validation part is empty"):
+        assert_usable(meta, empty)
+    one_class = Split("bad", both, susceptible[20:30], np.concatenate([resistant[10:20], susceptible[30:40]]), "")
+    with pytest.raises(SplitError, match="validation part holds 0 resistant"):
+        assert_usable(meta, one_class)
+    # the same split is fine when only the parts that matter are checked
+    assert assert_usable(meta, one_class, parts=("train", "test")) is None
+
+
+def test_assert_usable_can_require_more_than_one_of_each_class():
+    meta = make_meta()
+    split = random_split(meta, ["DRIAMS-A"], 0.2, 0.1, seed=42)
+    with pytest.raises(SplitError, match="fewer than 10000 of one class"):
+        assert_usable(meta, split, min_per_class=10_000)

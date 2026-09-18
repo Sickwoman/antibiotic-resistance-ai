@@ -67,7 +67,7 @@ from src.predict import (  # noqa: E402
     predict_spectrum_file,
     save_bundle,
 )
-from src.splits import SplitError, load_splits  # noqa: E402
+from src.splits import SplitError, assert_usable, load_splits  # noqa: E402
 from src.train import TrainingError, grouped_subsample, load_rows  # noqa: E402
 from src.tuning import (  # noqa: E402
     FamilySpec,
@@ -223,6 +223,7 @@ class Context:
         """(split name, train, validation, test rows) of a named experiment."""
         if name in self.splits:
             s = self.splits[name]
+            assert_usable(self.meta, s)          # no empty or single-class part reaches a model
             return name, s.train, s.validation, s.test
         sm = self.bl.get("size_matched")
         if not sm:
@@ -267,6 +268,7 @@ class Context:
 
 def run_record(ctx: Context, specs: list[FamilySpec], status: str, **extra: Any) -> dict[str, Any]:
     return {"stage": ctx.stage, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "timezone": time.strftime("%Z%z"),       # timestamps are local; record the zone so they can be compared
             "git_commit": ctx.commit, "code_fingerprint": ctx.code, "dataset": ctx.dataset_name,
             "rows_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"],
             "feature_fingerprint": ctx.summary["feature_fingerprint"], "test_parts_scored": ctx.evaluate_test,
@@ -526,7 +528,7 @@ def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any])
             "dataset_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"]}
     rows = [{**base, "stage": ctx.stage, **f.row("test")} for f in everything]
     rows.append({**base, "stage": ctx.reference_stage, **v03_row})
-    append_test_log(project_path(ctx.ev["test_log"]), rows)
+    append_test_log(project_path(ctx.ev["test_log"]), rows, locked=ctx.ev["locked_test_splits"])
     print(f"\n{len(rows)} test evaluations appended to {ctx.ev['test_log']}")
     if gap > 1e-4:
         raise EvaluationError(f"The saved {older} model gives test AUROC {v03_metrics['roc_auc']:.6f}, "
@@ -859,6 +861,13 @@ def main() -> int:
         if ctx is not None and specs is not None:            # record why the run stopped
             write_run_status(ctx, specs, "failed", error=f"{type(exc).__name__}: {exc}")
         return 1
+    except Exception as exc:                                 # noqa: BLE001 - a run must never end silently
+        # Anything else (out of memory, a broken file, a bug): log the traceback, record it in the run
+        # status like a known failure, and use a different exit code so scripts can tell the two apart.
+        log.exception("The run stopped with an unexpected error: %s", exc)
+        if ctx is not None and specs is not None:
+            write_run_status(ctx, specs, "failed", error=f"unexpected {type(exc).__name__}: {exc}")
+        return 2
 
 
 if __name__ == "__main__":

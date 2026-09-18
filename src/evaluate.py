@@ -111,6 +111,9 @@ def calibration_slope_intercept(y: Iterable[int], prob: Iterable[float]) -> tupl
 def classification_metrics(y: Iterable[int], prob: Iterable[float], threshold: float) -> dict[str, Any]:
     """All metrics of the protocol for one set of predictions and a fixed threshold."""
     y, prob = _check(y, prob)
+    threshold = float(threshold)
+    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise EvaluationError(f"threshold must be a probability between 0 and 1, got {threshold}")
     pred = (prob >= threshold).astype(np.int64)
     c = confusion_counts(y, pred)
     n_pos, n_neg = int(y.sum()), int((y == 0).sum())
@@ -186,6 +189,11 @@ def bootstrap(y: Iterable[int], groups: Iterable[Any], probs: dict[str, np.ndarr
     y = np.asarray(y).astype(np.int64)
     groups = np.asarray(groups)
     metrics = list(metrics)
+    if groups.ndim != 1 or groups.size != y.size:
+        raise EvaluationError(f"groups must be one-dimensional with one entry per label, got {groups.shape} "
+                              f"for {y.size} labels")
+    if pd.isna(groups).any():
+        raise EvaluationError("groups must not contain missing values: a resample would mix them together.")
     for name, p in probs.items():
         _check(y, p)
         if name not in thresholds:
@@ -238,18 +246,39 @@ def summarize_bootstrap(y: Iterable[int], groups: Iterable[Any], probs: dict[str
     return out, samples
 
 
-def unpaired_difference(a: np.ndarray, b: np.ndarray, level: float, seed: int = 42) -> tuple[float, float]:
-    """Interval for mean(a-type) - mean(b-type) from two independent bootstrap sample sets."""
+def unpaired_difference(a: np.ndarray, b: np.ndarray, level: float, seed: int = 42,
+                        draws: int | None = None) -> tuple[float, float]:
+    """Interval for (a-type) minus (b-type) when the two metrics come from *different* test sets.
+
+    The two test parts share no rows, so there is no pairing to exploit: the difference of two
+    independent quantities is distributed as the convolution of their distributions. This draws
+    independently, with replacement, from each metric's own bootstrap sample and takes the difference —
+    a second-level bootstrap, not a joint resampling of the two test sets. Use `differences_to_reference`
+    from `summarize_bootstrap` for models scored on the *same* rows, which is paired and tighter.
+    """
+    a, b = np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64)
     if a.size == 0 or b.size == 0:
         return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
-    n = min(a.size, b.size)
-    diff = rng.choice(a, n, replace=False) - rng.choice(b, n, replace=False)
+    n = int(draws) if draws else max(a.size, b.size)
+    diff = rng.choice(a, n, replace=True) - rng.choice(b, n, replace=True)
     return interval(diff, level)
 
 
-def append_test_log(path: Path, rows: list[dict[str, Any]]) -> None:
-    """Append one row per test-set evaluation. The file is never rewritten, only extended."""
+def assert_split_allowed(split: str, locked: Iterable[str]) -> None:
+    """Refuse a test part that the evaluation protocol locks (docs/evaluation_protocol.md)."""
+    if split in set(locked):
+        raise EvaluationError(f"The {split} test part is locked until Version 0.7 "
+                              "(evaluation.locked_test_splits).")
+
+
+def append_test_log(path: Path, rows: list[dict[str, Any]], locked: Iterable[str] = ()) -> None:
+    """Append one row per test-set evaluation. The file is never rewritten, only extended.
+
+    Every test evaluation in this project is recorded here, so this is also the last place a locked test
+    part can be caught: the scripts check before they compute anything, and this checks before anything
+    is written. `locked` should be evaluation.locked_test_splits.
+    """
     if not rows:
         return
     path = Path(path)
@@ -257,6 +286,8 @@ def append_test_log(path: Path, rows: list[dict[str, Any]]) -> None:
     missing = [c for c in TEST_LOG_COLUMNS if c not in frame.columns]
     if missing:
         raise EvaluationError(f"Test-log rows lack column(s) {missing}")
+    for split in frame["split"].unique():
+        assert_split_allowed(str(split), locked)
     frame = frame[TEST_LOG_COLUMNS]
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file() and path.stat().st_size > 0:
