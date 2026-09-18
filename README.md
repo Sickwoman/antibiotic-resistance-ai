@@ -764,6 +764,11 @@ inner-validation AUROC hovers around 0.55. With 8,097 parameters it has the capa
 not, but the shared-weight assumption — that a pattern means the same thing wherever it sits along m/z —
 does not hold for these binned spectra, where the position *is* the identity of the peak.
 
+The search agrees with that reading: **all 8 MLP settings on the 1,000 coarser 18 Da bins (0.724–0.740)
+beat all 8 on the 6,000 original bins (0.695–0.716)**, with no overlap, and they trained three times
+faster. Dropout (0.718 vs 0.721 for 0.2 and 0.5) and the positive class weight (0.722 vs 0.717) made
+almost no difference. Fewer inputs helped; more capacity did not.
+
 ### Honest comparison with the classical models
 
 - **The MLP ranks worse than the tuned LightGBM:** AUROC 0.712 vs 0.751 and PR-AUC 0.442 vs 0.556. The
