@@ -76,8 +76,15 @@ def load_rows(X: np.ndarray, rows: np.ndarray, chunk: int = 1024) -> np.ndarray:
     return out
 
 
-def grouped_subsample(meta: pd.DataFrame, rows: np.ndarray, size: int, seed: int) -> np.ndarray:
-    """Random whole patient groups from `rows`, adding groups while the total stays <= `size`."""
+def grouped_subsample(meta: pd.DataFrame, rows: np.ndarray, size: int, seed: int,
+                      min_fraction: float = 0.99) -> np.ndarray:
+    """Random whole patient groups from `rows`, adding groups while the total stays <= `size`.
+
+    Whole groups rarely add up to exactly `size`, so the result can come out a little smaller. It must not
+    come out *much* smaller: the point of this sample is to match a training-set size, and a comparison
+    that is not really size-matched would confound patient overlap with the amount of training data. Less
+    than `min_fraction` of the requested size is therefore refused rather than silently returned.
+    """
     rows = np.asarray(rows, dtype=np.int64)
     if not 0 < size <= rows.size:
         raise TrainingError(f"Subsample size {size} must be between 1 and {rows.size}")
@@ -91,7 +98,13 @@ def grouped_subsample(meta: pd.DataFrame, rows: np.ndarray, size: int, seed: int
             total += size_of[g]
             if total == size:
                 break
-    return np.sort(rows[np.isin(groups, chosen)])
+    selected = np.sort(rows[np.isin(groups, chosen)])
+    if selected.size < min_fraction * size:
+        raise TrainingError(
+            f"Whole patient groups could not match the requested training size: asked for {size} rows, "
+            f"got {selected.size} ({selected.size / size:.1%} of it). The groups available here are too "
+            f"large to fill that budget, so this would not be a size-matched comparison.")
+    return selected
 
 
 @dataclass

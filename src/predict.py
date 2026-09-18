@@ -10,6 +10,7 @@ never files uploaded by users.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -37,6 +38,41 @@ def card(bundle: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in bundle.items() if k != "pipeline"}
 
 
+# The fields the prediction path reads. Checking them at load time turns a confusing KeyError deep inside
+# a prediction into one clear message about the file. Fields that only some scripts use (model, dataset,
+# split, metrics) are not required here; those scripts check what they need.
+REQUIRED_FIELDS: dict[str, type | tuple[type, ...]] = {
+    "model_version": str, "pipeline": object, "threshold": (int, float, np.floating),
+    "n_features": (int, np.integer), "preprocessing": dict, "feature_fingerprint": str,
+    "species": str, "antibiotic": str,
+}
+
+
+def check_bundle(bundle: dict[str, Any], path: str | Path = "<bundle>") -> None:
+    """Every field the prediction code reads is present, of the right type and in range."""
+    for field, kind in REQUIRED_FIELDS.items():
+        if field not in bundle:
+            raise ModelError(f"{path} is missing the {field!r} field; it was not written by this project.")
+        if kind is not object and not isinstance(bundle[field], kind):
+            raise ModelError(f"{path}: {field!r} should be {kind}, found {type(bundle[field]).__name__}.")
+    threshold = float(bundle["threshold"])
+    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ModelError(f"{path}: threshold {threshold} is not a probability between 0 and 1.")
+    if int(bundle["n_features"]) < 1:
+        raise ModelError(f"{path}: n_features must be positive, found {bundle['n_features']}.")
+    if not hasattr(bundle["pipeline"], "predict_proba"):
+        raise ModelError(f"{path}: the saved pipeline cannot produce probabilities.")
+
+
+def file_digest(path: Path) -> str:
+    """SHA-256 of a file, read in blocks so a large model does not have to fit in memory."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def save_bundle(bundle: dict[str, Any], path: Path) -> Path:
     if bundle.get("format") != BUNDLE_FORMAT or "pipeline" not in bundle:
         raise ModelError("Not a model bundle (format marker or pipeline missing).")
@@ -44,7 +80,31 @@ def save_bundle(bundle: dict[str, Any], path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, path, compress=3)
     path.with_suffix(".json").write_text(json.dumps(card(bundle), indent=2, default=str), encoding="utf-8")
+    checksum_path(path).write_text(f"{file_digest(path)}  {path.name}\n", encoding="utf-8")
     return path
+
+
+def checksum_path(path: Path) -> Path:
+    return Path(path).with_name(Path(path).name + ".sha256")
+
+
+def verify_digest(path: Path) -> str | None:
+    """Compare the file with the checksum written beside it. Returns the digest, or None if there is none.
+
+    Loading a joblib file executes the code inside it, so the file must be one this project wrote. The
+    checksum catches a corrupted or swapped file; it is not a signature and cannot stop someone who can
+    write both files, which is why the rule stays 'only load bundles produced by this project'.
+    """
+    path = Path(path)
+    sidecar = checksum_path(path)
+    if not sidecar.is_file():
+        return None
+    expected = sidecar.read_text(encoding="utf-8").split()[0].strip().lower()
+    actual = file_digest(path)
+    if expected != actual:
+        raise ModelError(f"{path} does not match its checksum in {sidecar.name} (expected {expected[:16]}..., "
+                         f"found {actual[:16]}...). The file changed after it was saved; do not load it.")
+    return actual
 
 
 def load_bundle(path: str | Path, n_jobs: int | None = 1) -> dict[str, Any]:
@@ -54,12 +114,14 @@ def load_bundle(path: str | Path, n_jobs: int | None = 1) -> dict[str, Any]:
     if not path.is_file():
         raise ModelError(f"Model file not found: {path}. Train and save a model first with "
                          "'python scripts/train_baselines.py --evaluate-test'.")
+    verify_digest(path)                           # refuse a file that changed after this project saved it
     try:
         bundle = joblib.load(path)
     except Exception as exc:                      # joblib raises many different errors for damaged files
         raise ModelError(f"Could not read the model file {path} ({type(exc).__name__}).") from exc
     if not isinstance(bundle, dict) or bundle.get("format") != BUNDLE_FORMAT:
         raise ModelError(f"{path} is not a model bundle of this project.")
+    check_bundle(bundle, path)
     if n_jobs is not None:
         set_threads(bundle["pipeline"], n_jobs)       # also reaches models inside calibration wrappers
     return bundle

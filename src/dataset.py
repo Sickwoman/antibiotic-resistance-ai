@@ -14,6 +14,7 @@ from __future__ import annotations
 import gc
 import hashlib
 import json
+import re
 import shutil
 import time
 from collections.abc import Callable, Iterable
@@ -77,6 +78,9 @@ METADATA_COLUMNS = ["sample_index", "site", "year_folder", "code", "spectrum_rel
 EXCLUSION_COLUMNS = ["site", "year_folder", "code", "reason", "detail", "workstation", "ast_value"]
 # A sample is identified by these columns; the fingerprint also covers its label and patient group.
 SAMPLE_KEY_COLUMNS = ("site", "year_folder", "code")
+# One element of a path below the DRIAMS root: site, folder, year or "<code>.txt". DRIAMS codes are
+# letters, digits, underscores, dashes and dots, so anything else is a malformed or hostile metadata row.
+SAFE_PATH_PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 FINGERPRINT_COLUMNS = (*SAMPLE_KEY_COLUMNS, "label", "group_id")
 
 log = get_logger("dataset")
@@ -128,7 +132,21 @@ def spectrum_relpath(site: str, folder: str, year: str, code: str) -> str:
 
 
 def resolve_relpath(root: str | Path, relpath: str) -> Path:
-    return Path(root).joinpath(*PurePosixPath(relpath).parts)
+    """Locate a spectrum file below `root`.
+
+    The relative path comes from a metadata table, i.e. from a file this project does not write, so it is
+    checked rather than trusted: a code containing '..' or an absolute path would otherwise read a file
+    outside the DRIAMS folder.
+    """
+    parts = PurePosixPath(relpath).parts
+    if not parts or PurePosixPath(relpath).is_absolute() or not all(SAFE_PATH_PART.fullmatch(p) for p in parts):
+        raise DataError(f"Refusing the spectrum path {relpath!r}: every part must be a plain name of letters, "
+                        "digits, '.', '-' or '_' (no '..', no drive letter, no absolute path).")
+    root = Path(root).resolve()
+    path = root.joinpath(*parts)
+    if root not in path.resolve().parents:
+        raise DataError(f"Refusing the spectrum path {relpath!r}: it resolves outside {root}.")
+    return path
 
 
 def _bool(values: Any) -> np.ndarray:
@@ -457,7 +475,11 @@ def _process_spectra(candidates: pd.DataFrame, staging: np.ndarray, root: Path, 
         if spec.flag_duplicate_spectra:
             digest = hashlib.sha1(features.tobytes()).hexdigest()
             if digest in seen:
-                reasons[i], details[i] = "duplicate_spectrum", f"identical to code {codes[seen[digest]]}"
+                # Say whether the twin is at the same site: a repeat within a site is most likely the same
+                # isolate measured twice, while one across sites would be a finding in its own right.
+                first = seen[digest]
+                where = "same site" if sites_arr[first] == sites_arr[i] else f"other site {sites_arr[first]}"
+                reasons[i], details[i] = "duplicate_spectrum", f"identical to code {codes[first]} ({where})"
                 continue
             seen[digest] = i
         staging[i] = features

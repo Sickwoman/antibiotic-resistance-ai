@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pickle
 import re
 import time
 import warnings
@@ -302,14 +303,22 @@ def cached(path: Path, key: str, compute, log=None):
     """Return the object stored at `path` if it was made with `key`; otherwise compute and store it."""
     path = Path(path)
     if path.is_file():
+        # A damaged or unreadable cache file is recomputed, but the reason is logged: silently redoing
+        # hours of work (or hiding a permission problem that will come back) is worse than being noisy.
         try:
             stored = joblib.load(path)
-            if isinstance(stored, dict) and stored.get("key") == key:
+        except (OSError, EOFError, ValueError, KeyError, AttributeError, ImportError,
+                pickle.UnpicklingError) as exc:
+            stored = None
+            if log is not None:
+                log.warning("ignoring the cache file %s (%s: %s)", path.name, type(exc).__name__, exc)
+        if isinstance(stored, dict) and stored.get("key") == key:
+            if "value" in stored:
                 if log is not None:
                     log.info("using cached %s", path.name)
                 return stored["value"]
-        except Exception:                                  # damaged cache file: recompute
-            pass
+            if log is not None:
+                log.warning("the cache file %s has the right key but holds no value; recomputing", path.name)
     value = compute()
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump({"key": key, "value": value}, path, compress=3)

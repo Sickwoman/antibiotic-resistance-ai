@@ -52,8 +52,8 @@ Training time: Version 0.3 is one fit; Version 0.4 covers the cross-fitted model
 
 | Comparison | Note | AUROC difference | PR-AUC difference |
 |---|---|---|---|
-| random_size_matched minus within_year | same training size (the planned check) | -0.006 [-0.120, +0.103] | +0.003 [-0.172, +0.185] |
-| random minus within_year | full training part (context; sizes differ) | +0.023 [-0.088, +0.137] | +0.035 [-0.146, +0.219] |
+| random_size_matched minus within_year | same training size (the planned check) | -0.006 [-0.117, +0.104] | +0.003 [-0.181, +0.193] |
+| random minus within_year | full training part (context; sizes differ) | +0.023 [-0.095, +0.135] | +0.035 [-0.159, +0.230] |
 
 **Seed variation** (test part; mean and range over the seeds)
 

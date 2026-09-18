@@ -52,7 +52,7 @@ from src.predict import (  # noqa: E402
     predict_spectrum_file,
     save_bundle,
 )
-from src.splits import SplitError, load_splits  # noqa: E402
+from src.splits import SplitError, assert_usable, load_splits  # noqa: E402
 from src.train import (  # noqa: E402
     RunResult,
     TrainingError,
@@ -202,6 +202,8 @@ def main() -> int:
         seeds = [int(s) for s in bl["seeds"]]
         y = meta["label"].to_numpy().astype(np.int64)
 
+        for name in requested:
+            assert_usable(meta, splits[name])          # no empty or single-class part reaches a model
         experiments = [(name, name, splits[name].train, splits[name].validation, splits[name].test)
                        for name in requested]
         if sm:
@@ -249,7 +251,7 @@ def main() -> int:
                  "dataset": dataset_name, "dataset_fingerprint": summary["row_fingerprint"],
                  "x_sha256": summary["x_sha256"],
                  **{k: v for k, v in r.row("test").items() if k not in ("fit_seconds", "predict_ms_per_sample")}}
-                for r in results])
+                for r in results], locked=ev["locked_test_splits"])
             print(f"\n{len(results)} test evaluations appended to {ev['test_log']}")
             test_table = pd.DataFrame([r.row("test") for r in results])
             test_table.to_csv(report_dir / "test_metrics.csv", index=False, lineterminator="\n")
@@ -402,6 +404,9 @@ def main() -> int:
     except (DataError, ConfigError, SplitError, TrainingError, EvaluationError, ModelError) as exc:
         log.error("%s", exc)
         return 1
+    except Exception as exc:                                 # noqa: BLE001 - a run must never end silently
+        log.exception("The run stopped with an unexpected error: %s", exc)
+        return 2
 
 
 if __name__ == "__main__":

@@ -9,18 +9,19 @@ permissions:
 
 jobs:
   pytest:
-    name: pytest (${{ matrix.os }})
+    name: pytest (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]     # the README says both work, so both are tested
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
       # PyTorch first from its CPU index: the default Linux wheel drags in ~2.5 GB of CUDA libraries that

@@ -15,10 +15,12 @@ from src.predict import (
     BUNDLE_FORMAT,
     DISCLAIMER,
     ModelError,
+    checksum_path,
     load_bundle,
     predict_features,
     predict_spectrum_file,
     save_bundle,
+    verify_digest,
 )
 from src.preprocessing import PreprocessingConfig
 from src.train import ModelSpec, build_pipeline
@@ -123,3 +125,55 @@ def test_predict_spectrum_file(tmp_path, bundle):
     bundle["feature_fingerprint"] = "0" * 16
     with pytest.raises(ModelError, match="fingerprint"):
         predict_spectrum_file(bundle, path)
+
+
+# --- review fix: the loader checks the fields the prediction path reads -------------------------------------------
+
+@pytest.mark.parametrize("field", ["model_version", "pipeline", "threshold", "n_features", "preprocessing",
+                                   "feature_fingerprint", "species", "antibiotic"])
+def test_a_bundle_missing_a_required_field_is_refused(tmp_path, bundle, field):
+    broken = {k: v for k, v in bundle.items() if k != field}
+    path = tmp_path / "m.joblib"
+    joblib.dump(broken, path)
+    with pytest.raises(ModelError, match=field):
+        load_bundle(path)
+
+
+@pytest.mark.parametrize("field, value", [("threshold", 1.5), ("threshold", float("nan")), ("n_features", 0),
+                                          ("n_features", -10)])
+def test_a_bundle_with_an_impossible_value_is_refused(tmp_path, bundle, field, value):
+    path = tmp_path / "m.joblib"
+    joblib.dump({**bundle, field: value}, path)
+    with pytest.raises(ModelError):
+        load_bundle(path)
+
+
+def test_a_bundle_whose_model_cannot_give_probabilities_is_refused(tmp_path, bundle):
+    from sklearn.preprocessing import StandardScaler  # a fitted transformer, not a classifier
+
+    path = tmp_path / "m.joblib"
+    joblib.dump({**bundle, "pipeline": StandardScaler()}, path)
+    with pytest.raises(ModelError, match="probabilities"):
+        load_bundle(path)
+
+
+# --- review fix: a model file that changed after it was saved is not loaded ---------------------------------------
+
+def test_a_tampered_model_file_is_refused(tmp_path, bundle):
+    """joblib files execute code when loaded, so a file that no longer matches its checksum is refused."""
+    path = save_bundle(bundle, tmp_path / "m.joblib")
+    sidecar = checksum_path(path)
+    assert sidecar.is_file() and len(sidecar.read_text(encoding="utf-8").split()[0]) == 64
+    assert load_bundle(path)["model_version"] == "test-lr"          # unchanged file still loads
+
+    path.write_bytes(path.read_bytes() + b"tampered")
+    with pytest.raises(ModelError, match="does not match its checksum"):
+        load_bundle(path)
+
+
+def test_a_model_without_a_checksum_still_loads(tmp_path, bundle):
+    """Bundles saved before checksums existed keep working; the check is an extra, not a gate."""
+    path = save_bundle(bundle, tmp_path / "m.joblib")
+    checksum_path(path).unlink()
+    assert verify_digest(path) is None
+    assert load_bundle(path)["model_version"] == "test-lr"

@@ -107,13 +107,14 @@ Data lives **outside** the repository in `C:\DRIAMS` (change it in `config.yaml`
 
 ## Setup (Windows, PowerShell)
 
-Requires Python 3.12 (3.11 also works) and Git.
+Requires Python 3.12 or 3.11 (both are tested on every push) and Git.
 
 ```powershell
 cd C:\Projects\antibiotic-resistance-ai
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU build: ~200 MB, not ~2.5 GB
 pip install -r requirements.txt
 ```
 
@@ -123,7 +124,19 @@ If PowerShell blocks the activation script, run this once and then activate agai
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-Exact package versions of the tested environment are in `requirements-lock.txt`.
+**To reproduce the published results exactly**, install the pinned environment instead. The version
+ranges in `requirements.txt` are deliberate - they let CI catch upstream breakage early, which is how the
+scikit-learn change that silently altered the logistic-regression penalty was found - but a result is
+only reproducible against the versions that produced it:
+
+```powershell
+pip install -r requirements-lock.txt --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+The extra index is needed because the lock pins `torch==2.14.0+cpu`, which lives on the PyTorch index
+rather than on PyPI. Library versions are also part of every cache key and are written into each run's
+`run_config.json`, so a dependency change can never silently reuse a result computed with other versions:
+the cache misses and the work is redone.
 
 ## Version 0.1 usage
 
@@ -277,6 +290,15 @@ as the primary dataset (see below).
 
 - **Leakage checks:** every split is checked so that no sample and no patient group appears in two
   parts. The temporal split drops 56 training samples whose patient group also appears later.
+- **What the `temporal` split is, and is not:** it is a *date-separated evaluation with incomplete
+  patient linkage*, not a patient-independent one. Patient groups only exist inside one year folder, so a
+  person who returns in a later year cannot be detected and may appear on both sides of the date
+  boundary. It will never be reported as a patient-level generalisation result
+  ([amendment 1](docs/evaluation_protocol.md#amendments)).
+- **What the `external` intervals are:** DRIAMS-B and DRIAMS-D carry no patient IDs, so every spectrum
+  counts as its own group. Their confidence intervals are *sample-level with unknown within-patient
+  dependence* and are expected to be too narrow, because repeated isolates from one patient are treated
+  as independent.
 - **Why `within_year` exists:** DRIAMS-A `patient_no` is re-hashed every year, so a person seen in two
   years cannot be linked, and the pooled `random` split may place them in train and test.
   - Repeat sampling is common: 76 % of the DRIAMS-A spectra (3,247 / 4,259) come from patients with more
@@ -402,7 +424,7 @@ are deliberately untuned.
 | Logistic regression | +0.031 [-0.028, +0.090] |
 | LightGBM | -0.008 [-0.048, +0.032] |
 
-**Patient-overlap check** (test AUROC; `random_size_matched` = `random` split trained on 1284 samples from all years, `within_year` = one year folder with complete patient groups, 1284 training samples)
+**Patient-overlap check** (test AUROC; `random_size_matched` = `random` split trained on 1284 samples from all years, `within_year` = one year folder with complete patient groups, 1284 training samples). Both training parts hold exactly 1,284 samples, so the comparison really is size-matched.
 
 | Model | random_size_matched | within_year | Difference [95 % interval] |
 |---|---|---|---|
@@ -410,6 +432,13 @@ are deliberately untuned.
 | Logistic regression | 0.665 [0.612, 0.722] | 0.644 [0.555, 0.746] | +0.021 [-0.099, +0.129] |
 | Random forest | 0.673 [0.617, 0.729] | 0.661 [0.562, 0.752] | +0.013 [-0.100, +0.130] |
 | LightGBM | 0.718 [0.662, 0.773] | 0.752 [0.673, 0.838] | -0.035 [-0.138, +0.059] |
+
+The difference intervals in this table were computed before the method for comparing two *different* test
+sets was corrected (see [amendment 1](docs/evaluation_protocol.md#amendments)). Version 0.3 does not save
+its test predictions, so they cannot be recomputed without scoring the test part again, which is not worth
+doing for this: the point estimates do not depend on the method, and recomputing the comparable Version
+0.4 numbers moved the interval bounds by at most 0.014 and changed no conclusion. Version 0.4 onwards uses
+the corrected method.
 
 **Seed variation** (stochastic models, test part; mean and range over 5 seeds)
 
@@ -571,8 +600,8 @@ Training time: Version 0.3 is one fit; Version 0.4 covers the cross-fitted model
 
 | Comparison | Note | AUROC difference | PR-AUC difference |
 |---|---|---|---|
-| random_size_matched minus within_year | same training size (the planned check) | -0.006 [-0.120, +0.103] | +0.003 [-0.172, +0.185] |
-| random minus within_year | full training part (context; sizes differ) | +0.023 [-0.088, +0.137] | +0.035 [-0.146, +0.219] |
+| random_size_matched minus within_year | same training size (the planned check) | -0.006 [-0.117, +0.104] | +0.003 [-0.181, +0.193] |
+| random minus within_year | full training part (context; sizes differ) | +0.023 [-0.095, +0.135] | +0.035 [-0.159, +0.230] |
 
 **Seed variation** (test part; mean and range over the seeds)
 
@@ -603,9 +632,14 @@ matrix of the saved model: `..._confusion_tuned_lightgbm.png`.
 ### What improved, and what did not
 
 **Clearly better:**
-- **The probabilities can now be read as risks.** On test data the calibration slope moved from 1.80
-  (Version 0.3 forest, far too cautious) to 0.87, and the Brier score from 0.155 to 0.144. Every tuned
-  model now tracks the ideal line. This is what the planned uncertainty handling needs.
+- **The probabilities can be read as risks *on this hospital's data*.** On the `random` test part the
+  calibration slope moved from 1.80 (Version 0.3 forest, far too cautious) to 0.87, and the Brier score
+  from 0.155 to 0.144. Every tuned model now tracks the ideal line. That is what the planned uncertainty
+  handling needs — but the calibration was fitted on out-of-fold predictions from this training part and
+  measured on a test part drawn from the same hospital and period. **Calibration on later years and on
+  other sites is unknown** and stays unknown until the `temporal` and `external` parts are opened in
+  Version 0.7; a different resistance rate alone would move it. Do not read these probabilities as
+  clinical risks.
 - **Fewer false alarms, at a price:** specificity 0.458 versus 0.407, so 34 fewer susceptible isolates
   are flagged (357 instead of 391) — but 3 more resistant isolates are missed (34 instead of 31).
 - **A smaller, faster model:** 0.64 MB instead of 4.57 MB, and a prediction from a raw file takes 54 ms
@@ -626,7 +660,7 @@ matrix of the saved model: `..._confusion_tuned_lightgbm.png`.
   further.
 
 **Patient-overlap check:** training on one year with complete patient groups versus a same-size sample
-from all years differs by −0.006 AUROC (−0.120 to +0.103). As in Version 0.3, no effect is detectable,
+from all years differs by −0.006 AUROC (−0.117 to +0.104). As in Version 0.3, no effect is detectable,
 and the interval is too wide to rule out a moderate one.
 
 ### Limitations
@@ -820,6 +854,47 @@ the CNN) and 15 minutes of calibration fits. It caches every search and fitted m
 `models/v0.5/cache`; the test run reused all of them and reproduced the development run's 20 validation
 rows exactly before any test row was read, and the Version 0.4 model re-scored to its logged test AUROC
 of 0.750861 with a difference of 0.
+
+## External code review (2026-09-18)
+
+An external review of the code base at Version 0.4 raised 22 findings. They were worked through
+immediately after Version 0.5 was merged; the table says what each one led to. Four are deliberately **not** acted on yet,
+with the reason given, rather than left silently open.
+
+| Finding | What it led to |
+|---|---|
+| Patient linkage across DRIAMS-A years cannot be verified | Naming discipline, [amendment 1](docs/evaluation_protocol.md#amendments): the `temporal` split is a *date-separated evaluation with incomplete patient linkage*, never a patient-level result |
+| External-site intervals understate uncertainty | Same amendment: DRIAMS-B/D intervals are *sample-level with unknown within-patient dependence* |
+| `unpaired_difference` was not a conventional independent bootstrap | Rewritten to draw independently and with replacement from both bootstrap distributions. The Version 0.4 numbers were recomputed from the saved test predictions, without scoring a single test row again; the bounds moved by at most 0.014 and no conclusion changed |
+| The size-matched run could silently be smaller than asked | `grouped_subsample` refuses anything below 99 % of the requested size. Both parts of the Version 0.4 run held exactly 1,284 samples, so the published comparison was sound |
+| Test-set locking lived only in the scripts | The lock is now also enforced inside `append_test_log`, the single point every test evaluation passes through, and `assert_usable` stops an empty or single-class part reaching a model |
+| The calibration claim was too broad | Scoped to the hospital and period it was measured on, with the unknowns stated |
+| The documented install does not pin versions | The exact-reproduction command is documented and works on both operating systems; library versions are part of every cache key and are recorded per run, so a dependency change forces recomputation instead of silently reusing a result |
+| Model files are executable and unverified | `save_bundle` writes a SHA-256 sidecar and `load_bundle` refuses a file that no longer matches it. This catches corruption and substitution, not a determined attacker, so the rule stays: only load bundles this project produced |
+| Duplicate spectra were reported without their site | The audit now says whether the twin is at the same site or another one. No duplicate has ever been found in this dataset |
+| `classification_metrics` accepted impossible thresholds; `bootstrap` did not check its groups | Both validate their inputs and are tested against every invalid case |
+| Metadata could point outside the DRIAMS folder | `resolve_relpath` requires a relative path of plain names and refuses anything that resolves outside the root |
+| A damaged cache was recomputed silently | The reason is logged and only expected read/unpickle errors are swallowed |
+| A model bundle was not checked before use | Every field the prediction path reads is validated at load time |
+| A run could stop without recording why | Both model scripts catch unexpected errors too, log the traceback, write the reason into `run_status.json` and exit with code 2 |
+| CI did not test Python 3.11 although the README claimed it works | CI now runs 3.11 and 3.12 on Ubuntu and Windows |
+| The privacy scan only looked at notebooks | `tests/test_privacy.py` scans every committed file for identifier-shaped values and for exported identifier columns; the only 32-hex values allowed are the public DRIAMS archive checksums |
+
+**Deliberately not done yet, and why**
+
+- **A reusable evaluation-controller object.** The lock is now enforced at the two places that matter
+  (before computing, and before writing to the log). A separate controller object would be a larger
+  refactor of working, tested code; it is worth revisiting when Version 0.6 adds a serving path.
+- **Immutable real-data fixtures for regression tests.** This would catch real metadata quirks that
+  synthetic tests cannot. DRIAMS is CC0, so it would be legal, but committing real spectra contradicts
+  this project's own rule to keep raw data out of Git. It needs a deliberate decision about what a
+  minimal, defensible fixture is.
+- **A code fingerprint for preprocessing.** The preprocessing *settings* and a feature fingerprint are
+  already stored in every dataset and every model, and a prediction is refused when they disagree; a
+  fingerprint of the preprocessing code itself would additionally catch an edit that changes behaviour
+  without changing settings.
+- **An adversarial cross-year overlap analysis.** This belongs with the Version 0.7 generalisation work,
+  where the temporal and external test parts are opened.
 
 ## Project structure (Version 0.5)
 
