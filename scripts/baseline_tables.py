@@ -14,35 +14,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.tables import md_table, signed_ci, with_ci  # noqa: E402
+from src.tables import model_name as name  # noqa: E402
 from src.utils import ConfigError, load_config, project_path  # noqa: E402
-
-NAMES = {"prevalence": "Prevalence only", "logistic_regression": "Logistic regression",
-         "random_forest": "Random forest", "lightgbm": "LightGBM"}
-
-
-def md_table(rows: list[dict[str, Any]]) -> str:
-    columns = list(rows[0])
-    lines = ["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
-    lines += ["| " + " | ".join(str(r[c]) for c in columns) + " |" for r in rows]
-    return "\n".join(lines)
-
-
-def with_ci(entry: dict[str, float]) -> str:
-    return f"{entry['estimate']:.3f} [{entry['low']:.3f}, {entry['high']:.3f}]"
-
-
-def signed_ci(entry: dict[str, float]) -> str:
-    return f"{entry['estimate']:+.3f} [{entry['low']:+.3f}, {entry['high']:+.3f}]"
-
-
-def name(model: str) -> str:
-    return NAMES.get(model, model)
 
 
 def build_tables(report_dir: Path, label: str | None = None) -> str:
