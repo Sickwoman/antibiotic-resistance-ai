@@ -90,7 +90,10 @@ Pre-specified comparisons:
 - **Two models on the same test set:** a paired bootstrap of the difference (the same resamples for
   both). A model is called better only if the 95 % interval of the difference excludes 0.
 - **Different test sets** (e.g. `random` versus `temporal`): both intervals are reported, plus the
-  difference with an interval from independent bootstraps.
+  difference with an interval from independent bootstraps. The two sets share no rows, so no pairing
+  exists: each metric is resampled inside its own test set, then draws are taken independently and with
+  replacement from the two bootstrap distributions and subtracted (`unpaired_difference`). This is a
+  second-level bootstrap of the convolution, and it is wider than a paired interval, as it should be.
 - **Models with random training** (e.g. neural networks, random forests): 5 seeds (42–46); report the
   mean and range, plus the intervals for seed 42.
 
@@ -145,4 +148,26 @@ when a script is run with `--evaluate-test`, and every scoring is appended to
 
 ## Amendments
 
-None yet.
+### Amendment 1 — 2026-09-18: what the results may be called
+
+Added after an external code review, before the Version 0.5 pull request was merged. It changes no
+decision, no metric and no split; it fixes how results are named and adds one method statement. Nothing
+here was prompted by a test result.
+
+1. **The `temporal` split is date-separated, not patient-independent.** DRIAMS-A re-hashes patient IDs
+   every year, so a patient who returns in a later year cannot be detected and may appear on both sides
+   of the boundary. From now on the temporal result is called a *date-separated evaluation with
+   incomplete patient linkage*, never a patient-level generalisation result, and every report of it
+   repeats that sentence. The `within_year` split, where patient groups are complete, remains the check
+   for how much patient overlap is worth.
+2. **External-site intervals are sample-level.** DRIAMS-B and DRIAMS-D carry no patient IDs, so each
+   spectrum is its own group and repeated isolates of one patient count as independent. Their intervals
+   are therefore reported as *sample-level intervals with unknown within-patient dependence* and are
+   expected to be too narrow. Site comparisons must not be read as if these intervals were reliable.
+3. **The unpaired difference is a second-level bootstrap** (section 6), stated explicitly so the interval
+   is interpretable.
+4. **The size-matched run must really be size-matched.** `grouped_subsample` refuses a sample below 99 %
+   of the requested size, and the achieved size is recorded as `train_size` in every report row. In the
+   Version 0.4 run both parts held exactly 1,284 training samples.
+5. **Locked test parts are refused twice**: by the scripts before anything is computed, and by the test
+   log itself before anything is written.

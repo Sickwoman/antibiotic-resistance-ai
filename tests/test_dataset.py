@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.data_loader import DataError
 from src.dataset import (
     CohortSpec,
     DatasetError,
@@ -414,3 +415,22 @@ def test_assign_group_ids():
     assert ids[0] == ids[3] and ids[0] != ids[2]
     assert len({ids[1], ids[4], ids[0], ids[2]}) == 4
     assert list(source) == ["patient_no", "sample", "patient_no", "patient_no", "sample"]
+
+
+# --- review fix: a metadata row cannot point outside the DRIAMS folder --------------------------------------------
+
+@pytest.mark.parametrize("relpath", ["../../etc/passwd", "DRIAMS-A/../../secret.txt", "/etc/passwd",
+                                     "C:/Windows/system.ini", "DRIAMS-A/raw/2018/../../../x.txt", "",
+                                     "DRIAMS-A/raw/2018/~root.txt", "DRIAMS-A/raw/2018/a b.txt"])
+def test_a_spectrum_path_outside_the_root_is_refused(tmp_path, relpath):
+    """Spectrum paths come from metadata files this project does not write, so they are checked."""
+    with pytest.raises(DataError):
+        resolve_relpath(tmp_path, relpath)
+
+
+def test_real_spectrum_paths_still_resolve(tmp_path):
+    relpath = spectrum_relpath("DRIAMS-A", "raw", "2018", "a1b2c3_3312")
+    assert resolve_relpath(tmp_path, relpath) == tmp_path / "DRIAMS-A" / "raw" / "2018" / "a1b2c3_3312.txt"
+    uuid_code = "0a1b2c3d-4e5f-6789-abcd-ef0123456789_3313"       # DRIAMS-D style
+    assert resolve_relpath(tmp_path, spectrum_relpath("DRIAMS-D", "binned_6000", "2018", uuid_code)).name.endswith(
+        f"{uuid_code}.txt")

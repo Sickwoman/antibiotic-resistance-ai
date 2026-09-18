@@ -178,3 +178,74 @@ def test_test_log_is_append_only(tmp_path):
     other.write_text("a,b\n1,2\n", encoding="utf-8")
     with pytest.raises(EvaluationError, match="different columns"):
         append_test_log(other, [row])
+
+
+# --- review fixes: input validation and the unpaired difference --------------------------------------------------
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -0.1, 1.5])
+def test_classification_metrics_rejects_impossible_thresholds(bad):
+    """A threshold outside [0, 1] would silently label every sample the same way."""
+    y, prob = scores(120)
+    with pytest.raises(EvaluationError, match="threshold"):
+        classification_metrics(y, prob, bad)
+
+
+def test_classification_metrics_accepts_the_edges():
+    y, prob = scores(120)
+    assert classification_metrics(y, prob, 0.0)["sensitivity"] == 1.0      # everything flagged
+    assert classification_metrics(y, prob, 1.0)["tp"] + classification_metrics(y, prob, 1.0)["fp"] == 0
+
+
+def test_bootstrap_checks_the_group_vector():
+    y, prob = scores(60)
+    groups = np.arange(60)
+    with pytest.raises(EvaluationError, match="one entry per label"):
+        bootstrap(y, groups[:-1], {"m": prob}, {"m": 0.5}, resamples=5)
+    with pytest.raises(EvaluationError, match="one entry per label"):
+        bootstrap(y, groups.reshape(30, 2), {"m": prob}, {"m": 0.5}, resamples=5)
+    missing = np.array([*groups[:-1].astype(object), None], dtype=object)
+    with pytest.raises(EvaluationError, match="missing values"):
+        bootstrap(y, missing, {"m": prob}, {"m": 0.5}, resamples=5)
+
+
+def test_unpaired_difference_recovers_a_known_difference():
+    """a and b come from different test sets: the interval is the convolution of the two distributions."""
+    rng = np.random.default_rng(0)
+    a = rng.normal(0.75, 0.02, 2000)
+    b = rng.normal(0.70, 0.02, 2000)
+    low, high = unpaired_difference(a, b, 0.95, seed=1)
+    assert low < 0.05 < high                                   # contains the true difference
+    width = high - low
+    expected = 2 * 1.96 * np.sqrt(0.02 ** 2 + 0.02 ** 2)       # sd of the difference of two independents
+    assert expected * 0.85 < width < expected * 1.15
+    # a paired reading would be far too narrow, which is exactly the mistake this function avoids
+    assert width > 2 * 1.96 * 0.02
+
+
+def test_unpaired_difference_handles_unequal_sizes_and_is_reproducible():
+    rng = np.random.default_rng(3)
+    a, b = rng.normal(0.8, 0.03, 2000), rng.normal(0.6, 0.03, 500)
+    first = unpaired_difference(a, b, 0.95, seed=7)
+    assert first == unpaired_difference(a, b, 0.95, seed=7)     # same seed, same interval
+    assert first != unpaired_difference(a, b, 0.95, seed=8)
+    assert first[0] < 0.2 < first[1]
+    flipped = unpaired_difference(b, a, 0.95, seed=7)
+    assert flipped[0] < -0.2 < flipped[1]                       # the difference simply changes sign
+
+
+def test_unpaired_difference_without_samples_is_not_a_number():
+    empty = np.array([])
+    assert all(np.isnan(unpaired_difference(empty, np.array([0.5]), 0.95)))
+    assert all(np.isnan(unpaired_difference(np.array([0.5]), empty, 0.95)))
+
+
+def test_the_test_log_refuses_a_locked_split(tmp_path):
+    """Last line of defence: a locked test part cannot even be written to the log."""
+    row = {c: 0 for c in TEST_LOG_COLUMNS}
+    row.update(split="temporal", model="m", experiment="temporal")
+    path = tmp_path / "log.csv"
+    with pytest.raises(EvaluationError, match="locked until Version 0.7"):
+        append_test_log(path, [row], locked=["temporal", "external"])
+    assert not path.exists()                                   # nothing written
+    append_test_log(path, [{**row, "split": "random", "experiment": "random"}], locked=["temporal", "external"])
+    assert pd.read_csv(path)["split"].tolist() == ["random"]

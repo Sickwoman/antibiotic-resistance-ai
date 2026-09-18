@@ -129,3 +129,17 @@ def test_run_experiment_needs_both_classes():
         run_experiment(X, meta, experiment="e", split="s", train_rows=np.arange(180),
                        validation_rows=np.arange(180, 240), test_rows=None, specs=SPECS[:1], seeds=[42],
                        threshold_rule={"rule": "min_sensitivity", "min_sensitivity": 0.9})
+
+
+def test_grouped_subsample_refuses_a_sample_that_is_not_size_matched():
+    """The point of this sample is to match a training size; a much smaller one would confound the
+    patient-overlap comparison with the amount of training data."""
+    X, meta = synthetic(n=400)
+    rows = np.arange(400)
+    # every patient group here holds 40 rows, so a 60-row budget can only be filled to 40 (67 %)
+    meta = meta.copy()
+    meta["group_id"] = np.repeat(np.arange(10), 40)
+    with pytest.raises(TrainingError, match="not be a size-matched comparison"):
+        grouped_subsample(meta, rows, 60, seed=42)
+    assert grouped_subsample(meta, rows, 60, seed=42, min_fraction=0.5).size == 40   # allowed when asked
+    assert grouped_subsample(meta, rows, 80, seed=42).size == 80                     # exact fit is fine
