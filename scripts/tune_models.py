@@ -1,12 +1,18 @@
-"""Version 0.4 - tuned and calibrated models, following docs/v0.4_search_plan.md.
+"""Search, calibration and evaluation of one section of models.
+
+`--section tuning` runs Version 0.4 (classical families, docs/v0.4_search_plan.md) and `--section deep`
+runs Version 0.5 (neural networks, docs/v0.5_deep_learning_plan.md). Both follow the same procedure, so
+the numbers are comparable and the test-set safeguards exist only once. Each section is measured against
+the model saved by the section before it.
 
 Run from the project root with the virtual environment active (keep the laptop plugged in, lid open):
 
     python scripts/tune_models.py                   # searches, calibration, validation; test parts untouched
     python scripts/tune_models.py --evaluate-test   # then: score the planned test parts once (logged)
     python scripts/tune_models.py --families logistic_regression   # development run on some families only
+    python scripts/tune_models.py --section deep    # the same two steps for the Version 0.5 networks
 
-Searches and fitted models are cached in models/v0.4/cache, keyed by the data rows, the settings, the
+Searches and fitted models are cached in <model_dir>/cache, keyed by the data rows, the settings, the
 tuning code and the library versions. The --evaluate-test run must reuse those cached models (it stops
 instead of refitting unless --allow-refit is given) and must reproduce the development run's validation
 results before any test row is scored.
@@ -14,10 +20,10 @@ results before any test row is scored.
 Order of the --evaluate-test run: checks -> fitting/validation (cached) -> comparison with the development
 run -> test scoring -> test log -> reports. A failure after scoring cannot skip the log.
 
-Writes:
-- results/metrics/v0.4/<dataset>/* and results/plots/v0.4/* (committed; no identifiers)
+Writes (paths from the section's config; v0.4 for tuning, v0.5 for deep):
+- results/metrics/<version>/<dataset>/* and results/plots/<version>/* (committed; no identifiers)
 - results/experiments/test_evaluations.csv (append-only)
-- models/v0.4/<dataset>/best_random.joblib, its .json card and test_probabilities.npz (git-ignored)
+- models/<version>/<dataset>/best_random.joblib, its .json card and test_probabilities.npz (git-ignored)
 """
 
 from __future__ import annotations
@@ -51,7 +57,7 @@ from src.evaluate import (  # noqa: E402
     summarize_bootstrap,
     unpaired_difference,
 )
-from src.model_plots import plot_confusion  # noqa: E402
+from src.model_plots import plot_confusion, plot_loss_curves  # noqa: E402
 from src.predict import (  # noqa: E402
     BUNDLE_FORMAT,
     ModelError,
@@ -91,10 +97,18 @@ from src.utils import (  # noqa: E402
 )
 
 log = get_logger("tuning")
-STAGE = "v0.4-tuned"
-REFERENCE_STAGE = "v0.4-reference"
+# One script runs both stages: the classical families of Version 0.4 and the networks of Version 0.5.
+# `compare` names the config section holding the model that each stage is measured against.
+SECTIONS = {
+    "tuning": {"stage": "v0.4-tuned", "reference_stage": "v0.4-reference", "compare": "baselines",
+               "reference_prefix": "v0.3_", "title": "Version 0.4", "reference_title": "Version 0.3",
+               "models": "Tuned and calibrated models"},
+    "deep": {"stage": "v0.5-deep", "reference_stage": "v0.5-reference", "compare": "tuning",
+             "reference_prefix": "v0.4_", "title": "Version 0.5", "reference_title": "Version 0.4",
+             "models": "Neural networks (tuned and calibrated)"},
+}
 DISPLAY = {"logistic_regression": "Logistic regression", "random_forest": "Random forest",
-           "lightgbm": "LightGBM", "svm_rbf": "SVM (RBF)"}
+           "lightgbm": "LightGBM", "svm_rbf": "SVM (RBF)", "mlp": "MLP", "cnn": "1-D CNN"}
 SHOWN = ["experiment", "model", "seed", "calibrated", "train_size", "fit_seconds", "threshold", "roc_auc", "pr_auc",
          "sensitivity", "specificity", "precision", "f1", "accuracy", "brier", "calibration_slope"]
 METRICS_WITH_CI = ("roc_auc", "pr_auc", "sensitivity", "specificity")
@@ -168,9 +182,19 @@ class Finalist:
 class Context:
     """Data, settings and cache locations shared by all experiments of one run."""
 
-    def __init__(self, config: dict[str, Any], dataset_name: str, evaluate_test: bool, require_cache: bool):
+    def __init__(self, config: dict[str, Any], dataset_name: str, evaluate_test: bool, require_cache: bool,
+                 section: str = "tuning"):
         self.config = config
-        self.tc, self.ev, self.bl = config["tuning"], config["evaluation"], config["baselines"]
+        self.section = section
+        self.meta_section = SECTIONS[section]
+        self.stage = self.meta_section["stage"]
+        self.reference_stage = self.meta_section["reference_stage"]
+        self.tc, self.ev, self.bl = config[section], config["evaluation"], config["baselines"]
+        self.compare = config[self.meta_section["compare"]]      # section of the model we compare against
+        stated = self.tc.get("compare_with")                     # pre-registered in config.yaml
+        if stated and Path(stated) != Path(self.compare["model_dir"]):
+            raise ConfigError(f"{section}.compare_with is {stated}, but this run compares against "
+                              f"{self.compare['model_dir']} ({self.meta_section['compare']}.model_dir).")
         self.dataset_name = dataset_name
         self.evaluate_test = evaluate_test
         self.require_cache = require_cache
@@ -183,11 +207,15 @@ class Context:
         self.seed = int(config["project"]["random_seed"])
         self.cv_seed = int(self.tc["cv_seed"])
         self.seeds = [int(s) for s in self.tc["seeds"]]
+        self.retune = list(self.tc.get("retune_experiments") or [])   # empty when the check is not repeated
         self.model_dir = project_path(self.tc["model_dir"]) / dataset_name
         self.cache_dir = project_path(self.tc["model_dir"]) / "cache" / dataset_name
         self.report_dir = project_path(self.tc["report_dir"]) / dataset_name
         self.plot_dir = project_path(self.tc["plot_dir"])
-        self.code = code_fingerprint([PROJECT_ROOT / "src" / "tuning.py", PROJECT_ROOT / "src" / "train.py"])
+        sources = [PROJECT_ROOT / "src" / "tuning.py", PROJECT_ROOT / "src" / "train.py"]
+        if section == "deep":               # the networks live in src/deep.py: editing it must invalidate the cache
+            sources.append(PROJECT_ROOT / "src" / "deep.py")
+        self.code = code_fingerprint(sources)
         self.versions = versions()
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -238,7 +266,7 @@ class Context:
 
 
 def run_record(ctx: Context, specs: list[FamilySpec], status: str, **extra: Any) -> dict[str, Any]:
-    return {"stage": STAGE, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+    return {"stage": ctx.stage, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
             "git_commit": ctx.commit, "code_fingerprint": ctx.code, "dataset": ctx.dataset_name,
             "rows_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"],
             "feature_fingerprint": ctx.summary["feature_fingerprint"], "test_parts_scored": ctx.evaluate_test,
@@ -308,35 +336,37 @@ def tune_experiment(ctx: Context, name: str, specs: list[FamilySpec]) -> tuple[l
 
 def preflight(ctx: Context, allow_rescore: bool) -> dict[str, Any]:
     """Everything the test stage needs, checked before any test row is loaded."""
-    names = [ctx.tc["split"], *ctx.tc["retune_experiments"]]
+    names = [ctx.tc["split"], *ctx.retune]
     locked = set(ctx.ev["locked_test_splits"])
     for name in names:
         split = ctx.experiment(name)[0]
         if split in locked:
             raise SplitError(f"Experiment {name!r} uses the {split} test part, which is locked until Version 0.7.")
-    v03_path = project_path(ctx.bl["model_dir"]) / ctx.dataset_name / f"best_{ctx.tc['split']}.joblib"
+    older = ctx.meta_section["reference_title"]
+    v03_path = project_path(ctx.compare["model_dir"]) / ctx.dataset_name / f"best_{ctx.tc['split']}.joblib"
     v03 = load_bundle(v03_path)
     if v03["dataset"]["row_fingerprint"] != ctx.summary["row_fingerprint"]:
-        raise ModelError(f"{v03_path} was trained on another build of {ctx.dataset_name}.")
-    v03_report = project_path(ctx.bl["report_dir"]) / ctx.dataset_name
+        raise ModelError(f"{show_path(v03_path)} was trained on another build of {ctx.dataset_name}.")
+    v03_report = project_path(ctx.compare["report_dir"]) / ctx.dataset_name
     for name in ("test_metrics.csv", "validation_metrics.csv"):
         if not (v03_report / name).is_file():
-            raise EvaluationError(f"Version 0.3 report {v03_report / name} is missing.")
+            raise EvaluationError(f"{older} report {show_path(v03_report / name)} is missing.")
     logged = pd.read_csv(v03_report / "test_metrics.csv")
     logged = logged[(logged["experiment"] == ctx.tc["split"]) & (logged["model"] == v03["model"])
                     & (logged["seed"] == v03["seed"])]
     if len(logged) != 1:
-        raise EvaluationError("The Version 0.3 test report must contain exactly one row for the saved model.")
+        raise EvaluationError(f"The {older} test report must contain exactly one row for its saved model.")
     log_path = project_path(ctx.ev["test_log"])
     if log_path.is_file() and log_path.stat().st_size:
         existing = pd.read_csv(log_path)
         if existing.columns.tolist() != TEST_LOG_COLUMNS:
             raise EvaluationError(f"{show_path(log_path)} has unexpected columns.")
-        done = existing[(existing["stage"] == STAGE) & (existing["dataset"] == ctx.dataset_name)]
+        done = existing[(existing["stage"] == ctx.stage) & (existing["dataset"] == ctx.dataset_name)]
         if len(done) and not allow_rescore:
-            raise EvaluationError(f"{len(done)} Version 0.4 test evaluations of {ctx.dataset_name} are already "
-                                  "logged. Scoring again is a second look at the test data; pass --allow-rescore "
-                                  "only on purpose (the new rows are logged as an additional run).")
+            raise EvaluationError(
+                f"{len(done)} {ctx.meta_section['title']} test evaluations of {ctx.dataset_name} are already logged. "
+                "Scoring again is a second look at the test data; pass --allow-rescore only on purpose "
+                "(the new rows are logged as an additional run).")
         writable = log_path                                   # append to the existing file
     else:
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -373,13 +403,19 @@ def compare_with_previous(previous: pd.DataFrame | None, current: pd.DataFrame) 
 
 
 def reference_rows(ctx: Context, part: str, experiments: list[str]) -> pd.DataFrame:
-    """Prevalence-only rows of the Version 0.3 run (same training data; not scored again)."""
-    path = project_path(ctx.bl["report_dir"]) / ctx.dataset_name / f"{part}_metrics.csv"
+    """Prevalence-only rows of the Version 0.3 run (same training data; not scored again).
+
+    They are read from the report of the section we compare against, which carries them forward, so the
+    no-skill line is the same number in every version.
+    """
+    path = project_path(ctx.compare["report_dir"]) / ctx.dataset_name / f"{part}_metrics.csv"
     if not path.is_file():
-        log.warning("No Version 0.3 %s report (%s): the prevalence-only reference rows are left out.", part, path)
+        log.warning("No %s %s report (%s): the prevalence-only reference rows are left out.",
+                    ctx.meta_section["reference_title"], part, path)
         return pd.DataFrame()
     table = pd.read_csv(path)
-    rows = table[(table["model"] == "prevalence") & table["experiment"].isin(experiments)].copy()
+    rows = table[table["model"].isin(("prevalence", "v0.3_prevalence"))
+                 & table["experiment"].isin(experiments)].copy()
     rows["model"] = "v0.3_prevalence"
     rows["calibrated"] = False
     rows["setting"] = "always the training resistance rate (from the Version 0.3 run)"
@@ -418,7 +454,7 @@ def plot_roc_pr(curves: list[tuple[str, np.ndarray, dict[str, Any]]], y: np.ndar
     ex.apply_style()
     fig, (ax_roc, ax_pr) = plt.subplots(1, 2, figsize=(11, 4.8))
     for i, (label, prob, metrics) in enumerate(curves):
-        color, style = (ex.MUTED, ":") if label.startswith("Version 0.3") else (ex.SERIES[i], "-")
+        color, style = (ex.MUTED, ":") if label.startswith("Version ") else (ex.SERIES[i], "-")
         fpr, tpr, _ = roc_curve(y, prob)
         ax_roc.plot(fpr, tpr, style, color=color, lw=1.8, label=f"{label} ({metrics['roc_auc']:.3f})")
         precision, recall, _ = precision_recall_curve(y, prob)
@@ -480,20 +516,22 @@ def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any])
     # The logged value was computed with all CPU threads; a forest adds its trees in thread order, so the last
     # bits of tied probabilities can differ. 1e-4 is far below any meaningful AUROC change.
     gap = abs(ref["logged_roc_auc"] - v03_metrics["roc_auc"])
-    v03_row = {"experiment": main_name, "split": main_name, "model": f"v0.3_{v03['model']}", "seed": v03["seed"],
-               "calibrated": False, "setting": "Version 0.3 fixed settings (saved model)",
+    older = ctx.meta_section["reference_title"]
+    v03_row = {"experiment": main_name, "split": main_name,
+               "model": f"{ctx.meta_section['reference_prefix']}{v03['model']}", "seed": v03["seed"],
+               "calibrated": "calibration" in v03, "setting": f"{older} saved model (unchanged)",
                "train_size": v03["split"]["train_size"], "reproduces_logged_auroc_within": gap, **v03_metrics}
 
     base = {"logged_at": time.strftime("%Y-%m-%d %H:%M:%S"), "git_commit": ctx.commit, "dataset": ctx.dataset_name,
             "dataset_fingerprint": ctx.summary["row_fingerprint"], "x_sha256": ctx.summary["x_sha256"]}
-    rows = [{**base, "stage": STAGE, **f.row("test")} for f in everything]
-    rows.append({**base, "stage": REFERENCE_STAGE, **v03_row})
+    rows = [{**base, "stage": ctx.stage, **f.row("test")} for f in everything]
+    rows.append({**base, "stage": ctx.reference_stage, **v03_row})
     append_test_log(project_path(ctx.ev["test_log"]), rows)
     print(f"\n{len(rows)} test evaluations appended to {ctx.ev['test_log']}")
     if gap > 1e-4:
-        raise EvaluationError(f"The saved Version 0.3 model gives test AUROC {v03_metrics['roc_auc']:.6f}, "
+        raise EvaluationError(f"The saved {older} model gives test AUROC {v03_metrics['roc_auc']:.6f}, "
                               f"logged {ref['logged_roc_auc']:.6f} (logged above; check the model file).")
-    print(f"Version 0.3 model re-scored: AUROC {v03_metrics['roc_auc']:.6f} (logged {ref['logged_roc_auc']:.6f}, "
+    print(f"{older} model re-scored: AUROC {v03_metrics['roc_auc']:.6f} (logged {ref['logged_roc_auc']:.6f}, "
           f"difference {gap:.1e})")
 
     arrays = {f"{f.experiment}__{f.name}__seed{f.seed}": f.test_prob for f in everything}
@@ -503,6 +541,27 @@ def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any])
     ctx.model_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(ctx.model_dir / "test_probabilities.npz", **arrays)
     return {"row": v03_row, "prob": v03_prob, "metrics": v03_metrics}
+
+
+def training_curves(ctx: Context, main_seed: list[Finalist], main_name: str) -> list[Path]:
+    """Loss curves of the networks, from the model that the run actually saved (nothing is refitted).
+
+    Classical families have no epochs, so for them this writes nothing.
+    """
+    histories = []
+    for f in main_seed:
+        estimator = uncalibrated(f.model).steps[-1][1]
+        if not hasattr(estimator, "history"):
+            continue
+        histories.append((f"{DISPLAY.get(f.family, f.family)} (seed {f.seed})",
+                          {**estimator.history, "parameters": estimator.n_parameters(),
+                           "setting": f.setting}))
+    if not histories:
+        return []
+    (ctx.report_dir / "training_history.json").write_text(
+        json.dumps(dict(histories), indent=2, default=str), encoding="utf-8")
+    return [plot_loss_curves(histories, f"Training of the chosen settings, {main_name} training part",
+                             ctx.plot_dir / f"{ctx.dataset_name}_{main_name}_training_curves.png")]
 
 
 def differences(samples: dict[str, dict[str, np.ndarray]], points: dict[str, dict[str, dict[str, float]]],
@@ -523,13 +582,16 @@ def differences(samples: dict[str, dict[str, np.ndarray]], points: dict[str, dic
 # ------------------------------------------------------------------------------------------------ main
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Version 0.4: tuned and calibrated models.")
+    parser = argparse.ArgumentParser(description="Search, calibrate and evaluate one section of models "
+                                                 "(tuning = Version 0.4 classical, deep = Version 0.5 networks).")
+    parser.add_argument("--section", choices=sorted(SECTIONS), default="tuning",
+                        help="which config section to run (default: tuning)")
     parser.add_argument("--evaluate-test", action="store_true",
                         help="score the planned test parts once (appended to the test log)")
     parser.add_argument("--allow-refit", action="store_true",
                         help="with --evaluate-test: fit models that are not in the cache (normally refused)")
     parser.add_argument("--allow-rescore", action="store_true",
-                        help="with --evaluate-test: score again although Version 0.4 test rows are logged")
+                        help="with --evaluate-test: score again although this stage's test rows are logged")
     parser.add_argument("--families", nargs="+", default=None, help="development only: tune these families")
     parser.add_argument("--dataset", default=None)
     parser.add_argument("--config", type=Path, default=None)
@@ -538,9 +600,11 @@ def main() -> int:
     try:
         config = load_config(args.config)
         set_seed(int(config["project"]["random_seed"]))
-        if config["tuning"]["search_metric"] != config["evaluation"]["primary_metric"]:
-            raise TuningError("tuning.search_metric must equal evaluation.primary_metric.")
-        specs = family_specs(config)
+        if args.section not in config:
+            raise ConfigError(f"config.yaml has no {args.section!r} section.")
+        if config[args.section]["search_metric"] != config["evaluation"]["primary_metric"]:
+            raise TuningError(f"{args.section}.search_metric must equal evaluation.primary_metric.")
+        specs = family_specs(config, section=args.section)
         if args.families:
             unknown = sorted(set(args.families) - {s.name for s in specs})
             if unknown:
@@ -549,14 +613,20 @@ def main() -> int:
                 raise TuningError("--evaluate-test needs the full search plan (no --families).")
             specs = [s for s in specs if s.name in args.families]
         ctx = Context(config, args.dataset or config["dataset"]["name"], args.evaluate_test,
-                      require_cache=args.evaluate_test and not args.allow_refit)
+                      require_cache=args.evaluate_test and not args.allow_refit, section=args.section)
         ctx.check_cache_info()
+        threads = (ctx.tc.get("training") or {}).get("threads")
+        if threads:                       # networks: the run's CPU threads (predictions always use one)
+            from src.deep import set_threads as set_torch_threads
+
+            set_torch_threads(int(threads))
         main_name = ctx.tc["split"]
         previous_path = ctx.report_dir / "validation_metrics.csv"
         previous = pd.read_csv(previous_path) if previous_path.is_file() else None
         ref = preflight(ctx, args.allow_rescore) if args.evaluate_test else None
         write_run_status(ctx, specs, "running")
-        section(f"Version 0.4 on {ctx.dataset_name} (rows fingerprint {ctx.summary['row_fingerprint']}); "
+        section(f"{ctx.meta_section['title']} on {ctx.dataset_name} "
+                f"(rows fingerprint {ctx.summary['row_fingerprint']}); "
                 f"test parts {'WILL' if args.evaluate_test else 'will NOT'} be scored; families: "
                 f"{', '.join(s.name for s in specs)}")
         started = time.monotonic()
@@ -564,11 +634,13 @@ def main() -> int:
             summary_rows, finalists = tune_experiment(ctx, main_name, specs)
             main_seed = [f for f in finalists if f.seed == ctx.seeds[0]]
             chosen = max(main_seed, key=lambda f: f.validation[ctx.tc["search_metric"]])
+            after = "re-tuning it for the patient-overlap check" if ctx.retune else \
+                    "the patient-overlap check is not repeated in this section"
             section(f"Chosen on validation ({ctx.tc['search_metric']}): {DISPLAY.get(chosen.family, chosen.family)} "
-                    f"({chosen.validation[ctx.tc['search_metric']]:.3f}); re-tuning it for the patient-overlap check")
+                    f"({chosen.validation[ctx.tc['search_metric']]:.3f}); {after}")
             chosen_spec = next(s for s in specs if s.name == chosen.family)
             retune = []
-            for name in ctx.tc["retune_experiments"]:
+            for name in ctx.retune:
                 rows, found = tune_experiment(ctx, name, [chosen_spec])
                 summary_rows += rows
                 retune += found
@@ -585,7 +657,7 @@ def main() -> int:
         validation = pd.DataFrame(va_rows)
         if args.evaluate_test:
             print(compare_with_previous(previous, validation))
-        experiments = [main_name, *ctx.tc["retune_experiments"]]
+        experiments = [main_name, *ctx.retune]
         validation = pd.concat([validation, reference_rows(ctx, "validation", experiments)], ignore_index=True)
         write_csv(validation, previous_path)
         section("Validation (cut-offs chosen here; seed 42; calibrated=False: same model before calibration; "
@@ -632,6 +704,8 @@ def main() -> int:
 
         save_chosen()
         print(f"\nSaved {show_path(model_path)} ({model_path.stat().st_size / 1e6:.2f} MB)")
+        for p in training_curves(ctx, main_seed, main_name):
+            print(f"saved {show_path(p)}")
 
         # ---------------------------------------------------------------- test stage
         if args.evaluate_test:
@@ -654,9 +728,9 @@ def main() -> int:
             intervals[main_name], samples[main_name] = summarize_bootstrap(
                 y_te, ctx.groups[main_te], probs, thresholds, resamples=int(b["resamples"]), level=level,
                 seed=int(b["seed"]), reference=chosen.name)
-            intervals[main_name]["differences_to_version_0_3"] = differences(
+            intervals[main_name]["differences_to_reference_model"] = differences(
                 samples[main_name], intervals[main_name]["intervals"], v03["row"]["model"], level)
-            for name in ctx.tc["retune_experiments"]:
+            for name in ctx.retune:
                 _, _, _, te = ctx.experiment(name)
                 f = next(x for x in retune if x.experiment == name and x.seed == ctx.seeds[0])
                 intervals[name], samples[name] = summarize_bootstrap(
@@ -670,8 +744,8 @@ def main() -> int:
                     for metric in METRICS_WITH_CI:
                         row[metric] = f"{m[metric]['estimate']:.3f} [{m[metric]['low']:.3f}, {m[metric]['high']:.3f}]"
                     for label, table, sign in ((f"AUROC {chosen.name} minus this", s["differences_to_reference"], 1),
-                                               ("AUROC this minus Version 0.3",
-                                                s.get("differences_to_version_0_3", {}), 1)):
+                                               (f"AUROC this minus {ctx.meta_section['reference_title']}",
+                                                s.get("differences_to_reference_model", {}), 1)):
                         d = table.get(model, {}).get("roc_auc")
                         row[label] = "-" if d is None else (
                             f"{sign * d['estimate']:+.3f} [{d['low']:+.3f}, {d['high']:+.3f}]")
@@ -694,7 +768,7 @@ def main() -> int:
             section("Seed variation on test")
             show(pd.DataFrame(seed_rows))
 
-            names = list(ctx.tc["retune_experiments"])
+            names = list(ctx.retune)
             w_name = next((n for n in names if n in ctx.splits), None)
             m_name = next((n for n in names if n != w_name), None)
             if w_name and m_name:
@@ -717,8 +791,9 @@ def main() -> int:
 
             name_of = {f.family: DISPLAY.get(f.family, f.family) for f in main_seed}
             curves = [(name_of[f.family], f.test_prob, f.test) for f in main_seed]
-            curves.append((f"Version 0.3 {DISPLAY.get(ref['bundle']['model'], ref['bundle']['model']).lower()}",
-                           v03["prob"], v03["metrics"]))
+            reference_model = ref["bundle"]["model"].removeprefix("tuned_")
+            curves.append((f"{ctx.meta_section['reference_title']} "
+                           f"{DISPLAY.get(reference_model, reference_model).lower()}", v03["prob"], v03["metrics"]))
             val_rows = ctx.splits[main_name].validation
             before_after = []
             inner = uncalibrated(chosen.model)
@@ -733,7 +808,7 @@ def main() -> int:
                 plot_search({s.name: pd.read_csv(ctx.report_dir / f"search_{main_name}_{s.name}.csv") for s in specs},
                             int(ctx.tc["cv_folds"]), f"Settings searched on the {main_name} training part",
                             ctx.plot_dir / f"{ctx.dataset_name}_search_overview.png"),
-                plot_roc_pr(curves, y_te, f"Tuned and calibrated models, {main_name} split, test part "
+                plot_roc_pr(curves, y_te, f"{ctx.meta_section['models']}, {main_name} split, test part "
                                           f"(n={len(main_te):,}, {int(y_te.sum())} resistant)",
                             ctx.plot_dir / f"{ctx.dataset_name}_{main_name}_roc_pr.png"),
                 plot_calibration(panels, int(ctx.ev["calibration_bins"]),

@@ -48,3 +48,9 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   scored models are the ones checked on validation. Searches and fits are cached under `models/v0.4/cache`,
   keyed by data, settings, the text of `src/tuning.py` and `src/train.py`, and library versions: editing either
   file discards hours of computation. Result tables come from `scripts/tuned_tables.py`, never typed by hand.
+- Version 0.5 networks: the same script and safeguards with `--section deep` (config section `deep`,
+  `models/v0.5`, `results/metrics/v0.5`), compared against the saved Version 0.4 model. `src/deep.py` joins the
+  cache key for that section, so editing it discards the cached searches; the section-level `training:` block
+  (epochs, batch size, patience) is part of every family's fingerprint too. Tables: `scripts/tuned_tables.py
+  --section deep`. PyTorch is CPU-only here; `deep.training.threads` sets the thread count, and predictions
+  always run on one thread so a later run reproduces them exactly.

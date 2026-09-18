@@ -78,6 +78,17 @@ FAMILIES: dict[str, dict[str, Any]] = {
 }
 CANDIDATES = {"logistic_regression": 4, "random_forest": 1, "lightgbm": 2, "svm_rbf": 2}
 
+# Version 0.5: tiny networks on the coarse bins, three epochs each. Enough to exercise the section, not to learn.
+DEEP_FAMILIES: dict[str, dict[str, Any]] = {
+    "mlp": {"kind": "mlp", "stochastic": True,
+            "grid": [{"features": ["bins_18da"], "hidden": ["8"], "dropout": [0.0, 0.3]}]},
+    "cnn": {"kind": "cnn", "stochastic": True,
+            "grid": [{"features": ["bins_18da"], "channels": ["4"], "kernel_size": [5]}]},
+}
+DEEP_CANDIDATES = {"mlp": 2, "cnn": 1}
+DEEP_TRAINING = {"max_epochs": 3, "batch_size": 32, "learning_rate": 1.0e-3, "weight_decay": 1.0e-4,
+                 "patience": 2, "inner_validation_fraction": 0.2, "threads": 1}
+
 
 # ------------------------------------------------------------------------------------------------ synthetic data
 
@@ -157,8 +168,13 @@ def make_config(tmp: Path, root: Path) -> dict[str, Any]:
     tc.update(cv_folds=3, seeds=SEEDS, families=copy.deepcopy(FAMILIES), model_dir=str(tmp / "models" / "v0.4"),
               report_dir=str(tmp / "results" / "metrics" / "v0.4"), plot_dir=str(tmp / "results" / "plots" / "v0.4"))
 
+    dp = config["deep"]
+    dp.update(cv_folds=3, seeds=SEEDS, families=copy.deepcopy(DEEP_FAMILIES), training=dict(DEEP_TRAINING),
+              model_dir=str(tmp / "models" / "v0.5"), report_dir=str(tmp / "results" / "metrics" / "v0.5"),
+              plot_dir=str(tmp / "results" / "plots" / "v0.5"), compare_with=tc["model_dir"])
+
     written = [config["dataset"]["output_dir"], ev["test_log"],
-               *(section[key] for section in (bl, tc) for key in ("model_dir", "report_dir", "plot_dir"))]
+               *(section[key] for section in (bl, tc, dp) for key in ("model_dir", "report_dir", "plot_dir"))]
     assert all(Path(p).resolve().is_relative_to(tmp.resolve()) for p in written), written
     return config
 
@@ -179,7 +195,10 @@ class Workspace:
 
     @property
     def cache_dir(self) -> Path:
-        return Path(self.config["tuning"]["model_dir"]) / "cache" / DATASET
+        return self.cache_dir_of("tuning")
+
+    def cache_dir_of(self, section: str) -> Path:
+        return Path(self.config[section]["model_dir"]) / "cache" / DATASET
 
     def write_config(self, config: dict[str, Any], name: str) -> Path:
         path = self.root / name
@@ -206,15 +225,15 @@ class Workspace:
         path = self.folder(section, "report_dir") / "run_status.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
-    def report_files(self) -> list[str]:
-        folder = self.folder("tuning", "report_dir")
+    def report_files(self, section: str = "tuning") -> list[str]:
+        folder = self.folder(section, "report_dir")
         return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
 
-    def cache_files(self) -> dict[str, int]:
-        if not self.cache_dir.is_dir():
+    def cache_files(self, section: str = "tuning") -> dict[str, int]:
+        folder = self.cache_dir_of(section)
+        if not folder.is_dir():
             return {}
-        return {p.relative_to(self.cache_dir).as_posix(): p.stat().st_mtime_ns
-                for p in self.cache_dir.rglob("*.joblib")}
+        return {p.relative_to(folder).as_posix(): p.stat().st_mtime_ns for p in folder.rglob("*.joblib")}
 
     def splits(self) -> tuple[pd.DataFrame, dict[str, Split]]:
         X, meta, _ = load_dataset(self.data_dir)
@@ -339,6 +358,10 @@ STEPS = [  # (name, script, extra arguments), run in this order on the same fold
     ("test", "tune_models", ["--evaluate-test"]),
     ("test_again", "tune_models", ["--evaluate-test"]),
     ("rescore", "tune_models", ["--evaluate-test", "--allow-rescore"]),
+    # Version 0.5 reuses the same script and safeguards through --section deep, comparing with Version 0.4
+    ("deep_test_without_cache", "tune_models", ["--section", "deep", "--evaluate-test"]),
+    ("deep_development", "tune_models", ["--section", "deep"]),
+    ("deep_test", "tune_models", ["--section", "deep", "--evaluate-test"]),
 ]
 
 
@@ -346,15 +369,16 @@ STEPS = [  # (name, script, extra arguments), run in this order on the same fold
 def pipeline(workspace, scripts) -> Pipeline:
     modules = dict(zip(("train_baselines", "tune_models"), scripts, strict=True))
     result = Pipeline({}, {}, {}, {}, {})
-    run_config = workspace.folder("tuning", "report_dir") / "run_config.json"
     for name, script, extra in STEPS:
+        section = "deep" if name.startswith("deep") else "tuning"
         spy = SPIED if script == "tune_models" else ()
         run = run_script(modules[script], workspace, "--config", workspace.config_path, *extra, spy=spy)
         print(f"{name}: exit code {run.code}, {run.seconds:.1f} s")
+        run_config = workspace.folder(section, "report_dir") / "run_config.json"
         result.runs[name] = run
         result.logs[name] = workspace.test_log()
-        result.reports[name] = workspace.report_files()
-        result.caches[name] = workspace.cache_files()
+        result.reports[name] = workspace.report_files(section)
+        result.caches[name] = workspace.cache_files(section)
         result.run_configs[name] = json.loads(run_config.read_text(encoding="utf-8")) if run_config.is_file() else {}
     return result
 
@@ -544,7 +568,7 @@ def test_test_run_reuses_the_cache_and_logs_each_evaluation_once(workspace, pipe
     intervals = workspace.read_json("tuning", "test_intervals.json")
     assert set(intervals) == experiments
     assert set(intervals[main_name]["intervals"]) == {*(f"tuned_{f}" for f in FAMILIES), v03_name}
-    assert set(intervals[main_name]["differences_to_version_0_3"]) == {f"tuned_{f}" for f in FAMILIES}
+    assert set(intervals[main_name]["differences_to_reference_model"]) == {f"tuned_{f}" for f in FAMILIES}
     ci = pd.read_csv(workspace.folder("tuning", "report_dir") / "test_intervals.csv")
     assert {f"AUROC tuned_{chosen} minus this", "AUROC this minus Version 0.3"} <= set(ci.columns)
     overlap = pd.read_csv(workspace.folder("tuning", "report_dir") / "patient_overlap_check.csv")
@@ -671,6 +695,102 @@ def test_outputs_hold_no_patient_identifiers(workspace, pipeline):
         assert not any(secret in text for secret in workspace.secrets), path.name
     for run in pipeline.runs.values():
         assert not any(secret in run.stdout for secret in workspace.secrets)
+
+
+# ------------------------------------------------------------------------------------------------ Version 0.5
+
+def test_deep_test_run_refuses_to_fit_networks_that_are_not_cached(workspace, pipeline):
+    """The same lockbox as Version 0.4: no cached network, no test scoring."""
+    run = pipeline.runs["deep_test_without_cache"]
+    assert run.code == 1
+    assert run.log.has("is not cached for these settings/code")
+    assert run.calls == []
+    pd.testing.assert_frame_equal(pipeline.logs["deep_test_without_cache"], pipeline.logs["rescore"])
+    assert pipeline.caches["deep_test_without_cache"] == {}
+    assert not [n for n in pipeline.reports["deep_test_without_cache"] if is_test_report(n)]
+
+
+def test_deep_development_run_trains_networks_and_leaves_the_test_parts_alone(workspace, pipeline):
+    run = pipeline.runs["deep_development"]
+    assert run.code == 0, run.log.messages
+    dp = workspace.config["deep"]
+    run_config = pipeline.run_configs["deep_development"]
+    assert run_config["stage"] == "v0.5-deep" and run_config["status"] == "finished"
+    assert run_config["test_parts_scored"] is False
+    assert run_config["families"] == list(DEEP_FAMILIES)
+    required = {f"search_{dp['split']}_{family}.csv" for family in DEEP_FAMILIES} | {
+        "search_summary.csv", "validation_metrics.csv", "best_model_card.json", "inference_timing.json",
+        "training_history.json", "run_config.json"}
+    assert required <= set(pipeline.reports["deep_development"])
+    assert not [name for name in pipeline.reports["deep_development"] if is_test_report(name)]
+    pd.testing.assert_frame_equal(pipeline.logs["deep_development"], pipeline.logs["rescore"])
+
+    # the patient-overlap check is not repeated here, so only the main experiment is searched
+    fits = len(DEEP_FAMILIES) * len(dp["seeds"])
+    assert sorted(run.calls) == sorted(["run_search"] * len(DEEP_FAMILIES) + ["fit_calibrated"] * fits)
+    assert len(pipeline.caches["deep_development"]) == len(DEEP_FAMILIES) + fits
+    reports = workspace.folder("deep", "report_dir")
+    for family, n in DEEP_CANDIDATES.items():
+        table = pd.read_csv(reports / f"search_{dp['split']}_{family}.csv")
+        assert len(table) == n and table["cv_roc_auc_mean"].notna().all()
+    validation = pd.read_csv(reports / "validation_metrics.csv")
+    assert set(validation["experiment"]) == {dp["split"]}                  # no re-tuned experiments
+    assert set(validation.loc[validation["model"] != "v0.3_prevalence", "model"]) == {"tuned_mlp", "tuned_cnn"}
+    assert (validation["model"] == "v0.3_prevalence").sum() == 1           # carried over from Version 0.4
+    card = workspace.read_json("deep", "best_model_card.json")
+    assert card["model_kind"] in DEEP_FAMILIES and card["model_version"].startswith("v0.5")
+
+    # the loss curves come from the fitted networks, with one entry per family
+    history = workspace.read_json("deep", "training_history.json")
+    assert len(history) == len(DEEP_FAMILIES)
+    for entry in history.values():
+        assert entry["epochs"] == len(entry["train_loss"]) == len(entry["validation_loss"])
+        assert entry["epochs"] <= DEEP_TRAINING["max_epochs"] and entry["parameters"] > 0
+        assert 0 <= entry["best_epoch"] < entry["epochs"]
+    curves = workspace.folder("deep", "plot_dir") / f"{DATASET}_{dp['split']}_training_curves.png"
+    assert curves.stat().st_size > 0
+
+
+def test_deep_test_run_reuses_the_cache_and_compares_with_version_04(workspace, pipeline):
+    run = pipeline.runs["deep_test"]
+    assert run.code == 0, run.log.messages
+    assert run.calls == []                                                  # nothing refitted
+    assert pipeline.caches["deep_test"] == pipeline.caches["deep_development"]
+    assert "validation rows identical to the development run" in run.stdout
+    assert "Version 0.4 model re-scored" in run.stdout
+    assert pipeline.run_configs["deep_test"]["test_parts_scored"] is True
+
+    dp = workspace.config["deep"]
+    fits = len(DEEP_FAMILIES) * len(dp["seeds"])
+    v04_card = workspace.read_json("tuning", "best_model_card.json")
+    v04_name = f"v0.4_{v04_card['model']}"
+    test = pd.read_csv(workspace.folder("deep", "report_dir") / "test_metrics.csv")
+    rescored = test["reproduces_logged_auroc_within"].notna()
+    assert len(test) == fits + 1 + 1                                        # networks, Version 0.4, no-skill
+    assert rescored.sum() == 1 and test.loc[rescored, "model"].iloc[0] == v04_name
+    assert float(test.loc[rescored, "reproduces_logged_auroc_within"].iloc[0]) <= 1e-4
+    assert (test["model"] == "v0.3_prevalence").sum() == 1
+
+    new = pipeline.logs["deep_test"].iloc[len(pipeline.logs["deep_development"]):]
+    assert len(new) == fits + 1
+    assert (new["stage"] == "v0.5-deep").sum() == fits
+    assert new["stage"].iloc[-1] == "v0.5-reference" and new["model"].iloc[-1] == v04_name
+    assert not set(new["split"]) & (NEVER_SCORED | set(workspace.config["evaluation"]["locked_test_splits"]))
+
+    intervals = workspace.read_json("deep", "test_intervals.json")
+    assert set(intervals) == {dp["split"]}
+    assert set(intervals[dp["split"]]["differences_to_reference_model"]) == {"tuned_mlp", "tuned_cnn"}
+
+
+def test_deep_section_refuses_a_comparison_path_that_does_not_match(workspace, scripts):
+    """`deep.compare_with` is pre-registered; it must name the model this run is really compared with."""
+    _, tune_models = scripts
+    config = copy.deepcopy(workspace.config)
+    config["deep"]["compare_with"] = str(Path(config["deep"]["compare_with"]).parent / "v0.2")
+    path = workspace.write_config(config, "config_wrong_compare.yaml")
+    run = run_script(tune_models, workspace, "--config", path, "--section", "deep", spy=SPIED)
+    assert run.code == 1 and run.calls == []
+    assert run.log.has("deep.compare_with")
 
 
 # ------------------------------------------------------------------------------------------------ refusals

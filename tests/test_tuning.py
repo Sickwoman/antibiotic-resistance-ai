@@ -220,9 +220,40 @@ def test_family_specs_from_project_config(project_config):
     assert {s["features"] for s in lr[84:]} == {"bins_3da", "bins_18da"}
 
 
-def test_every_project_candidate_maps_onto_its_pipeline(project_config):
-    seed = project_config["tuning"]["cv_seed"]
-    for spec in family_specs(project_config):
+def test_deep_specs_carry_the_section_training_settings(project_config):
+    """Version 0.5: the shared training block joins every family's fingerprint, except `threads`."""
+    seed = project_config["deep"]["cv_seed"]
+    specs = {s.name: s for s in family_specs(project_config, section="deep")}
+    assert list(specs) == ["mlp", "cnn"]
+    assert {name: len(candidates(spec, seed)) for name, spec in specs.items()} == {"mlp": 16, "cnn": 6}
+    assert all(s.stochastic for s in specs.values())
+    training = project_config["deep"]["training"]
+    for spec in specs.values():
+        assert spec.fixed == {k: v for k, v in training.items() if k != "threads"}
+        assert "threads" not in spec.fixed                      # a machine setting, not part of the model
+
+
+def test_training_settings_change_the_family_fingerprint(project_config):
+    config = copy.deepcopy(project_config)
+    before = {s.name: s.fingerprint() for s in family_specs(config, section="deep")}
+    config["deep"]["training"]["max_epochs"] += 1
+    after = {s.name: s.fingerprint() for s in family_specs(config, section="deep")}
+    assert set(before) == set(after) and all(before[n] != after[n] for n in before)
+    config["deep"]["training"]["max_epochs"] -= 1
+    config["deep"]["training"]["threads"] = 1                   # threads must not start a new search
+    assert {s.name: s.fingerprint() for s in family_specs(config, section="deep")} == before
+
+
+def test_the_tuning_section_is_unchanged_by_the_shared_training_block(project_config):
+    """Version 0.4 has no `training:` block, so its fingerprints must not move."""
+    assert [s.fixed for s in family_specs(project_config)] == [{}, {"n_estimators": 500},
+                                                               {"subsample_freq": 1}, {}]
+
+
+@pytest.mark.parametrize("section", ["tuning", "deep"])
+def test_every_project_candidate_maps_onto_its_pipeline(project_config, section):
+    seed = project_config[section]["cv_seed"]
+    for spec in family_specs(project_config, section=section):
         settings = candidates(spec, seed)
         assert len({json.dumps(s, sort_keys=True) for s in settings}) == len(settings), spec.name   # no repeats
         pipe = base_pipeline(spec, seed)

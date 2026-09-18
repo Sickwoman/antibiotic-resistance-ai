@@ -648,7 +648,7 @@ python scripts/tuned_tables.py                 # the tables above, from the save
 The first run takes a few hours and caches every search and fitted model under `models/v0.4/cache`, so
 the second run reuses them instead of retraining. A run stops rather than silently retraining.
 
-## Project structure (Version 0.4)
+## Project structure (Version 0.5)
 
 ```
 antibiotic-resistance-ai/
@@ -660,9 +660,10 @@ antibiotic-resistance-ai/
 │   ├── explore_dataset.py      Version 0.1 exploration report
 │   ├── build_dataset.py        Version 0.2 dataset, splits and reports
 │   ├── train_baselines.py      Version 0.3 baseline models, evaluation and saved model
-│   ├── tune_models.py          Version 0.4 search, calibration, evaluation and saved model
+│   ├── tune_models.py          search, calibration, evaluation and saved model
+│   │                           (Version 0.4 classical families; --section deep for the networks)
 │   ├── baseline_tables.py      Version 0.3 result tables from the saved reports
-│   ├── tuned_tables.py         Version 0.4 result tables and the model comparison
+│   ├── tuned_tables.py         Version 0.4 / 0.5 result tables and the model comparison
 │   └── predict_spectrum.py     research prediction for one raw spectrum file
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -674,12 +675,14 @@ antibiotic-resistance-ai/
 │   │                           split reuse for sensitivity datasets
 │   ├── train.py                baseline model pipelines and the training loop
 │   ├── tuning.py               search spaces, grouped-fold search, calibration, result cache
+│   ├── deep.py                 Version 0.5 networks (MLP, 1-D CNN) as scikit-learn estimators
 │   ├── evaluate.py             thresholds, metrics, calibration, bootstrap intervals, test log
 │   ├── predict.py              saving/loading models, prediction with timing
 │   ├── model_plots.py          figures shared by the model scripts
 │   └── tables.py               Markdown helpers for result tables
 ├── docs/evaluation_protocol.md how models are evaluated (approved before any training)
 ├── docs/v0.4_search_plan.md    what Version 0.4 searched (fixed before any tuning)
+├── docs/v0.5_deep_learning_plan.md  which networks and why (fixed before any network was trained)
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
