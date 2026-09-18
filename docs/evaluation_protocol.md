@@ -150,7 +150,7 @@ when a script is run with `--evaluate-test`, and every scoring is appended to
 
 ### Amendment 1 — 2026-09-18: what the results may be called
 
-Added after an external code review, before the Version 0.5 pull request was merged. It changes no
+Added after an external code review of the code base at Version 0.4. It changes no
 decision, no metric and no split; it fixes how results are named and adds one method statement. Nothing
 here was prompted by a test result.
 

@@ -857,8 +857,8 @@ of 0.750861 with a difference of 0.
 
 ## External code review (2026-09-18)
 
-An external review of the code base at Version 0.4 raised 22 findings. They were worked through before
-Version 0.5 was merged; the table says what each one led to. Four are deliberately **not** acted on yet,
+An external review of the code base at Version 0.4 raised 22 findings. They were worked through
+immediately after Version 0.5 was merged; the table says what each one led to. Four are deliberately **not** acted on yet,
 with the reason given, rather than left silently open.
 
 | Finding | What it led to |
