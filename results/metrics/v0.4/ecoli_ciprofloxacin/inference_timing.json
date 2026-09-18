@@ -1,0 +1,24 @@
+{
+  "samples": 200,
+  "model": "v0.4.0-tuned_lightgbm-random-seed42",
+  "matches_stored_features": true,
+  "single_spectrum_threads": 1,
+  "batch_threads": "all",
+  "batch_size": 426,
+  "batch_inference_ms_per_sample": 0.055,
+  "preprocessing_ms": {
+    "median": 51.5,
+    "p95": 61.02,
+    "max": 69.03
+  },
+  "inference_ms": {
+    "median": 2.1,
+    "p95": 3.0,
+    "max": 3.95
+  },
+  "total_ms": {
+    "median": 53.77,
+    "p95": 63.57,
+    "max": 72.54
+  }
+}
