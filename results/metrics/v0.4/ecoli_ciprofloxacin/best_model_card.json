@@ -1,0 +1,163 @@
+{
+  "format": "amr-model-bundle/1",
+  "model_version": "v0.4.0-tuned_lightgbm-random-seed42",
+  "created": "2026-09-18 12:54:10",
+  "git_commit": "3c8245b",
+  "code_fingerprint": "1eebdbe2681c1904",
+  "model": "tuned_lightgbm",
+  "model_kind": "lightgbm",
+  "params": {
+    "subsample": 1.0,
+    "reg_lambda": 10.0,
+    "num_leaves": 31,
+    "n_estimators": 300,
+    "min_child_samples": 10,
+    "learning_rate": 0.1,
+    "colsample_bytree": 0.3,
+    "class_weight": null
+  },
+  "seed": 42,
+  "calibration": {
+    "method": "sigmoid",
+    "folds": 5,
+    "fitted_on": "out-of-fold predictions of 5 patient-grouped folds of the training part"
+  },
+  "species": "Escherichia coli",
+  "antibiotic": "Ciprofloxacin",
+  "label_map": {
+    "0": "susceptible (S)",
+    "1": "resistant (R or I)"
+  },
+  "threshold": 0.14261540693905073,
+  "threshold_rule": {
+    "rule": "min_sensitivity",
+    "min_sensitivity": 0.9
+  },
+  "preprocessing": {
+    "intensity_transform": "sqrt",
+    "smoothing_method": "savitzky_golay",
+    "half_window_size": 10,
+    "polynomial_order": 3,
+    "baseline_method": "snip",
+    "baseline_iterations": [
+      20,
+      100
+    ],
+    "normalization": "tic",
+    "mz_min": 2000.0,
+    "mz_max": 20000.0,
+    "bin_width": 3.0,
+    "dtype": "float32",
+    "min_raw_points": 100,
+    "spectrum_folder": "raw",
+    "n_bins": 6000
+  },
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "n_features": 6000,
+  "dataset": {
+    "name": "ecoli_ciprofloxacin",
+    "row_fingerprint": "151415a4d03dbcc5",
+    "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+    "sites": [
+      "DRIAMS-A",
+      "DRIAMS-B",
+      "DRIAMS-D"
+    ],
+    "intermediate_as": "resistant"
+  },
+  "split": {
+    "name": "random",
+    "experiment": "random",
+    "train_size": 2977,
+    "dataset_fingerprint": "151415a4d03dbcc5",
+    "train_sites": [
+      "DRIAMS-A"
+    ]
+  },
+  "selection": {
+    "metric": "roc_auc",
+    "part": "validation",
+    "candidates": {
+      "tuned_logistic_regression": 0.7465922978096702,
+      "tuned_random_forest": 0.744774856641494,
+      "tuned_lightgbm": 0.7764860715069094,
+      "tuned_svm_rbf": 0.6924764202676025
+    }
+  },
+  "metrics": {
+    "validation": {
+      "n": 426,
+      "n_resistant": 97,
+      "prevalence": 0.22769953051643194,
+      "threshold": 0.14261540693905073,
+      "roc_auc": 0.7764860715069094,
+      "pr_auc": 0.5773889052993073,
+      "brier": 0.13854292928273737,
+      "accuracy": 0.5516431924882629,
+      "balanced_accuracy": 0.6770125027418293,
+      "sensitivity": 0.9072164948453608,
+      "recall": 0.9072164948453608,
+      "specificity": 0.44680851063829785,
+      "precision": 0.32592592592592595,
+      "f1": 0.47956403269754766,
+      "tp": 88,
+      "fp": 182,
+      "tn": 147,
+      "fn": 9,
+      "calibration_slope": 0.9881916436676377,
+      "calibration_intercept": -0.13213804409707294
+    },
+    "validation_uncalibrated": {
+      "n": 426,
+      "n_resistant": 97,
+      "prevalence": 0.22769953051643194,
+      "threshold": 0.022547221303688948,
+      "roc_auc": 0.7764860715069094,
+      "pr_auc": 0.5773889052993073,
+      "brier": 0.15263807705299298,
+      "accuracy": 0.5516431924882629,
+      "balanced_accuracy": 0.6770125027418293,
+      "sensitivity": 0.9072164948453608,
+      "recall": 0.9072164948453608,
+      "specificity": 0.44680851063829785,
+      "precision": 0.32592592592592595,
+      "f1": 0.47956403269754766,
+      "tp": 88,
+      "fp": 182,
+      "tn": 147,
+      "fn": 9,
+      "calibration_slope": 0.5947963973061059,
+      "calibration_intercept": 1.2526528810022277
+    },
+    "test": {
+      "n": 856,
+      "n_resistant": 197,
+      "prevalence": 0.23014018691588786,
+      "threshold": 0.14261540693905073,
+      "roc_auc": 0.75086078737974,
+      "pr_auc": 0.5556020649599568,
+      "brier": 0.14371830738627026,
+      "accuracy": 0.5432242990654206,
+      "balanced_accuracy": 0.6428406368671191,
+      "sensitivity": 0.8274111675126904,
+      "recall": 0.8274111675126904,
+      "specificity": 0.4582701062215478,
+      "precision": 0.31346153846153846,
+      "f1": 0.45467224546722457,
+      "tp": 163,
+      "fp": 357,
+      "tn": 302,
+      "fn": 34,
+      "calibration_slope": 0.8729315701939127,
+      "calibration_intercept": -0.08808757138344887
+    }
+  },
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  }
+}

@@ -20,6 +20,7 @@ import joblib
 import numpy as np
 
 from src.preprocessing import PreprocessingConfig, preprocess_file
+from src.tuning import set_threads
 
 BUNDLE_FORMAT = "amr-model-bundle/1"
 DISCLAIMER = ("AI research prediction from a research prototype. It is not a clinically validated diagnostic, "
@@ -59,9 +60,8 @@ def load_bundle(path: str | Path, n_jobs: int | None = 1) -> dict[str, Any]:
         raise ModelError(f"Could not read the model file {path} ({type(exc).__name__}).") from exc
     if not isinstance(bundle, dict) or bundle.get("format") != BUNDLE_FORMAT:
         raise ModelError(f"{path} is not a model bundle of this project.")
-    model = bundle["pipeline"].steps[-1][1]
-    if n_jobs is not None and "n_jobs" in model.get_params():
-        model.set_params(n_jobs=n_jobs)
+    if n_jobs is not None:
+        set_threads(bundle["pipeline"], n_jobs)       # also reaches models inside calibration wrappers
     return bundle
 
 

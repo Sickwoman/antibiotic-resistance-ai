@@ -43,3 +43,8 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   Version 0.7 (`evaluation.locked_test_splits`). Never pick settings from test results.
 - Research prediction for one file: `.\.venv\Scripts\python.exe scripts\predict_spectrum.py <raw spectrum .txt>`.
   Saved models live in `models/` (git-ignored); only load model files made by this project.
+- Version 0.4 tuning: `.\.venv\Scripts\python.exe scripts\tune_models.py` searches, calibrates and validates;
+  `--evaluate-test` scores the allowed test parts once and refuses to fit anything that is not cached, so the
+  scored models are the ones checked on validation. Searches and fits are cached under `models/v0.4/cache`,
+  keyed by data, settings, the text of `src/tuning.py` and `src/train.py`, and library versions: editing either
+  file discards hours of computation. Result tables come from `scripts/tuned_tables.py`, never typed by hand.

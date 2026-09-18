@@ -42,6 +42,7 @@ from src.evaluate import (  # noqa: E402
     summarize_bootstrap,
     unpaired_difference,
 )
+from src.model_plots import plot_confusion  # noqa: E402
 from src.predict import (  # noqa: E402
     BUNDLE_FORMAT,
     ModelError,
@@ -70,6 +71,7 @@ from src.utils import (  # noqa: E402
     load_config,
     project_path,
     set_seed,
+    show_path,
 )
 
 log = get_logger("baselines")
@@ -157,39 +159,14 @@ def plot_calibration(results: list[RunResult], y: np.ndarray, n_bins: int, title
     return ex._save(fig, path)
 
 
-def plot_confusion(r: RunResult, title: str, path: Path) -> Path:
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import LinearSegmentedColormap
-
-    ex.apply_style()
-    t = r.test
-    cells = np.array([[t["tn"], t["fp"]], [t["fn"], t["tp"]]])
-    row_share = cells / cells.sum(axis=1, keepdims=True)
-    fig, ax = plt.subplots(figsize=(5.4, 4.6))
-    ax.imshow(row_share, cmap=LinearSegmentedColormap.from_list("blue", ex.BLUE_RAMP), vmin=0, vmax=1)
-    names = ["Susceptible", "Resistant"]
-    for i in range(2):
-        for j in range(2):
-            dark = row_share[i, j] > 0.55
-            ax.text(j, i, f"{cells[i, j]:,}\n{row_share[i, j]:.1%} of true {names[i].lower()}", ha="center",
-                    va="center", fontsize=10, color=ex.SURFACE if dark else ex.INK)
-    ax.set_xticks([0, 1], [f"Predicted {n.lower()}" for n in names])
-    ax.set_yticks([0, 1], [f"True {n.lower()}" for n in names])
-    ax.grid(False)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.set_title(title, pad=22)
-    ex._subtitle(ax, f"Threshold {r.threshold:.3g} (from validation); sensitivity {t['sensitivity']:.3f}, "
-                     f"specificity {t['specificity']:.3f}")
-    return ex._save(fig, path)
-
-
 # ------------------------------------------------------------------------------------------------ main
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Train and evaluate the Version 0.3 baseline models.")
     parser.add_argument("--evaluate-test", action="store_true",
                         help="score the test parts once (appended to the test log); without it only validation is used")
+    parser.add_argument("--allow-rescore", action="store_true",
+                        help="with --evaluate-test: score again although test rows for this dataset are logged")
     parser.add_argument("--dataset", default=None, help="dataset folder name (default: dataset.name)")
     parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
@@ -213,6 +190,14 @@ def main() -> int:
         if locked and args.evaluate_test:
             raise SplitError(f"The test parts of {sorted(locked)} are locked until Version 0.7 "
                              "(docs/evaluation_protocol.md); remove them from baselines.")
+        log_path = project_path(ev["test_log"])
+        if args.evaluate_test and log_path.is_file() and log_path.stat().st_size:
+            done = pd.read_csv(log_path)
+            done = done[(done["stage"] == STAGE) & (done["dataset"] == dataset_name)]
+            if len(done) and not args.allow_rescore:
+                raise EvaluationError(f"{len(done)} Version 0.3 test evaluations of {dataset_name} are already "
+                                      "logged. Scoring again is a second look at the test data; pass "
+                                      "--allow-rescore only on purpose (the rows are logged as another run).")
         specs = model_specs(config)
         seeds = [int(s) for s in bl["seeds"]]
         y = meta["label"].to_numpy().astype(np.int64)
@@ -240,8 +225,8 @@ def main() -> int:
                                           threshold_rule=ev["threshold"], log=log)
         train_seconds = round(time.monotonic() - started, 1)
 
-        report_dir = project_path("results/metrics/v0.3") / dataset_name
-        plot_dir = project_path("results/plots/v0.3")
+        report_dir = project_path(bl["report_dir"]) / dataset_name
+        plot_dir = project_path(bl["plot_dir"])
         report_dir.mkdir(parents=True, exist_ok=True)
         validation = pd.DataFrame([r.row("validation") for r in results])
         validation.to_csv(report_dir / "validation_metrics.csv", index=False, lineterminator="\n")
@@ -258,6 +243,14 @@ def main() -> int:
         test_table = None
         intervals: dict[str, Any] = {}
         if args.evaluate_test:
+            commit = git_commit()
+            append_test_log(project_path(ev["test_log"]), [           # log first: a later failure cannot hide it
+                {"logged_at": time.strftime("%Y-%m-%d %H:%M:%S"), "git_commit": commit, "stage": STAGE,
+                 "dataset": dataset_name, "dataset_fingerprint": summary["row_fingerprint"],
+                 "x_sha256": summary["x_sha256"],
+                 **{k: v for k, v in r.row("test").items() if k not in ("fit_seconds", "predict_ms_per_sample")}}
+                for r in results])
+            print(f"\n{len(results)} test evaluations appended to {ev['test_log']}")
             test_table = pd.DataFrame([r.row("test") for r in results])
             test_table.to_csv(report_dir / "test_metrics.csv", index=False, lineterminator="\n")
             section("Test results (each test part scored once; seed 42 shown)")
@@ -323,15 +316,6 @@ def main() -> int:
                         "same training size; difference with 95 % interval")
                 show(overlap)
 
-            commit = git_commit()
-            logged_at = time.strftime("%Y-%m-%d %H:%M:%S")
-            append_test_log(project_path(ev["test_log"]), [
-                {"logged_at": logged_at, "git_commit": commit, "stage": STAGE, "dataset": dataset_name,
-                 "dataset_fingerprint": summary["row_fingerprint"], "x_sha256": summary["x_sha256"],
-                 **{k: v for k, v in r.row("test").items() if k not in ("fit_seconds", "predict_ms_per_sample")}}
-                for r in results])
-            print(f"\n{len(results)} test evaluations appended to {ev['test_log']}")
-
             main_te = splits[main_name].test
             main_seed = [r for r in main_runs if r.seed == seeds[0]]
             title = (f"{summary['species']} + {summary['antibiotic']}: baselines, {main_name} split, test part "
@@ -340,10 +324,11 @@ def main() -> int:
                      plot_calibration(main_seed, y[main_te], int(ev["calibration_bins"]),
                                       f"Calibration, {main_name} split (test)",
                                       plot_dir / f"{dataset_name}_{main_name}_calibration.png"),
-                     plot_confusion(best, f"{DISPLAY.get(best.model, best.model)}, {main_name} split (test)",
+                     plot_confusion(best.threshold, best.test,
+                                    f"{DISPLAY.get(best.model, best.model)}, {main_name} split (test)",
                                     plot_dir / f"{dataset_name}_{main_name}_confusion_{best.model}.png")]
             for p in plots:
-                print(f"saved {p.relative_to(project_path('.'))}")
+                print(f"saved {show_path(p)}")
 
         # -------------------------------------------------------------------- save the chosen model
         spec = next(s for s in specs if s.name == best.model)
@@ -373,7 +358,7 @@ def main() -> int:
         model_path = save_bundle(bundle, project_path(bl["model_dir"]) / dataset_name / f"best_{main_name}.joblib")
         (report_dir / "best_model_card.json").write_text(json.dumps(card(bundle), indent=2, default=str),
                                                          encoding="utf-8")
-        print(f"\nSaved {model_path.relative_to(project_path('.'))} ({model_path.stat().st_size / 1e6:.2f} MB)")
+        print(f"\nSaved {show_path(model_path)} ({model_path.stat().st_size / 1e6:.2f} MB)")
 
         # -------------------------------------------------------------------- timing with the saved file
         loaded = load_bundle(model_path)
