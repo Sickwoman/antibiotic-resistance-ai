@@ -1,0 +1,3 @@
+experiment,family,settings,best_setting,cv_roc_auc_mean,cv_roc_auc_sd,cv_pr_auc_mean,search_seconds
+random,mlp,16,"{""dropout"": 0.2, ""features"": ""bins_18da"", ""hidden"": ""512,128"", ""positive_class_weight"": false}",0.7400935356634306,0.02382009190892419,0.5077307834135423,457.1
+random,cnn,6,"{""channels"": ""16,32"", ""dropout"": 0.3, ""features"": ""bins_18da"", ""kernel_size"": 15, ""positive_class_weight"": true}",0.5516650636849212,0.06695757671946226,0.28447277062589105,2570.6

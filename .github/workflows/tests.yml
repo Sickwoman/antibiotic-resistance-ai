@@ -23,9 +23,12 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # PyTorch first from its CPU index: the default Linux wheel drags in ~2.5 GB of CUDA libraries that
+      # no runner can use. requirements.txt is installed afterwards and finds torch already satisfied.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
 
       - name: Lint (Ruff)

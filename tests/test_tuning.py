@@ -146,8 +146,9 @@ def test_feature_steps_build_the_planned_steps():
 
 
 @pytest.mark.parametrize("label", ["bins_6da", "pca_", "pca_x", "kbest", "PCA_50", "kbest_-5", "", " bins_3da",
-                                   None, 50])
+                                   None, 50, "bins_18da\n", "pca_5\n", "kbest_3\n"])
 def test_feature_steps_rejects_unknown_labels(label):
+    """A trailing newline must be rejected too: with '$' it would silently fall back to all bins."""
     with pytest.raises(TuningError, match="Unknown feature variant"):
         feature_steps(label, 0)
 
@@ -219,9 +220,40 @@ def test_family_specs_from_project_config(project_config):
     assert {s["features"] for s in lr[84:]} == {"bins_3da", "bins_18da"}
 
 
-def test_every_project_candidate_maps_onto_its_pipeline(project_config):
-    seed = project_config["tuning"]["cv_seed"]
-    for spec in family_specs(project_config):
+def test_deep_specs_carry_the_section_training_settings(project_config):
+    """Version 0.5: the shared training block joins every family's fingerprint, except `threads`."""
+    seed = project_config["deep"]["cv_seed"]
+    specs = {s.name: s for s in family_specs(project_config, section="deep")}
+    assert list(specs) == ["mlp", "cnn"]
+    assert {name: len(candidates(spec, seed)) for name, spec in specs.items()} == {"mlp": 16, "cnn": 6}
+    assert all(s.stochastic for s in specs.values())
+    training = project_config["deep"]["training"]
+    for spec in specs.values():
+        assert spec.fixed == {k: v for k, v in training.items() if k != "threads"}
+        assert "threads" not in spec.fixed                      # a machine setting, not part of the model
+
+
+def test_training_settings_change_the_family_fingerprint(project_config):
+    config = copy.deepcopy(project_config)
+    before = {s.name: s.fingerprint() for s in family_specs(config, section="deep")}
+    config["deep"]["training"]["max_epochs"] += 1
+    after = {s.name: s.fingerprint() for s in family_specs(config, section="deep")}
+    assert set(before) == set(after) and all(before[n] != after[n] for n in before)
+    config["deep"]["training"]["max_epochs"] -= 1
+    config["deep"]["training"]["threads"] = 1                   # threads must not start a new search
+    assert {s.name: s.fingerprint() for s in family_specs(config, section="deep")} == before
+
+
+def test_the_tuning_section_is_unchanged_by_the_shared_training_block(project_config):
+    """Version 0.4 has no `training:` block, so its fingerprints must not move."""
+    assert [s.fixed for s in family_specs(project_config)] == [{}, {"n_estimators": 500},
+                                                               {"subsample_freq": 1}, {}]
+
+
+@pytest.mark.parametrize("section", ["tuning", "deep"])
+def test_every_project_candidate_maps_onto_its_pipeline(project_config, section):
+    seed = project_config[section]["cv_seed"]
+    for spec in family_specs(project_config, section=section):
         settings = candidates(spec, seed)
         assert len({json.dumps(s, sort_keys=True) for s in settings}) == len(settings), spec.name   # no repeats
         pipe = base_pipeline(spec, seed)
@@ -655,6 +687,10 @@ def test_code_fingerprint_ignores_line_endings_only(tmp_path):
     assert both != fp and both == code_fingerprint([folders["lf"] / "n.py", folders["lf"] / "m.py"])
     (folders["lf"] / "renamed.py").write_bytes(text.encode())
     assert code_fingerprint([folders["lf"] / "renamed.py"]) != fp         # file names are part of the hash
+    assert code_fingerprint([str(folders["lf"] / "m.py")]) == fp          # plain strings work as paths too
+    (folders["lf"] / "ab").write_bytes(b"c")                             # name and contents cannot merge:
+    (folders["lf"] / "a").write_bytes(b"bc")                             # "ab" + "c" must differ from "a" + "bc"
+    assert code_fingerprint([folders["lf"] / "ab"]) != code_fingerprint([folders["lf"] / "a"])
 
 
 def test_cache_key_is_deterministic():

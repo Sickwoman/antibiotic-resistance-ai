@@ -1,0 +1,24 @@
+{
+  "samples": 200,
+  "model": "v0.5.0-tuned_mlp-random-seed42",
+  "matches_stored_features": true,
+  "single_spectrum_threads": 1,
+  "batch_threads": "all",
+  "batch_size": 426,
+  "batch_inference_ms_per_sample": 0.0339,
+  "preprocessing_ms": {
+    "median": 32.53,
+    "p95": 35.42,
+    "max": 44.81
+  },
+  "inference_ms": {
+    "median": 1.61,
+    "p95": 1.88,
+    "max": 2.82
+  },
+  "total_ms": {
+    "median": 34.16,
+    "p95": 37.15,
+    "max": 46.5
+  }
+}

@@ -1,0 +1,576 @@
+{
+  "stage": "v0.5-deep",
+  "status": "finished",
+  "updated": "2026-09-18 15:02:57",
+  "git_commit": "325ee85",
+  "code_fingerprint": "3c0b0838bcad76ef",
+  "dataset": "ecoli_ciprofloxacin",
+  "rows_fingerprint": "151415a4d03dbcc5",
+  "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "test_parts_scored": true,
+  "families": [
+    "mlp",
+    "cnn"
+  ],
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  },
+  "chosen_family": "mlp",
+  "seconds": 4.0,
+  "config": {
+    "project": {
+      "name": "antibiotic-resistance-ai",
+      "version": "0.5.0",
+      "random_seed": 42
+    },
+    "paths": {
+      "driams_root": "C:/DRIAMS",
+      "archives_subdir": "archives",
+      "manifests_subdir": "manifests",
+      "eda_metrics_dir": "results/metrics/eda",
+      "eda_plots_dir": "results/plots/eda"
+    },
+    "driams": {
+      "archives": {
+        "A": {
+          "site": "DRIAMS-A",
+          "institution": "University Hospital Basel",
+          "period": "11/2015-08/2018",
+          "filename": "DRIAMS_A.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_A.tar.gz?download=1",
+          "size_bytes": 86161411795,
+          "checksum_type": "md5",
+          "checksum": "ca32ee8893afd57f6e80f4d7f3a37cf1"
+        },
+        "B": {
+          "site": "DRIAMS-B",
+          "institution": "Canton Hospital Basel-Land",
+          "period": "01/2018-06/2018",
+          "filename": "DRIAMS_B.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_B.tar.gz?download=1",
+          "size_bytes": 3688166065,
+          "checksum_type": "md5",
+          "checksum": "86ef245c53b1a2cf547d04dee1dc79ea"
+        },
+        "C": {
+          "site": "DRIAMS-C",
+          "institution": "Canton Hospital Aarau",
+          "period": "01/2018-08/2018",
+          "filename": "DRIAMS_C.tar.gz",
+          "url": null,
+          "manual_download_page": "https://datadryad.org/dataset/doi:10.5061/dryad.bzkh1899q",
+          "size_bytes": 12433273727,
+          "checksum_type": "sha256",
+          "checksum": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867"
+        },
+        "D": {
+          "site": "DRIAMS-D",
+          "institution": "Viollier AG (diagnostic laboratory)",
+          "period": "01/2018-06/2018",
+          "filename": "DRIAMS_D.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_D.tar.gz?download=1",
+          "size_bytes": 42557466856,
+          "checksum_type": "md5",
+          "checksum": "21483b6232da155edc324febe5208ee1"
+        }
+      },
+      "spectra_folders": [
+        "raw",
+        "preprocessed",
+        "binned_6000"
+      ],
+      "id_folder": "id",
+      "id_suffixes": [
+        "strat",
+        "clean"
+      ],
+      "metadata_columns": [
+        "id",
+        "code",
+        "combined_code",
+        "species",
+        "genus",
+        "laboratory_species",
+        "patient_no",
+        "case_no",
+        "order_no",
+        "acquisition_date",
+        "acquisition_time",
+        "workstation"
+      ],
+      "group_columns": [
+        "patient_no",
+        "case_no"
+      ],
+      "index_artifact_prefix": "Unnamed:",
+      "binary_marker_values": [
+        "0",
+        "1"
+      ],
+      "failed_identification_species": [
+        "no peaks found"
+      ],
+      "mixed_species_prefix": "MIX!",
+      "n_bins": 6000
+    },
+    "labels": {
+      "intermediate_as": "resistant",
+      "ambiguous_values": [
+        "S(2)",
+        "R(1)",
+        "R(2)",
+        "L(1)",
+        "I(1)",
+        "I(1), S(1)",
+        "R(1), I(1)",
+        "R(1), S(1)",
+        "R(1), I(1), S(1)"
+      ],
+      "missing_values": [
+        "-",
+        ""
+      ]
+    },
+    "target": {
+      "species": "Escherichia coli",
+      "preferred_antibiotic": "Ciprofloxacin",
+      "benchmark_antibiotic": "Ceftriaxone"
+    },
+    "pair_selection": {
+      "development_site": "DRIAMS-A",
+      "min_resistant_dev": 500,
+      "min_susceptible_dev": 500,
+      "min_minority_fraction": 0.1,
+      "min_years_with_labels": 3,
+      "temporal_test_year": "2018",
+      "min_resistant_test_year": 50,
+      "external_sites": [
+        "DRIAMS-B",
+        "DRIAMS-C",
+        "DRIAMS-D"
+      ],
+      "min_per_class_external": 30,
+      "min_external_sites": 2
+    },
+    "extraction": {
+      "default_folders": [
+        "id",
+        "binned_6000"
+      ],
+      "min_free_disk_gb": 20
+    },
+    "preprocessing": {
+      "spectrum_folder": "raw",
+      "min_raw_points": 100,
+      "intensity_transform": "sqrt",
+      "smoothing": {
+        "method": "savitzky_golay",
+        "half_window_size": 10,
+        "polynomial_order": 3
+      },
+      "baseline": {
+        "method": "snip",
+        "iterations": [
+          20,
+          100
+        ]
+      },
+      "normalization": "tic",
+      "mz_min": 2000.0,
+      "mz_max": 20000.0,
+      "bin_width": 3.0,
+      "dtype": "float32"
+    },
+    "dataset": {
+      "name": "ecoli_ciprofloxacin",
+      "output_dir": "data/processed",
+      "sites": [
+        "DRIAMS-A",
+        "DRIAMS-B",
+        "DRIAMS-D"
+      ],
+      "exclude_workstations": [
+        "HospitalHygiene"
+      ],
+      "require_acquisition_date": false,
+      "flag_duplicate_spectra": true,
+      "verify_against_driams_binned": true,
+      "verification_tolerance": 0.0001,
+      "chunk_size": 256
+    },
+    "splits": {
+      "random": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "test_fraction": 0.2,
+        "validation_fraction": 0.1
+      },
+      "within_year": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "year_folder": "2017",
+        "test_fraction": 0.2,
+        "validation_fraction": 0.1
+      },
+      "temporal": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "date_column": "acquisition_date",
+        "validation_start": "2017-10-01",
+        "test_start": "2018-01-01"
+      },
+      "external": {
+        "train_sites": [
+          "DRIAMS-A"
+        ],
+        "test_sites": [
+          "DRIAMS-B",
+          "DRIAMS-D"
+        ],
+        "validation_fraction": 0.1
+      }
+    },
+    "evaluation": {
+      "threshold": {
+        "rule": "min_sensitivity",
+        "min_sensitivity": 0.9
+      },
+      "primary_metric": "roc_auc",
+      "bootstrap": {
+        "resamples": 2000,
+        "level": 0.95,
+        "seed": 42
+      },
+      "calibration_bins": 10,
+      "locked_test_splits": [
+        "temporal",
+        "external"
+      ],
+      "test_log": "results/experiments/test_evaluations.csv",
+      "timing_samples": 200
+    },
+    "baselines": {
+      "splits": [
+        "random",
+        "within_year"
+      ],
+      "size_matched": {
+        "split": "random",
+        "size_of": "within_year"
+      },
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "model_dir": "models/v0.3",
+      "report_dir": "results/metrics/v0.3",
+      "plot_dir": "results/plots/v0.3",
+      "models": {
+        "prevalence": {
+          "kind": "dummy"
+        },
+        "logistic_regression": {
+          "kind": "logistic_regression",
+          "scale": true,
+          "params": {
+            "C": 1.0,
+            "max_iter": 5000
+          }
+        },
+        "random_forest": {
+          "kind": "random_forest",
+          "stochastic": true,
+          "params": {
+            "n_estimators": 500
+          }
+        },
+        "lightgbm": {
+          "kind": "lightgbm",
+          "params": {}
+        }
+      }
+    },
+    "tuning": {
+      "split": "random",
+      "cv_folds": 5,
+      "cv_seed": 42,
+      "search_metric": "roc_auc",
+      "calibration": "sigmoid",
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "retune_experiments": [
+        "within_year",
+        "random_size_matched"
+      ],
+      "model_dir": "models/v0.4",
+      "report_dir": "results/metrics/v0.4",
+      "plot_dir": "results/plots/v0.4",
+      "families": {
+        "logistic_regression": {
+          "kind": "logistic_regression",
+          "n_jobs": 4,
+          "grid": [
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da",
+                "pca_50",
+                "pca_200",
+                "kbest_300",
+                "kbest_1000"
+              ],
+              "penalty": [
+                "l2"
+              ],
+              "C": [
+                0.0001,
+                0.001,
+                0.01,
+                0.1,
+                1.0,
+                10.0,
+                100.0
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            },
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da"
+              ],
+              "penalty": [
+                "l1"
+              ],
+              "C": [
+                0.01,
+                0.1,
+                1.0,
+                10.0
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            }
+          ]
+        },
+        "random_forest": {
+          "kind": "random_forest",
+          "n_jobs": 1,
+          "stochastic": true,
+          "fixed": {
+            "n_estimators": 500
+          },
+          "grid": [
+            {
+              "max_features": [
+                "sqrt",
+                "log2",
+                0.05
+              ],
+              "min_samples_leaf": [
+                1,
+                3,
+                10
+              ],
+              "class_weight": [
+                null,
+                "balanced_subsample"
+              ]
+            }
+          ]
+        },
+        "lightgbm": {
+          "kind": "lightgbm",
+          "n_jobs": 1,
+          "stochastic": true,
+          "fixed": {
+            "subsample_freq": 1
+          },
+          "random_draws": 30,
+          "space": {
+            "n_estimators": [
+              100,
+              300,
+              600
+            ],
+            "learning_rate": [
+              0.01,
+              0.03,
+              0.1
+            ],
+            "num_leaves": [
+              7,
+              15,
+              31
+            ],
+            "min_child_samples": [
+              10,
+              20,
+              40
+            ],
+            "colsample_bytree": [
+              0.1,
+              0.3,
+              1.0
+            ],
+            "subsample": [
+              0.7,
+              1.0
+            ],
+            "reg_lambda": [
+              0.0,
+              1.0,
+              10.0
+            ],
+            "class_weight": [
+              null,
+              "balanced"
+            ]
+          }
+        },
+        "svm_rbf": {
+          "kind": "svm_rbf",
+          "n_jobs": 4,
+          "grid": [
+            {
+              "C": [
+                0.01,
+                0.1,
+                1.0,
+                10.0,
+                100.0,
+                1000.0
+              ],
+              "gamma": [
+                1e-05,
+                0.0001,
+                0.001
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "deep": {
+      "split": "random",
+      "cv_folds": 5,
+      "cv_seed": 42,
+      "search_metric": "roc_auc",
+      "calibration": "sigmoid",
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "model_dir": "models/v0.5",
+      "report_dir": "results/metrics/v0.5",
+      "plot_dir": "results/plots/v0.5",
+      "compare_with": "models/v0.4",
+      "training": {
+        "max_epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "patience": 8,
+        "inner_validation_fraction": 0.15,
+        "threads": 8
+      },
+      "families": {
+        "mlp": {
+          "kind": "mlp",
+          "stochastic": true,
+          "grid": [
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da"
+              ],
+              "hidden": [
+                "256,64",
+                "512,128"
+              ],
+              "dropout": [
+                0.2,
+                0.5
+              ],
+              "positive_class_weight": [
+                false,
+                true
+              ]
+            }
+          ]
+        },
+        "cnn": {
+          "kind": "cnn",
+          "stochastic": true,
+          "grid": [
+            {
+              "features": [
+                "bins_3da"
+              ],
+              "channels": [
+                "16,32"
+              ],
+              "kernel_size": [
+                9,
+                25
+              ],
+              "dropout": [
+                0.3
+              ],
+              "positive_class_weight": [
+                true
+              ]
+            },
+            {
+              "features": [
+                "bins_18da"
+              ],
+              "channels": [
+                "16,32",
+                "32,64"
+              ],
+              "kernel_size": [
+                9,
+                15
+              ],
+              "dropout": [
+                0.3
+              ],
+              "positive_class_weight": [
+                true
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

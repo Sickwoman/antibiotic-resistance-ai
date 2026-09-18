@@ -33,7 +33,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
-FAMILY_KINDS = ("logistic_regression", "random_forest", "lightgbm", "svm_rbf")
+FAMILY_KINDS = ("logistic_regression", "random_forest", "lightgbm", "svm_rbf", "mlp", "cnn")
+FEATURE_KINDS = ("logistic_regression", "mlp", "cnn")     # families whose settings may choose the features
 FEATURE_PATTERN = re.compile(r"^(bins_3da|bins_18da|pca_(\d+)|kbest_(\d+))$")
 SCORING = {"roc_auc": "roc_auc", "pr_auc": "average_precision"}
 
@@ -42,7 +43,7 @@ class TuningError(ValueError):
     pass
 
 
-class CoarsenBins(BaseEstimator, TransformerMixin):
+class CoarsenBins(TransformerMixin, BaseEstimator):     # TransformerMixin first: scikit-learn tag order
     """Sum every `factor` neighbouring bins (3 Da x 6 = 18 Da). Nothing is learned from the data."""
 
     def __init__(self, factor: int = 6):
@@ -64,7 +65,7 @@ class CoarsenBins(BaseEstimator, TransformerMixin):
 
 def feature_steps(label: str, seed: int) -> dict[str, Any]:
     """Pipeline steps ('coarsen', 'reduce') for a feature variant label."""
-    match = FEATURE_PATTERN.match(str(label))
+    match = FEATURE_PATTERN.fullmatch(str(label))      # fullmatch: '$' would also accept a trailing newline
     if not match:
         raise TuningError(f"Unknown feature variant {label!r} (bins_3da, bins_18da, pca_<n>, kbest_<k>)")
     steps: dict[str, Any] = {"coarsen": "passthrough", "reduce": "passthrough"}
@@ -117,8 +118,19 @@ class FamilySpec:
         return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
-def family_specs(config: dict[str, Any]) -> list[FamilySpec]:
-    return [FamilySpec.from_config(name, cfg) for name, cfg in config["tuning"]["families"].items()]
+def family_specs(config: dict[str, Any], section: str = "tuning") -> list[FamilySpec]:
+    """Families of one config section ('tuning' for Version 0.4, 'deep' for the networks).
+
+    A section-level `training:` block (epochs, batch size, patience, ...) applies to every family in the
+    section and joins its fingerprint, so changing one of those settings starts a new search instead of
+    reusing a cached one. `threads` is left out: it says how many CPU threads to use, not what to fit.
+    """
+    shared = {k: v for k, v in (config[section].get("training") or {}).items() if k != "threads"}
+    specs = []
+    for name, cfg in config[section]["families"].items():
+        merged = {**cfg, "fixed": {**shared, **(cfg.get("fixed") or {})}}
+        specs.append(FamilySpec.from_config(name, merged))
+    return specs
 
 
 def base_pipeline(spec: FamilySpec, seed: int, n_jobs: int = -1) -> Pipeline:
@@ -138,6 +150,11 @@ def base_pipeline(spec: FamilySpec, seed: int, n_jobs: int = -1) -> Pipeline:
                                                            deterministic=True, force_col_wise=True)))])
     if spec.kind == "svm_rbf":
         return Pipeline([("scale", StandardScaler()), ("model", SVC(**params(kernel="rbf", random_state=seed)))])
+    if spec.kind in ("mlp", "cnn"):
+        from src.deep import TorchClassifier  # optional dependency (torch)
+
+        return Pipeline([("coarsen", "passthrough"), ("scale", StandardScaler()),
+                         ("model", TorchClassifier(**params(kind=spec.kind, random_state=seed)))])
     raise TuningError(f"Unknown family kind {spec.kind!r}")
 
 
@@ -151,9 +168,12 @@ def pipeline_params(spec: FamilySpec, setting: dict[str, Any], seed: int) -> dic
     params: dict[str, Any] = {}
     for key, value in setting.items():
         if key == "features":
-            if spec.kind != "logistic_regression":
-                raise TuningError("Feature variants are only defined for logistic regression.")
-            params.update(feature_steps(value, seed))
+            if spec.kind not in FEATURE_KINDS:
+                raise TuningError(f"Feature variants are only defined for {', '.join(FEATURE_KINDS)}.")
+            steps = feature_steps(value, seed)
+            if spec.kind in ("mlp", "cnn") and steps.get("reduce", "passthrough") != "passthrough":
+                raise TuningError(f"Networks take the bins directly; {value!r} is not available for them.")
+            params.update({k: v for k, v in steps.items() if k != "reduce" or spec.kind not in ("mlp", "cnn")})
         elif key == "penalty":
             if spec.kind != "logistic_regression" or value not in PENALTIES:
                 raise TuningError(f"Unsupported penalty {value!r} (l1 or l2, logistic regression only).")
@@ -238,7 +258,10 @@ def fit_calibrated(spec: FamilySpec, setting: dict[str, Any], X: np.ndarray, y: 
 
 def uncalibrated(model: CalibratedClassifierCV) -> Pipeline:
     """The pipeline inside a fitted calibrated model (trained on the whole training part)."""
-    return model.calibrated_classifiers_[0].estimator
+    fitted = model.calibrated_classifiers_
+    if len(fitted) != 1:
+        raise TuningError(f"Expected one calibrated classifier (ensemble=False), found {len(fitted)}.")
+    return fitted[0].estimator
 
 
 def converged(model: CalibratedClassifierCV) -> bool | None:
@@ -262,12 +285,12 @@ def set_threads(obj: Any, n_jobs: int) -> None:
             set_threads(obj.estimator, n_jobs)
 
 
-def code_fingerprint(paths: list[Path]) -> str:
+def code_fingerprint(paths: list[str | Path]) -> str:
     """Hash of the code files that determine a result (used to invalidate caches)."""
     digest = hashlib.sha256()
-    for path in sorted(paths):
-        digest.update(path.name.encode())
-        digest.update(Path(path).read_bytes().replace(b"\r\n", b"\n"))
+    for path in sorted(Path(p) for p in paths):
+        digest.update(f"{path.name}:".encode())            # separator: file names cannot merge into contents
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()[:16]
 
 
