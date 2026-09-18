@@ -1,0 +1,157 @@
+{
+  "format": "amr-model-bundle/1",
+  "model_version": "v0.5.0-tuned_mlp-random-seed42",
+  "created": "2026-09-18 15:02:30",
+  "git_commit": "325ee85",
+  "code_fingerprint": "3c0b0838bcad76ef",
+  "model": "tuned_mlp",
+  "model_kind": "mlp",
+  "params": {
+    "dropout": 0.2,
+    "features": "bins_18da",
+    "hidden": "512,128",
+    "positive_class_weight": false
+  },
+  "seed": 42,
+  "calibration": {
+    "method": "sigmoid",
+    "folds": 5,
+    "fitted_on": "out-of-fold predictions of 5 patient-grouped folds of the training part"
+  },
+  "species": "Escherichia coli",
+  "antibiotic": "Ciprofloxacin",
+  "label_map": {
+    "0": "susceptible (S)",
+    "1": "resistant (R or I)"
+  },
+  "threshold": 0.2116528116472896,
+  "threshold_rule": {
+    "rule": "min_sensitivity",
+    "min_sensitivity": 0.9
+  },
+  "preprocessing": {
+    "intensity_transform": "sqrt",
+    "smoothing_method": "savitzky_golay",
+    "half_window_size": 10,
+    "polynomial_order": 3,
+    "baseline_method": "snip",
+    "baseline_iterations": [
+      20,
+      100
+    ],
+    "normalization": "tic",
+    "mz_min": 2000.0,
+    "mz_max": 20000.0,
+    "bin_width": 3.0,
+    "dtype": "float32",
+    "min_raw_points": 100,
+    "spectrum_folder": "raw",
+    "n_bins": 6000
+  },
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "n_features": 6000,
+  "dataset": {
+    "name": "ecoli_ciprofloxacin",
+    "row_fingerprint": "151415a4d03dbcc5",
+    "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+    "sites": [
+      "DRIAMS-A",
+      "DRIAMS-B",
+      "DRIAMS-D"
+    ],
+    "intermediate_as": "resistant"
+  },
+  "split": {
+    "name": "random",
+    "experiment": "random",
+    "train_size": 2977,
+    "dataset_fingerprint": "151415a4d03dbcc5",
+    "train_sites": [
+      "DRIAMS-A"
+    ]
+  },
+  "selection": {
+    "metric": "roc_auc",
+    "part": "validation",
+    "candidates": {
+      "tuned_mlp": 0.6936044871995739,
+      "tuned_cnn": 0.5057186726412433
+    }
+  },
+  "metrics": {
+    "validation": {
+      "n": 426,
+      "n_resistant": 97,
+      "prevalence": 0.22769953051643194,
+      "threshold": 0.2116528116472896,
+      "roc_auc": 0.6936044871995739,
+      "pr_auc": 0.45541194929066703,
+      "brier": 0.16295545109763346,
+      "accuracy": 0.4295774647887324,
+      "balanced_accuracy": 0.5979851471187291,
+      "sensitivity": 0.9072164948453608,
+      "recall": 0.9072164948453608,
+      "specificity": 0.2887537993920973,
+      "precision": 0.2732919254658385,
+      "f1": 0.4200477326968974,
+      "tp": 88,
+      "fp": 234,
+      "tn": 95,
+      "fn": 9,
+      "calibration_slope": 2.084175162154241,
+      "calibration_intercept": -0.15877372052331676
+    },
+    "validation_uncalibrated": {
+      "n": 426,
+      "n_resistant": 97,
+      "prevalence": 0.22769953051643194,
+      "threshold": 0.009996562264859676,
+      "roc_auc": 0.6936044871995739,
+      "pr_auc": 0.45541194929066703,
+      "brier": 0.18343614394530444,
+      "accuracy": 0.4295774647887324,
+      "balanced_accuracy": 0.5979851471187291,
+      "sensitivity": 0.9072164948453608,
+      "recall": 0.9072164948453608,
+      "specificity": 0.2887537993920973,
+      "precision": 0.2732919254658385,
+      "f1": 0.4200477326968974,
+      "tp": 88,
+      "fp": 234,
+      "tn": 95,
+      "fn": 9,
+      "calibration_slope": 0.2768023450060819,
+      "calibration_intercept": 0.5701696201885506
+    },
+    "test": {
+      "n": 856,
+      "n_resistant": 197,
+      "prevalence": 0.23014018691588786,
+      "threshold": 0.2116528116472896,
+      "roc_auc": 0.7122774854994878,
+      "pr_auc": 0.4416136990960887,
+      "brier": 0.16200011154210955,
+      "accuracy": 0.4602803738317757,
+      "balanced_accuracy": 0.6121026320451692,
+      "sensitivity": 0.8934010152284264,
+      "recall": 0.8934010152284264,
+      "specificity": 0.330804248861912,
+      "precision": 0.2852512155591572,
+      "f1": 0.43243243243243246,
+      "tp": 176,
+      "fp": 441,
+      "tn": 218,
+      "fn": 21,
+      "calibration_slope": 2.067796106150611,
+      "calibration_intercept": -0.15168425010147354
+    }
+  },
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  }
+}
