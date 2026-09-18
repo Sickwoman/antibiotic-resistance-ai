@@ -301,9 +301,55 @@ tuning:
         reg_lambda: [0.0, 1.0, 10.0]
         class_weight: [null, balanced]
     svm_rbf:
+      # Version 0.4 only: lowest scores, 84 min to search, ~400x slower to predict than LightGBM.
+      # Dropped from Version 0.5 onwards (docs/v0.5_deep_learning_plan.md); its results stay in the tables.
       kind: svm_rbf
       n_jobs: 4
       grid:
         - C: [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
           gamma: [1.0e-5, 1.0e-4, 1.0e-3]
           class_weight: [null, balanced]
+
+deep:
+  # Version 0.5, fixed before any network was trained (docs/v0.5_deep_learning_plan.md).
+  split: random                       # searched, calibrated and compared on this split
+  cv_folds: 5                         # the same patient-grouped folds as Version 0.4
+  cv_seed: 42
+  search_metric: roc_auc
+  calibration: sigmoid                # on out-of-fold predictions of the training part
+  seeds: [42, 43, 44, 45, 46]         # networks are stochastic; seed 42 is reported and can be saved
+  model_dir: models/v0.5              # git-ignored; also holds the cache
+  report_dir: results/metrics/v0.5
+  plot_dir: results/plots/v0.5
+  compare_with: models/v0.4           # the Version 0.4 model, re-scored for a paired comparison
+  training:
+    max_epochs: 60
+    batch_size: 64
+    learning_rate: 1.0e-3
+    weight_decay: 1.0e-4
+    patience: 8                       # epochs without inner-validation improvement before stopping
+    inner_validation_fraction: 0.15   # split of the training part used only for early stopping
+    threads: 8                        # CPU threads for PyTorch (the laptop has 12)
+  families:
+    mlp:
+      kind: mlp
+      stochastic: true
+      grid:
+        - features: [bins_3da, bins_18da]
+          hidden: ["256,64", "512,128"]
+          dropout: [0.2, 0.5]
+          positive_class_weight: [false, true]
+    cnn:
+      kind: cnn
+      stochastic: true
+      grid:
+        - features: [bins_3da]        # full resolution: 3.7 s per epoch, so only two settings
+          channels: ["16,32"]
+          kernel_size: [9, 25]
+          dropout: [0.3]
+          positive_class_weight: [true]
+        - features: [bins_18da]       # coarser bins: 0.7 s per epoch
+          channels: ["16,32", "32,64"]
+          kernel_size: [9, 15]
+          dropout: [0.3]
+          positive_class_weight: [true]

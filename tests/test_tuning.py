@@ -146,8 +146,9 @@ def test_feature_steps_build_the_planned_steps():
 
 
 @pytest.mark.parametrize("label", ["bins_6da", "pca_", "pca_x", "kbest", "PCA_50", "kbest_-5", "", " bins_3da",
-                                   None, 50])
+                                   None, 50, "bins_18da\n", "pca_5\n", "kbest_3\n"])
 def test_feature_steps_rejects_unknown_labels(label):
+    """A trailing newline must be rejected too: with '$' it would silently fall back to all bins."""
     with pytest.raises(TuningError, match="Unknown feature variant"):
         feature_steps(label, 0)
 
@@ -655,6 +656,10 @@ def test_code_fingerprint_ignores_line_endings_only(tmp_path):
     assert both != fp and both == code_fingerprint([folders["lf"] / "n.py", folders["lf"] / "m.py"])
     (folders["lf"] / "renamed.py").write_bytes(text.encode())
     assert code_fingerprint([folders["lf"] / "renamed.py"]) != fp         # file names are part of the hash
+    assert code_fingerprint([str(folders["lf"] / "m.py")]) == fp          # plain strings work as paths too
+    (folders["lf"] / "ab").write_bytes(b"c")                             # name and contents cannot merge:
+    (folders["lf"] / "a").write_bytes(b"bc")                             # "ab" + "c" must differ from "a" + "bc"
+    assert code_fingerprint([folders["lf"] / "ab"]) != code_fingerprint([folders["lf"] / "a"])
 
 
 def test_cache_key_is_deterministic():

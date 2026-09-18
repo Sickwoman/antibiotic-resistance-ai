@@ -42,7 +42,7 @@ class TuningError(ValueError):
     pass
 
 
-class CoarsenBins(BaseEstimator, TransformerMixin):
+class CoarsenBins(TransformerMixin, BaseEstimator):     # TransformerMixin first: scikit-learn tag order
     """Sum every `factor` neighbouring bins (3 Da x 6 = 18 Da). Nothing is learned from the data."""
 
     def __init__(self, factor: int = 6):
@@ -64,7 +64,7 @@ class CoarsenBins(BaseEstimator, TransformerMixin):
 
 def feature_steps(label: str, seed: int) -> dict[str, Any]:
     """Pipeline steps ('coarsen', 'reduce') for a feature variant label."""
-    match = FEATURE_PATTERN.match(str(label))
+    match = FEATURE_PATTERN.fullmatch(str(label))      # fullmatch: '$' would also accept a trailing newline
     if not match:
         raise TuningError(f"Unknown feature variant {label!r} (bins_3da, bins_18da, pca_<n>, kbest_<k>)")
     steps: dict[str, Any] = {"coarsen": "passthrough", "reduce": "passthrough"}
@@ -238,7 +238,10 @@ def fit_calibrated(spec: FamilySpec, setting: dict[str, Any], X: np.ndarray, y: 
 
 def uncalibrated(model: CalibratedClassifierCV) -> Pipeline:
     """The pipeline inside a fitted calibrated model (trained on the whole training part)."""
-    return model.calibrated_classifiers_[0].estimator
+    fitted = model.calibrated_classifiers_
+    if len(fitted) != 1:
+        raise TuningError(f"Expected one calibrated classifier (ensemble=False), found {len(fitted)}.")
+    return fitted[0].estimator
 
 
 def converged(model: CalibratedClassifierCV) -> bool | None:
@@ -262,12 +265,12 @@ def set_threads(obj: Any, n_jobs: int) -> None:
             set_threads(obj.estimator, n_jobs)
 
 
-def code_fingerprint(paths: list[Path]) -> str:
+def code_fingerprint(paths: list[str | Path]) -> str:
     """Hash of the code files that determine a result (used to invalidate caches)."""
     digest = hashlib.sha256()
-    for path in sorted(paths):
-        digest.update(path.name.encode())
-        digest.update(Path(path).read_bytes().replace(b"\r\n", b"\n"))
+    for path in sorted(Path(p) for p in paths):
+        digest.update(f"{path.name}:".encode())            # separator: file names cannot merge into contents
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()[:16]
 
 
