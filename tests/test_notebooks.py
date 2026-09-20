@@ -9,6 +9,9 @@ import nbformat
 import pytest
 
 NOTEBOOKS = sorted((Path(__file__).resolve().parents[1] / "notebooks").glob("*.ipynb"))
+# The notebooks the project specification asks for. Every check below runs over the glob, so a new
+# notebook is covered automatically; this set is what makes a missing one a failure rather than silence.
+REQUIRED = {"01_data_exploration.ipynb", "02_preprocessing.ipynb", "03_model_analysis.ipynb"}
 # DRIAMS-A patient_no, case_no and order_no values are 32-character lowercase hex hashes.
 HASH_LIKE = re.compile(r"\b[0-9a-f]{32}\b")
 
@@ -24,8 +27,8 @@ def output_texts(nb) -> list[str]:
     return texts
 
 
-def test_both_project_notebooks_are_found():
-    assert {"01_data_exploration.ipynb", "02_preprocessing.ipynb"} <= {p.name for p in NOTEBOOKS}
+def test_the_project_notebooks_are_found():
+    assert REQUIRED <= {p.name for p in NOTEBOOKS}
 
 
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name)

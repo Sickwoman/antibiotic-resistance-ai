@@ -1098,12 +1098,18 @@ python scripts/explain_tables.py          # the tables above, from the saved rep
 python scripts/predict_spectrum.py <spectrum.txt> --explain   # one spectrum, explained, with a confidence
 ```
 
-The run took 9.5 minutes on this laptop (CPU only), most of it the 10,000 permuted scorings across the
-two models (1,000 blocks x 5 repeats each). It scores no test row, and it checks that it has not: the saved model first has to reproduce its
-logged validation AUROC of 0.776486 exactly, each of the five cached per-seed fits has to reproduce its
-own logged AUROC before its importances are used, the stored test probabilities have to reproduce the
-logged test AUROC of 0.750861, and the append-only test log is compared byte for byte before and after the
-run.
+The run took 2.9 minutes on this laptop (CPU only); a first, cold run of the same command took 9.5. Most
+of it is the 10,000 permuted scorings across the two models (1,000 blocks × 5 repeats each).
+
+It scores no test row, and it checks that it has not: the saved model first has to reproduce its logged
+validation AUROC of 0.776486 exactly, each of the five cached per-seed fits has to reproduce its own
+logged AUROC before its importances are used, the stored test probabilities have to reproduce the logged
+test AUROC of 0.750861, and the append-only test log is compared byte for byte before and after the run.
+
+The command was run twice, the second time on a clean checkout so that `run_config.json` records the
+commit the results came from. **Every reported file came out byte-identical between the two runs** —
+regions, importances, seed agreement, zones, intervals and examples alike. The only difference anywhere
+was the wall-clock `fit_seconds` of the shuffled-label control.
 
 ## Project structure (Version 0.6)
 

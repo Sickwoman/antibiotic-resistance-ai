@@ -1,0 +1,38 @@
+{
+  "share_susceptible": {
+    "value": 0.2488317757009346,
+    "low": 0.2115357142857143,
+    "high": 0.2860636450516884,
+    "draws": 2000
+  },
+  "npv_susceptible": {
+    "value": 0.9483568075117371,
+    "low": 0.9099870689655173,
+    "high": 0.9808612440191388,
+    "draws": 2000
+  },
+  "share_uncertain": {
+    "value": 0.7511682242990654,
+    "low": 0.7139363549483115,
+    "high": 0.7884642857142857,
+    "draws": 2000
+  },
+  "share_resistant": {
+    "value": 0.0,
+    "low": 0.0,
+    "high": 0.0,
+    "draws": 2000
+  },
+  "precision_resistant": {
+    "value": NaN,
+    "low": NaN,
+    "high": NaN,
+    "draws": 0
+  },
+  "confident_share": {
+    "value": 0.2488317757009346,
+    "low": 0.2115357142857143,
+    "high": 0.2860636450516884,
+    "draws": 2000
+  }
+}

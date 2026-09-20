@@ -1,0 +1,37 @@
+{
+  "threshold": 0.14261540693905073,
+  "lower": 0.10255963637363619,
+  "upper": null,
+  "rule": {
+    "target_npv": 0.95,
+    "target_precision": 0.95,
+    "min_coverage": 0.05
+  },
+  "fitted_on": "validation",
+  "n_fitted": 426,
+  "model_version": "v0.4.0-tuned_lightgbm-random-seed42",
+  "sides": {
+    "susceptible": {
+      "target": 0.95,
+      "edge": 0.10255963637363619,
+      "n_covered": 110,
+      "coverage": 0.25821596244131456,
+      "achieved": 0.9545454545454546,
+      "exists": true,
+      "best_achieved": 0.9791666666666666,
+      "best_edge": 0.05529045425162089,
+      "best_coverage": 0.11267605633802817
+    },
+    "resistant": {
+      "target": 0.95,
+      "edge": null,
+      "n_covered": 0,
+      "coverage": 0.0,
+      "achieved": NaN,
+      "exists": false,
+      "best_achieved": 0.84,
+      "best_edge": 0.6703732126141841,
+      "best_coverage": 0.05868544600938967
+    }
+  }
+}
