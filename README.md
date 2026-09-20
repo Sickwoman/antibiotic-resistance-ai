@@ -7,15 +7,19 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.5 – neural networks, compared honestly with the classical models.** Versions 0.1
-(download + exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models) and 0.4 (tuning and
-calibration) are complete. Models are evaluated as fixed in
+**Status: Version 0.6 – evaluation and explainability.** Versions 0.1 (download + exploration), 0.2
+(preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration) and 0.5 (neural
+networks) are complete. Models are evaluated as fixed in
 [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was trained; the
 Version 0.4 search was fixed in [`docs/v0.4_search_plan.md`](docs/v0.4_search_plan.md) before any model
-was tuned, and the Version 0.5 networks in
-[`docs/v0.5_deep_learning_plan.md`](docs/v0.5_deep_learning_plan.md) before any network was trained.
+was tuned, the Version 0.5 networks in
+[`docs/v0.5_deep_learning_plan.md`](docs/v0.5_deep_learning_plan.md) before any network was trained, and
+the Version 0.6 explanations in
+[`docs/v0.6_explainability_plan.md`](docs/v0.6_explainability_plan.md) before anything was explained.
 **The networks did not beat the classical models**, so the tuned LightGBM of Version 0.4 remains the
-project's model — see [Version 0.5](#version-05--neural-networks-mlp-and-1-d-cnn).
+project's model — see [Version 0.5](#version-05--neural-networks-mlp-and-1-d-cnn). It can now say which
+m/z regions moved a prediction, and it can answer *uncertain* instead of forcing a call — but only on the
+susceptible side; see [Version 0.6](#version-06--evaluation-and-explainability).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -884,7 +888,9 @@ with the reason given, rather than left silently open.
 
 - **A reusable evaluation-controller object.** The lock is now enforced at the two places that matter
   (before computing, and before writing to the log). A separate controller object would be a larger
-  refactor of working, tested code; it is worth revisiting when Version 0.6 adds a serving path.
+  refactor of working, tested code; it is worth revisiting when Version 0.9 adds the backend API. (This
+  sentence originally said Version 0.6; the project plan puts the serving path at Version 0.9, and
+  Version 0.6 is evaluation and explainability.)
 - **Immutable real-data fixtures for regression tests.** This would catch real metadata quirks that
   synthetic tests cannot. DRIAMS is CC0, so it would be legal, but committing real spectra contradicts
   this project's own rule to keep raw data out of Git. It needs a deliberate decision about what a
@@ -896,7 +902,216 @@ with the reason given, rather than left silently open.
 - **An adversarial cross-year overlap analysis.** This belongs with the Version 0.7 generalisation work,
   where the temporal and external test parts are opened.
 
-## Project structure (Version 0.5)
+## Version 0.6 – evaluation and explainability
+
+Version 0.6 asks the model to say *why*, and allows it to say *I do not know*. Which methods would be
+used, which rows they could touch and how the confidence zones would be fitted were written down in
+[`docs/v0.6_explainability_plan.md`](docs/v0.6_explainability_plan.md) and committed **before the first
+explanation was computed**, together with [amendment 2](docs/evaluation_protocol.md#amendments) to the
+evaluation protocol. **No test row was scored again.** The explanations use the 426 rows of the `random`
+validation part; the one test-side number below is derived from the probabilities that the single test
+scoring of 2026-09-18 already saved, after checking that they reproduce the logged test AUROC to 1e-12.
+
+**The short answer: the model can point at where it looks, and it can decline a call — but only in one
+direction.** A quarter of isolates now get a high-confidence *susceptible* answer that is right about
+95 % of the time, on validation and on the held-out test part alike. There is **no high-confidence
+resistant zone at all**: at the pre-registered target, no cut-off is both precise enough and wide enough,
+so every isolate the model leans resistant on is reported as *uncertain — conventional AST confirmation
+recommended*. That is the honest consequence of a model with AUROC 0.75 on a population where 23 % of
+isolates are resistant, and it is reported rather than fixed by moving the target.
+
+### What was built, and why
+
+The model being explained is the project's model, the Version 0.4 tuned LightGBM
+(`v0.4.0-tuned_lightgbm-random-seed42`). It takes the 6,000 bins of 3 Da directly, with no PCA and no
+feature selection, so every number below maps to one real m/z interval. The fitted model splits on 3,908
+of those 6,000 bins.
+
+| Method | What it answers | Why this one |
+|---|---|---|
+| **Exact TreeSHAP** | how much each bin moved *one* prediction | LightGBM computes it itself, so the contributions are exact, not sampled: on the real validation rows they reproduce the model's margin to within 1e-9. The `shap` package would add a dependency across four CI jobs for a number already available exactly |
+| **Block permutation importance** | how much the model's *AUROC* depends on a region | model-agnostic, and a different question from the first. Bins of one peak are strongly correlated, so single-bin permutation understates a peak — the model simply reads it from the neighbouring bin. Blocks of six bins (18 Da) are permuted together |
+| **Single-bin permutation** | whether a bin matters on its own | the cross-check on the strongest bins |
+| **Class contrast** | the plain resistant-minus-susceptible intensity difference | no model involved: it says whether a region differs between the classes at all |
+
+Regions, not bins, are the reporting unit: a single 3 Da bin is below the resolution at which anything can
+be said. **No m/z region is given a protein or peptide identity anywhere in this project** — there is no
+MS/MS confirmation and no independent panel here, so a region is an m/z interval and nothing more.
+
+**The confidence zones.** The rule was fixed in advance and has no free parameter beyond its two targets
+and a coverage floor: the lower edge is the *largest* validation cut below which at least 95 % of isolates
+are truly susceptible while covering at least 5 % of rows, and the upper edge is the *smallest* cut above
+which at least 95 % are truly resistant on the same terms. The model's own cut-off (0.1426, from the
+sensitivity ≥ 0.90 rule) does not move; only the name of the output changes. The pre-registration also
+fixed what to do if a side cannot reach its target: report that the zone does not exist, say what the side
+does reach, and leave the target alone.
+
+### Results
+
+<!-- generated by scripts/explain_tables.py from results/metrics/v0.6/ecoli_ciprofloxacin -->
+
+**What is explained:** v0.4.0-tuned_lightgbm-random-seed42, on the 426 rows of the `random` validation part. No test row was scored.
+
+**Influential m/z regions (exact TreeSHAP)**
+
+| # | m/z region | Bins | Mean absolute contribution | Higher intensity points to | Value–contribution correlation | R vs S difference (SD) |
+|---|---|---|---|---|---|---|
+| 1 | 11,771 – 11,786 | 5 | 0.5709 | resistant | 0.49 | 0.58 |
+| 2 | 5,894 – 5,903 | 3 | 0.4144 | resistant | 0.57 | 0.58 |
+| 3 | 8,444 – 8,453 | 3 | 0.3982 | resistant | 0.82 | 0.52 |
+| 4 | 6,893 – 6,908 | 5 | 0.3709 | resistant | 0.68 | 0.39 |
+| 5 | 8,501 – 8,513 | 4 | 0.3241 | susceptible | -0.81 | -0.47 |
+| 6 | 10,469 – 10,481 | 4 | 0.2675 | resistant | 0.72 | 0.33 |
+| 7 | 6,809 – 6,815 | 2 | 0.1895 | susceptible | -0.55 | -0.38 |
+| 8 | 6,866 – 6,872 | 2 | 0.1825 | susceptible | -0.86 | -0.34 |
+| 9 | 5,855 – 5,861 | 2 | 0.1705 | susceptible | -0.82 | -0.19 |
+| 10 | 6,551 – 6,560 | 3 | 0.1453 | susceptible | -0.69 | -0.14 |
+| 11 | 3,056 – 3,062 | 2 | 0.0907 | resistant | 0.75 | 0.10 |
+| 12 | 4,262 – 4,268 | 2 | 0.0790 | resistant | 0.63 | 0.07 |
+| 13 | 9,005 – 9,011 | 2 | 0.0767 | resistant | 0.68 | 0.07 |
+| 14 | 11,720 – 11,723 | 1 | 0.0730 | susceptible | -0.88 | -0.27 |
+| 15 | 9,800 – 9,809 | 2 | 0.0653 | susceptible | -0.66 | -0.16 |
+| 16 | 4,160 – 4,166 | 2 | 0.0608 | susceptible | -0.48 | -0.04 |
+| 17 | 9,680 – 9,686 | 2 | 0.0583 | susceptible | -0.77 | -0.15 |
+| 18 | 15,236 – 15,239 | 1 | 0.0582 | resistant | 0.71 | 0.00 |
+| 19 | 2,834 – 2,837 | 1 | 0.0563 | resistant | 0.70 | 0.06 |
+| 20 | 6,623 – 6,626 | 1 | 0.0514 | susceptible | -0.61 | -0.07 |
+
+No m/z region is given a protein or peptide identity: this project has no MS/MS confirmation and no independent panel, so a region is named by its m/z interval only.
+
+**What the model's AUROC depends on (block permutation importance)**
+
+| m/z block | AUROC lost when permuted |
+|---|---|
+| 11,774 – 11,792 | +0.0469 ± 0.0208 |
+| 5,888 – 5,906 | +0.0251 ± 0.0134 |
+| 8,444 – 8,462 | +0.0192 ± 0.0075 |
+| 6,860 – 6,878 | +0.0165 ± 0.0040 |
+| 6,896 – 6,914 | +0.0123 ± 0.0016 |
+| 8,498 – 8,516 | +0.0103 ± 0.0070 |
+| 6,806 – 6,824 | +0.0097 ± 0.0052 |
+| 6,554 – 6,572 | +0.0078 ± 0.0018 |
+| 4,160 – 4,178 | +0.0068 ± 0.0032 |
+| 8,318 – 8,336 | +0.0057 ± 0.0027 |
+
+**Do the methods, the seeds and the two model families agree?**
+
+| Comparison | Spearman | Top-20 blocks shared |
+|---|---|---|
+| TreeSHAP against permutation importance (same model) | -0.08 | 14 of 20 |
+| Permutation importance against v0.5.0-tuned_mlp-random-seed42 | 0.16 | 8 of 20 |
+| Between the 10 seed pairs of the same setting (mean) | 0.35 | 69.6 of 100 |
+
+**Against chance (the same setting refitted on shuffled labels)**
+
+| Model | Mean absolute contribution |
+|---|---|
+| The fitted model, strongest region | 0.5709 |
+| Shuffled training labels, same setting and size (2,977 rows) | 0.4454 |
+
+**Confidence zones**
+
+- **High-confidence susceptible:** probability below 0.1026. It covers 25.8 % of the validation part and is correct for 95.5 % of them (target 95 %).
+- **High-confidence resistant: does not exist.** No cut reaches the pre-registered 95 % at the required coverage. The most any cut reaches is 84.0 % (covering 5.9 % of the validation part), so every one of those isolates is reported as uncertain instead.
+
+| Part | n | High-confidence susceptible | Uncertain | High-confidence resistant | Correct among confident |
+|---|---|---|---|---|---|
+| validation | 426 | 110 (25.8 %) | 316 (74.2 %) | 0 (0.0 %) | 0.955 |
+| test (from stored predictions) | 856 | 213 (24.9 %) | 643 (75.1 %) | 0 (0.0 %) | 0.948 |
+
+Test-part interval for the confident share: 0.249 [0.212, 0.286] (patient-group bootstrap; derived from the stored test predictions, not a new scoring).
+
+**Individual explanations**
+
+| Validation spectrum | Probability | True label | Output | Strongest regions (signed contribution) |
+|---|---|---|---|---|
+| lowest probability (row 129) | 0.012 | susceptible | High-confidence susceptible | 6,809–6,815 (-0.44); 8,447–8,453 (-0.38); 5,894–5,903 (-0.34) |
+| closest to the cut-off (row 222) | 0.143 | resistant | Uncertain | 5,894–5,903 (-0.19); 8,447–8,453 (-0.42); 6,893–6,908 (-0.21) |
+| highest probability (row 10) | 0.986 | resistant | Uncertain | 11,771–11,795 (+2.29); 8,444–8,453 (+1.11); 5,894–5,903 (+0.98) |
+
+![Influential m/z regions](results/plots/v0.6/ecoli_ciprofloxacin_random_regions.png)
+
+![Confidence zones](results/plots/v0.6/ecoli_ciprofloxacin_random_uncertainty_zones.png)
+
+![Contribution size against AUROC loss](results/plots/v0.6/ecoli_ciprofloxacin_random_importance_agreement.png)
+
+### What the regions mean, and what they do not
+
+Four checks were run on the regions, and they do not all agree. Taken together they support a narrow
+claim, not a broad one.
+
+- **The strongest regions are reproducible; their exact ranking is not.** Across the five fitted seeds of
+  the same setting, the rank correlation of the 6,000 bin importances averages 0.35 (0.34 to 0.37 across
+  the ten seed pairs), but 65 to 73 of
+  the top 100 bins are shared, and all five seeds put their strongest region at the same place
+  (m/z 11,771 onwards). Read the top of the table, not its order.
+- **The two methods agree where it matters and nowhere else.** Over all 1,000 blocks the rank correlation
+  between contribution size and AUROC loss is −0.08, essentially zero — but 14 of the top 20 blocks are
+  the same under both. The figure shows why: a few blocks sit clearly in the top right, while most scatter
+  around zero, and 565 of the 1,000 have a *negative* AUROC drop (permuting them made the model very
+  slightly better). Noise dominates the ranking, so the overall correlation says little.
+- **Contribution size alone does not separate signal from noise.** The same setting refitted on shuffled
+  training labels still produces a strongest region of 0.4454 against the real model's 0.5709 — a ratio of
+  only 1.3. A model fitted on noise still splits on something and still moves its predictions, so a large
+  contribution is not by itself evidence. What the noise model cannot do is lose AUROC when a region is
+  permuted, which is why the permutation column is the stronger evidence, and there the strongest block
+  costs 0.047 AUROC.
+- **A second model family points only partly at the same places.** The Version 0.5 MLP shares 8 of the top
+  20 blocks (rank correlation 0.16). It is also a much weaker model (validation AUROC 0.694 against
+  0.776), so its importances are less reliable; this is weak corroboration, not confirmation.
+
+So: the handful of strongest regions is a real property of this data and this model family, the ordering
+below the top is not, and nothing here identifies a molecule.
+
+**Why the resistant zone is missing.** It is the coverage floor, not the 95 % target, that removes it. On
+validation the nine highest-probability isolates are all truly resistant, and 14 of the top 15 — but nine
+rows is 2.1 % of the part, and a 95 % confidence interval on 9 out of 9 still runs from 0.66 to 1.00. The
+5 % floor was pre-registered precisely so that a zone cannot be declared on a handful of rows; at that
+width the best any cut achieves is 84.0 %. The trade-off curve for both sides is in
+`results/metrics/v0.6/<dataset>/uncertainty_curve.csv` and in the figure.
+
+**What the zones cost and buy.** On the test part, derived from the stored predictions, 24.9 % of isolates
+[21.2 %, 28.6 %] get a confident susceptible answer, and 94.8 % of those [91.0 %, 98.1 %] are correct.
+The other three quarters are returned as uncertain — including the isolate with the highest probability in
+the validation part (0.986, truly resistant), which is reported as uncertain because no resistant zone
+exists. A three-way output that declines most calls is a weaker product and a more honest one.
+
+### Limitations
+
+- **Explanations describe this model on this data**, not the biology of resistance. A region the model
+  uses may be a marker, a correlate of the strain population in this hospital, or an artefact of sample
+  preparation; nothing here can tell those apart.
+- **No molecular identity is claimed or implied.** m/z intervals only.
+- **The zones were fitted on 426 validation rows**, of which 97 are resistant. The edges are noisy, and
+  the test-side numbers are a check on them, not an independent fit.
+- **Contributions are additive on the model's margin, not on the probability.** The calibration step is a
+  monotone sigmoid, so the sign and the ordering carry over, but a contribution is not a share of risk.
+- **In-hospital data only.** The `temporal` and `external` test parts stay locked until Version 0.7.
+- **Research prototype**, not a clinically validated diagnostic and never a treatment recommendation. An
+  "uncertain" answer is not clinical advice either; it means this research model declines to guess.
+
+### Commands
+
+```powershell
+python scripts/explain_model.py           # explanations and confidence zones (validation rows only)
+python scripts/explain_tables.py          # the tables above, from the saved reports
+python scripts/predict_spectrum.py <spectrum.txt> --explain   # one spectrum, explained, with a confidence
+```
+
+The run took 2.9 minutes on this laptop (CPU only); a first, cold run of the same command took 9.5. Most
+of it is the 10,000 permuted scorings across the two models (1,000 blocks × 5 repeats each).
+
+It scores no test row, and it checks that it has not: the saved model first has to reproduce its logged
+validation AUROC of 0.776486 exactly, each of the five cached per-seed fits has to reproduce its own
+logged AUROC before its importances are used, the stored test probabilities have to reproduce the logged
+test AUROC of 0.750861, and the append-only test log is compared byte for byte before and after the run.
+
+The command was run twice, the second time on a clean checkout so that `run_config.json` records the
+commit the results came from. **Every reported file came out byte-identical between the two runs** —
+regions, importances, seed agreement, zones, intervals and examples alike. The only difference anywhere
+was the wall-clock `fit_seconds` of the shuffled-label control.
+
+## Project structure (Version 0.6)
 
 ```
 antibiotic-resistance-ai/
@@ -912,7 +1127,9 @@ antibiotic-resistance-ai/
 │   │                           (Version 0.4 classical families; --section deep for the networks)
 │   ├── baseline_tables.py      Version 0.3 result tables from the saved reports
 │   ├── tuned_tables.py         Version 0.4 / 0.5 result tables and the model comparison
-│   └── predict_spectrum.py     research prediction for one raw spectrum file
+│   ├── explain_model.py        Version 0.6 explanations and confidence zones (no test row is scored)
+│   ├── explain_tables.py       Version 0.6 result tables from the saved reports
+│   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
 │   ├── data_loader.py          metadata tables, label rules, spectrum readers with validation
@@ -925,13 +1142,16 @@ antibiotic-resistance-ai/
 │   ├── tuning.py               search spaces, grouped-fold search, calibration, result cache
 │   ├── deep.py                 Version 0.5 networks (MLP, 1-D CNN) as scikit-learn estimators
 │   ├── evaluate.py             thresholds, metrics, calibration, bootstrap intervals, test log
-│   ├── predict.py              saving/loading models, prediction with timing
+│   ├── explain.py              Version 0.6 contributions, permutation importance, m/z regions
+│   ├── uncertainty.py          Version 0.6 confident / uncertain zones and their intervals
+│   ├── predict.py              saving/loading models, prediction with timing and confidence
 │   ├── model_plots.py          figures shared by the model scripts
 │   └── tables.py               Markdown helpers for result tables
 ├── docs/evaluation_protocol.md how models are evaluated (approved before any training)
 ├── docs/v0.4_search_plan.md    what Version 0.4 searched (fixed before any tuning)
 ├── docs/v0.5_deep_learning_plan.md  which networks and why (fixed before any network was trained)
-├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb
+├── docs/v0.6_explainability_plan.md  how the model is explained (fixed before anything was explained)
+├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
 ├── .github/workflows/tests.yml Ruff + pytest on Ubuntu and Windows

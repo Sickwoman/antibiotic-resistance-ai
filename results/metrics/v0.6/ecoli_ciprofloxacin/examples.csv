@@ -1,0 +1,16 @@
+example,validation_position,resistance_probability,true_label,output,region_rank,mz_start,mz_end,contribution,pushed_towards
+lowest probability,129,0.011503,0,High-confidence susceptible,1,6809.0,6815.0,-0.435151,susceptible
+lowest probability,129,0.011503,0,High-confidence susceptible,2,8447.0,8453.0,-0.376967,susceptible
+lowest probability,129,0.011503,0,High-confidence susceptible,3,5894.0,5903.0,-0.344659,susceptible
+lowest probability,129,0.011503,0,High-confidence susceptible,4,11780.0,11783.0,-0.264705,susceptible
+lowest probability,129,0.011503,0,High-confidence susceptible,5,8501.0,8513.0,-0.093183,susceptible
+closest to the cut-off,222,0.142615,1,Uncertain,1,5894.0,5903.0,-0.189455,susceptible
+closest to the cut-off,222,0.142615,1,Uncertain,2,8447.0,8453.0,-0.418505,susceptible
+closest to the cut-off,222,0.142615,1,Uncertain,3,6893.0,6908.0,-0.213572,susceptible
+closest to the cut-off,222,0.142615,1,Uncertain,4,8504.0,8513.0,0.280465,resistant
+closest to the cut-off,222,0.142615,1,Uncertain,5,11780.0,11783.0,-0.21322,susceptible
+highest probability,10,0.985783,1,Uncertain,1,11771.0,11795.0,2.287885,resistant
+highest probability,10,0.985783,1,Uncertain,2,8444.0,8453.0,1.111211,resistant
+highest probability,10,0.985783,1,Uncertain,3,5894.0,5903.0,0.977821,resistant
+highest probability,10,0.985783,1,Uncertain,4,6896.0,6908.0,0.819927,resistant
+highest probability,10,0.985783,1,Uncertain,5,6866.0,6872.0,0.525862,resistant

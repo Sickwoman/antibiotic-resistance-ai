@@ -1,0 +1,11 @@
+{
+  "seed": 42,
+  "fit_seconds": 16.6,
+  "shuffled_labels": true,
+  "n_train": 2977,
+  "null_strongest_bin": 0.11211036169207872,
+  "null_mean_bin": 0.002529556740021918,
+  "null_top_region_equivalent": 0.445412880535354,
+  "real_strongest_region": 0.570937787807695,
+  "real_over_null": 1.2818169674874897
+}
