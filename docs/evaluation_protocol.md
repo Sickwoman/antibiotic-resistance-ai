@@ -171,3 +171,29 @@ here was prompted by a test result.
    Version 0.4 run both parts held exactly 1,284 training samples.
 5. **Locked test parts are refused twice**: by the scripts before anything is computed, and by the test
    log itself before anything is written.
+
+### Amendment 2 — 2026-09-20: explanations and confidence zones
+
+Added before any Version 0.6 explanation was computed, together with
+[the Version 0.6 plan](v0.6_explainability_plan.md). It changes no decision, no metric, no split and no
+model. It states how a new kind of output — an explanation of a prediction, and a three-way confident /
+uncertain call — fits the existing rules. Nothing here was prompted by a test result.
+
+1. **Explanations are a validation-part activity.** Contributions, feature importances and example
+   explanations are computed on validation rows. Training rows are used only for descriptive comparisons
+   (a region's resistant-versus-susceptible intensity difference) and for the shuffled-label control.
+   Section 4 already assigns threshold choices to validation; an explanation is a weaker use than that.
+2. **The confidence zones are thresholds, so they are fitted on validation**, by the pre-registered rule in
+   the Version 0.6 plan (95 % on each side, 5 % minimum coverage, with the fallback fixed in advance). The
+   model's decision cut-off from section 5 is unchanged; the zones sit around it and only change what the
+   output is *called*.
+3. **No test row is scored again in Version 0.6.** The test part was scored once per final model and the
+   probabilities were saved. Where a Version 0.6 report gives a test-side number for the confidence zones,
+   it is *derived from those stored predictions*, after asserting that they reproduce the logged test AUROC
+   to 1e-12. Such a derivation is not a new evaluation: it adds no row to the test log, and the run asserts
+   the log is unchanged when it finishes. This is the same treatment the recomputed Version 0.4 intervals
+   received under amendment 1, point 3.
+4. **Nothing in Version 0.6 may change a model, a setting or a cut-off.** If an explanation suggests a
+   change, that change belongs to a later version, is pre-registered there, and is evaluated as a new model.
+5. **No m/z region is given a protein or peptide identity.** This project has no MS/MS confirmation and no
+   independent panel, so regions are named by their m/z interval only, in every report and every figure.

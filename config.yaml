@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "0.5.0"
+  version: "0.6.0"
   random_seed: 42
 
 paths:
@@ -353,3 +353,31 @@ deep:
           kernel_size: [9, 15]
           dropout: [0.3]
           positive_class_weight: [true]
+
+explain:
+  # Version 0.6, fixed before any explanation was computed (docs/v0.6_explainability_plan.md).
+  # Nothing here may change a model, a setting or a cut-off; explanations describe the saved model.
+  model_dir: models/v0.4              # the project's model: the Version 0.4 tuned LightGBM
+  split: random                       # which saved bundle: best_<split>.joblib
+  rows: validation                    # the only part explanations may be computed on
+  seeds: [42, 43, 44, 45, 46]         # cached fits of the same setting, used for stability only
+  report_dir: results/metrics/v0.6
+  plot_dir: results/plots/v0.6
+  regions:
+    top_bins: 100                     # most important bins kept before merging
+    merge_gap_bins: 2                 # bins at most this far apart become one m/z region
+    report_regions: 20                # regions shown in the tables
+  permutation:
+    block_bins: 6                     # 18 Da blocks: neighbouring bins of one peak are correlated
+    repeats: 5
+    seed: 42
+    top_single_bins: 50               # single-bin permutation, top SHAP bins only (cross-check)
+  cross_model: models/v0.5            # same permutation importance on the Version 0.5 MLP
+  null_control:
+    label_shuffle_seed: 42            # one refit on permuted training labels: the noise floor
+  uncertainty:
+    # Three-way output. Both edges are fitted on validation; the targets and the coverage floor are
+    # pre-registered, and are NOT lowered if a side cannot reach them (the report says so instead).
+    target_precision: 0.95            # high-confidence resistant: >= 95 % of those calls truly resistant
+    target_npv: 0.95                  # high-confidence susceptible: >= 95 % truly susceptible
+    min_coverage: 0.05                # a zone must cover >= 5 % of rows to be reported at all
