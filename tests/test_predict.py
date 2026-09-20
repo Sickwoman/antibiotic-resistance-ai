@@ -14,9 +14,11 @@ from src.data_loader import SpectrumFormatError
 from src.predict import (
     BUNDLE_FORMAT,
     DISCLAIMER,
+    EXPLAIN_REGIONS,
     ModelError,
     checksum_path,
     load_bundle,
+    load_zones,
     predict_features,
     predict_spectrum_file,
     save_bundle,
@@ -24,6 +26,8 @@ from src.predict import (
 )
 from src.preprocessing import PreprocessingConfig
 from src.train import ModelSpec, build_pipeline
+from src.uncertainty import ADVICE, RESISTANT, SUSCEPTIBLE, UNCERTAIN, ZoneRule, Zones
+from src.utils import load_config, project_path
 from tests.test_preprocessing import synthetic_spectrum, write_spectrum
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -177,3 +181,146 @@ def test_a_model_without_a_checksum_still_loads(tmp_path, bundle):
     checksum_path(path).unlink()
     assert verify_digest(path) is None
     assert load_bundle(path)["model_version"] == "test-lr"
+
+
+# --- Version 0.6: confidence zones and the explanation of one prediction -----------------------------------------
+
+@pytest.fixture()
+def tree_bundle(bundle):
+    """The same bundle with a small gradient-boosted tree model: only those give exact contributions."""
+    rng = np.random.default_rng(2)
+    X = rng.random((60, 6000)).astype(np.float32) * 1e-4
+    y = np.tile([0, 1], 30)
+    X[y == 1, :50] += 1e-3
+    tree = build_pipeline(ModelSpec("lgbm", "lightgbm", {"n_estimators": 20, "min_child_samples": 5}),
+                          seed=42, n_jobs=1).fit(X, y)
+    return {**bundle, "pipeline": tree, "model_version": "test-lightgbm"}
+
+
+def write_zones(path: Path, lower, upper, threshold: float = 0.5) -> Path:
+    path.write_text(json.dumps(Zones(threshold, lower, upper, ZoneRule()).to_dict()), encoding="utf-8")
+    return path
+
+
+def test_load_zones_round_trips_a_written_file(tmp_path):
+    zones = Zones(0.5, 0.2, 0.8, ZoneRule(), "validation", 123)
+    path = tmp_path / "uncertainty.json"
+    path.write_text(json.dumps(zones.to_dict()), encoding="utf-8")
+    loaded = load_zones(path)
+    assert loaded == zones
+    assert (loaded.one(0.1), loaded.one(0.5), loaded.one(0.9)) == (SUSCEPTIBLE, UNCERTAIN, RESISTANT)
+
+
+def test_load_zones_returns_none_when_there_is_no_zones_file(tmp_path):
+    """No zones fitted yet is not an error: the prediction is then reported without a confidence label."""
+    assert load_zones(tmp_path / "uncertainty.json") is None
+
+
+@pytest.mark.parametrize("text", ['{"threshold": 0.5}',                          # no edges: not a zones record
+                                  '{"threshold": 0.5, "lower": 0.8, "upper": 0.2}',   # edges crossed
+                                  '{"threshold": "x", "lower": null, "upper": null}',
+                                  '[0.2, 0.8]', 'not json at all'])
+def test_load_zones_refuses_a_file_that_is_not_a_zones_record(tmp_path, text):
+    path = tmp_path / "uncertainty.json"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ModelError, match="confidence"):
+        load_zones(path)
+
+
+def test_a_prediction_with_zones_carries_the_confidence_label(tmp_path, bundle):
+    """Each side of each edge, with the edges placed around the probability this model actually gives."""
+    mz, intensity = synthetic_spectrum(n=1500, seed=3)
+    path = write_spectrum(tmp_path / "s.txt", mz, intensity)
+    plain = predict_spectrum_file(bundle, path)
+    p = plain.resistance_probability
+    assert 0.05 < p + 0.02 and p + 0.02 < 1                 # the edges below stay inside [0, 1]
+
+    def confidence(lower, upper):
+        result = predict_spectrum_file(bundle, path, zones=Zones(0.5, lower, upper, ZoneRule()))
+        assert result.prediction == plain.prediction and result.resistance_probability == p
+        return result.confidence
+
+    assert confidence(p + 0.01, p + 0.02) == SUSCEPTIBLE     # below the lower edge
+    assert confidence(p - 0.01, p + 0.01) == UNCERTAIN       # between the two edges
+    assert confidence(p - 0.02, p - 0.01) == RESISTANT       # above the upper edge
+    assert confidence(None, p + 0.01) == UNCERTAIN           # no susceptible zone exists on that side
+    assert confidence(p - 0.01, None) == UNCERTAIN           # no resistant zone exists on that side
+    assert confidence(None, None) == UNCERTAIN
+
+
+def test_a_prediction_without_zones_says_the_confidence_is_not_available(tmp_path, bundle):
+    """Not the same as 'uncertain': nothing was computed, so nothing is claimed."""
+    mz, intensity = synthetic_spectrum(n=1500, seed=3)
+    result = predict_spectrum_file(bundle, write_spectrum(tmp_path / "s.txt", mz, intensity)).to_dict()
+    assert result["confidence"] == "not available" and result["explanation"] is None
+    assert result["disclaimer"] == DISCLAIMER
+
+
+def test_explaining_a_model_without_exact_contributions_does_not_fail_the_prediction(tmp_path, bundle, capsys):
+    """The fixture is a logistic regression, which has no TreeSHAP: the prediction is unchanged, the
+    explanation is simply absent."""
+    mz, intensity = synthetic_spectrum(n=1500, seed=3)
+    spectrum = write_spectrum(tmp_path / "s.txt", mz, intensity)
+    plain = predict_spectrum_file(bundle, spectrum)
+    explained = predict_spectrum_file(bundle, spectrum, explain=True)
+    assert explained.explanation is None
+    assert (explained.prediction, explained.resistance_probability) == (plain.prediction,
+                                                                        plain.resistance_probability)
+    model = save_bundle(bundle, tmp_path / "m.joblib")
+    assert predict_spectrum.main([str(spectrum), "--model", str(model), "--explain"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["explanation"] is None and out["prediction"] == plain.prediction
+    assert out["disclaimer"] == DISCLAIMER
+
+
+def test_explaining_a_tree_model_reports_signed_m_z_regions(tmp_path, tree_bundle):
+    mz, intensity = synthetic_spectrum(n=1500, seed=3)
+    spectrum = write_spectrum(tmp_path / "s.txt", mz, intensity)
+    plain = predict_spectrum_file(tree_bundle, spectrum)
+    result = predict_spectrum_file(tree_bundle, spectrum, explain=True)
+    assert result.resistance_probability == plain.resistance_probability      # explaining changes nothing
+    regions = result.explanation
+    assert regions and len(regions) <= EXPLAIN_REGIONS
+    assert [r["rank"] for r in regions] == list(range(1, len(regions) + 1))
+    for region in regions:
+        assert 2000.0 <= region["mz_start"] < region["mz_end"] <= 20000.0     # the preprocessing m/z range
+        assert region["towards"] in ("resistant", "susceptible")
+        if region["contribution"]:            # regions whose rounded contribution is 0 have no direction
+            assert region["towards"] == ("resistant" if region["contribution"] > 0 else "susceptible")
+    assert any(r["contribution"] for r in regions)
+
+
+def test_predict_spectrum_command_reports_confidence_and_advice(tmp_path, bundle, capsys):
+    mz, intensity = synthetic_spectrum(n=1500, seed=4)
+    spectrum = write_spectrum(tmp_path / "s.txt", mz, intensity)
+    model = save_bundle(bundle, tmp_path / "m.joblib")
+    assert predict_spectrum.main([str(spectrum), "--model", str(model)]) == 0
+    p = json.loads(capsys.readouterr().out)["resistance_probability"]
+
+    uncertain = write_zones(tmp_path / "uncertain.json", p - 0.01, p + 0.01)
+    assert predict_spectrum.main([str(spectrum), "--model", str(model), "--uncertainty", str(uncertain)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["confidence"] == UNCERTAIN and out["advice"] == ADVICE and out["disclaimer"] == DISCLAIMER
+
+    confident = write_zones(tmp_path / "confident.json", p + 0.01, p + 0.02)
+    assert predict_spectrum.main([str(spectrum), "--model", str(model), "--uncertainty", str(confident)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["confidence"] == SUSCEPTIBLE and "advice" not in out
+
+    assert predict_spectrum.main([str(spectrum), "--model", str(model),
+                                  "--uncertainty", str(tmp_path / "gone.json")]) == 1
+    assert capsys.readouterr().err.startswith("Error: Confidence zones file not found")
+
+
+def test_the_command_defaults_to_the_version_0_6_model_and_zones():
+    config = load_config()
+    model = predict_spectrum.default_model(config)
+    assert model.is_relative_to(project_path(config["explain"]["model_dir"]))
+    assert model.name == f"best_{config['explain']['split']}.joblib"
+    zones = predict_spectrum.default_zones_path(config)
+    assert zones.is_relative_to(project_path(config["explain"]["report_dir"])) and zones.suffix == ".json"
+
+    older = {k: v for k, v in config.items() if k != "explain"}      # a checkout without the Version 0.6 section
+    assert predict_spectrum.default_model(older).is_relative_to(project_path(config["baselines"]["model_dir"]))
+    assert predict_spectrum.default_model(older) != model
+    assert predict_spectrum.default_zones_path(older) is None

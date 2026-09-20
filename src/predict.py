@@ -4,6 +4,10 @@ A bundle is one joblib file holding the fitted pipeline together with everything
 and describe it (preprocessing settings, threshold, dataset fingerprints, metrics, versions). A JSON
 card with the same information, minus the pipeline, is written next to it.
 
+Version 0.6 adds two optional parts to a single-spectrum prediction, neither of which changes the
+probability or the cut-off: the three-way confidence label of a fitted zone file (src.uncertainty) and
+the m/z regions that moved this one prediction (src.explain, imported only when asked for).
+
 Security: joblib files can execute code when loaded. Only load bundles produced by this project,
 never files uploaded by users.
 """
@@ -22,11 +26,16 @@ import numpy as np
 
 from src.preprocessing import PreprocessingConfig, preprocess_file
 from src.tuning import set_threads
+from src.uncertainty import UncertaintyError, Zones
 
 BUNDLE_FORMAT = "amr-model-bundle/1"
 DISCLAIMER = ("AI research prediction from a research prototype. It is not a clinically validated diagnostic, "
               "does not replace laboratory antimicrobial susceptibility testing and is not a treatment "
               "recommendation.")
+# What a prediction reports when no confidence zones were given: the three-way label is not simply absent,
+# it was never computed, and saying so is not the same as calling the isolate uncertain.
+NO_CONFIDENCE = "not available"
+EXPLAIN_REGIONS = 5                   # m/z regions reported for one prediction
 
 
 class ModelError(RuntimeError):
@@ -127,6 +136,29 @@ def load_bundle(path: str | Path, n_jobs: int | None = 1) -> dict[str, Any]:
     return bundle
 
 
+def load_zones(path: str | Path) -> Zones | None:
+    """The confidence zones written by Version 0.6 (a JSON file holding `Zones.to_dict()`).
+
+    Returns None when there is no such file: a prediction without zones is still a prediction, it just
+    does not carry a three-way confidence label. A file that exists but is not a zones record is an
+    error, because silently ignoring it would report "not available" for a model that has zones.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ModelError(f"Could not read the confidence zones file {path} ({type(exc).__name__}).") from exc
+    if not isinstance(data, dict):
+        raise ModelError(f"{path} does not hold a confidence-zones record (found a "
+                         f"{type(data).__name__}, expected an object with threshold, lower and upper).")
+    try:
+        return Zones.from_dict(data)
+    except (UncertaintyError, TypeError, ValueError) as exc:   # UncertaintyError for a record that is not one,
+        raise ModelError(f"{path} is not a usable confidence-zones record: {exc}") from exc  # the rest for junk
+
+
 def predict_features(bundle: dict[str, Any], features: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Resistance probabilities and 0/1 labels for one feature vector or a matrix of them."""
     X = np.asarray(features, dtype=np.float32)
@@ -142,6 +174,28 @@ def predict_features(bundle: dict[str, Any], features: np.ndarray) -> tuple[np.n
     return prob, (prob >= float(bundle["threshold"])).astype(np.int64)
 
 
+def explain_regions(bundle: dict[str, Any], features: np.ndarray, pcfg: PreprocessingConfig,
+                    keep: int = EXPLAIN_REGIONS) -> list[dict[str, Any]] | None:
+    """The m/z regions that moved this one prediction most, as plain dicts, or None if the saved model
+    cannot be explained this way.
+
+    `contribution` is signed on the model's margin (positive = pushed towards resistant), never a share
+    of risk: the calibration step after it is monotone but not additive. Regions are ranked by absolute
+    contribution and reported as src.explain returns them, so one the model barely used can appear with a
+    contribution that rounds to 0.0 while `towards` still shows the sign it had. src.explain is imported
+    here and not at module level, so an ordinary prediction does not depend on the explanation code.
+    """
+    from src.explain import ExplainError, explain_one
+
+    try:
+        frame = explain_one(bundle["pipeline"], features, pcfg, keep=keep)
+    except ExplainError:
+        return None            # exact contributions need a tree model; the prediction itself still stands
+    return [{"rank": int(row.rank), "mz_start": round(float(row.mz_start), 1),
+             "mz_end": round(float(row.mz_end), 1), "contribution": round(float(row.total_signed), 4),
+             "towards": str(row.towards)} for row in frame.itertuples(index=False)]
+
+
 @dataclass
 class Prediction:
     species: str
@@ -153,14 +207,25 @@ class Prediction:
     preprocessing_ms: float
     inference_ms: float
     total_ms: float
+    confidence: str = NO_CONFIDENCE                        # the three-way label, when zones were given
+    explanation: list[dict[str, Any]] | None = None        # top m/z regions, when asked for
     disclaimer: str = DISCLAIMER
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def predict_spectrum_file(bundle: dict[str, Any], path: str | Path) -> Prediction:
-    """Read and preprocess a raw spectrum file exactly as in training, then predict (timed)."""
+def predict_spectrum_file(bundle: dict[str, Any], path: str | Path, *, zones: Zones | None = None,
+                          explain: bool = False) -> Prediction:
+    """Read and preprocess a raw spectrum file exactly as in training, then predict (timed).
+
+    `zones` adds the three-way confidence label of a fitted zone file; it does not move the model's
+    cut-off, so `prediction` is unchanged by it. `explain=True` adds the m/z regions that moved this
+    prediction, and is left out (explanation stays None) for a model that cannot give exact
+    contributions. The three reported times cover reading, preprocessing and inference only: labelling
+    and explaining happen after the clock has stopped, so the numbers mean the same thing whatever the
+    two options are set to.
+    """
     pcfg = PreprocessingConfig.from_dict(bundle["preprocessing"])
     if pcfg.fingerprint() != bundle["feature_fingerprint"]:
         raise ModelError("The preprocessing settings stored in the model do not match its feature fingerprint.")
@@ -177,4 +242,6 @@ def predict_spectrum_file(bundle: dict[str, Any], path: str | Path) -> Predictio
         preprocessing_ms=round((preprocessed - started) * 1000, 2),
         inference_ms=round((finished - preprocessed) * 1000, 2),
         total_ms=round((finished - started) * 1000, 2),
+        confidence=NO_CONFIDENCE if zones is None else zones.one(float(prob[0])),
+        explanation=explain_regions(bundle, features, pcfg) if explain else None,
     )

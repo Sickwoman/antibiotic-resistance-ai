@@ -173,8 +173,16 @@ def make_config(tmp: Path, root: Path) -> dict[str, Any]:
               model_dir=str(tmp / "models" / "v0.5"), report_dir=str(tmp / "results" / "metrics" / "v0.5"),
               plot_dir=str(tmp / "results" / "plots" / "v0.5"), compare_with=tc["model_dir"])
 
+    # Version 0.6 describes the model Version 0.4 saved; small settings keep the run to a few seconds.
+    xp = config["explain"]
+    xp.update(model_dir=tc["model_dir"], split=tc["split"], seeds=SEEDS, cross_model=dp["model_dir"],
+              report_dir=str(tmp / "results" / "metrics" / "v0.6"),
+              plot_dir=str(tmp / "results" / "plots" / "v0.6"),
+              regions={"top_bins": 20, "merge_gap_bins": 2, "report_regions": 5},
+              permutation={"block_bins": 300, "repeats": 2, "seed": 42, "top_single_bins": 5})
+
     written = [config["dataset"]["output_dir"], ev["test_log"],
-               *(section[key] for section in (bl, tc, dp) for key in ("model_dir", "report_dir", "plot_dir"))]
+               *(section[key] for section in (bl, tc, dp, xp) for key in ("model_dir", "report_dir", "plot_dir"))]
     assert all(Path(p).resolve().is_relative_to(tmp.resolve()) for p in written), written
     return config
 
@@ -283,7 +291,7 @@ class Run:
 def run_script(module: ModuleType, ws: Workspace, *args: Any, spy: tuple[str, ...] = ()) -> Run:
     """Call `module.main()` as if run from the command line; `spy` names module functions to count."""
     handler, out, calls = Messages(), io.StringIO(), []
-    loggers = [logging.getLogger(name) for name in ("baselines", "tuning")]
+    loggers = [logging.getLogger(name) for name in ("baselines", "tuning", "explain")]
 
     def counted(name: str, fn):
         def wrapper(*a, **kw):
@@ -738,7 +746,9 @@ def test_deep_development_run_trains_networks_and_leaves_the_test_parts_alone(wo
     assert set(validation.loc[validation["model"] != "v0.3_prevalence", "model"]) == {"tuned_mlp", "tuned_cnn"}
     assert (validation["model"] == "v0.3_prevalence").sum() == 1           # carried over from Version 0.4
     card = workspace.read_json("deep", "best_model_card.json")
-    assert card["model_kind"] in DEEP_FAMILIES and card["model_version"].startswith("v0.5")
+    # The stamp is the project version at the time the model was saved, not the section it came from.
+    assert card["model_kind"] in DEEP_FAMILIES
+    assert card["model_version"].startswith(f"v{workspace.config['project']['version']}-")
 
     # the loss curves come from the fitted networks, with one entry per family
     history = workspace.read_json("deep", "training_history.json")
@@ -824,3 +834,96 @@ def test_locked_test_parts_are_refused(workspace, scripts, pipeline, script, loc
     if script == "tune_models":                              # the refusal is recorded, not silent
         status = workspace.run_status()
         assert status["status"] == "failed" and "locked until Version 0.7" in status["error"]
+
+
+# ------------------------------------------------------------------------------------------------ Version 0.6
+
+@pytest.fixture(scope="module")
+def explain_scripts() -> tuple[ModuleType, ModuleType]:
+    return importlib.import_module("explain_model"), importlib.import_module("explain_tables")
+
+
+@pytest.fixture(scope="module")
+def explained(workspace, pipeline, explain_scripts) -> Run:
+    """One explanation run on the model Version 0.4 saved, after the whole pipeline has run."""
+    return run_script(explain_scripts[0], workspace, "--config", workspace.config_path)
+
+
+def test_explaining_the_saved_model_never_touches_the_test_log(workspace, explained):
+    """The one rule of Version 0.6: it describes a scored model, it does not score anything."""
+    assert explained.code == 0, explained.log.messages
+    record = workspace.read_json("explain", "run_config.json")
+    assert record["status"] == "finished" and record["test_parts_scored"] is False
+    assert record["rows_explained"] == "validation"
+    assert record["n_rows_explained"] == len(workspace.splits()[1][workspace.config["explain"]["split"]].validation)
+    # the run records the hash it checked, and the file still has it
+    log_path = Path(workspace.config["evaluation"]["test_log"])
+    digest = hashlib.sha256(log_path.read_bytes()).hexdigest()
+    assert record["test_log_sha256"] == digest
+
+
+def test_the_explanation_run_writes_its_reports_and_a_figure(workspace, explained):
+    assert explained.code == 0
+    folder = workspace.folder("explain", "report_dir")
+    written = {p.name for p in folder.iterdir()}
+    assert {"permutation_blocks.csv", "uncertainty.json", "uncertainty_curve.csv", "zone_metrics.csv",
+            "run_config.json", "run_status.json"} <= written, sorted(written)
+    plots = list(Path(workspace.config["explain"]["plot_dir"]).glob("*.png"))
+    assert any("uncertainty_zones" in p.name for p in plots), [p.name for p in plots]
+    record = workspace.read_json("explain", "run_config.json")
+    if record["exact_contributions"]:                 # a tree model: the full analysis ran
+        assert {"regions.csv", "global_importance.csv", "region_contrast.csv", "examples.csv",
+                "seed_stability.csv", "null_control.json"} <= written
+    else:                                             # another model: the parts that need TreeSHAP are left out
+        assert explained.log.has("no exact contributions")
+        assert "regions.csv" not in written
+
+
+def test_the_confidence_zones_are_fitted_on_validation_and_keep_the_models_cut_off(workspace, explained):
+    assert explained.code == 0
+    zones = workspace.read_json("explain", "uncertainty.json")
+    card = workspace.read_json("tuning", "best_model_card.json")
+    assert zones["threshold"] == card["threshold"]              # the cut-off itself never moves
+    assert zones["fitted_on"] == "validation"
+    assert zones["rule"]["target_npv"] == workspace.config["explain"]["uncertainty"]["target_npv"]
+    for side in zones["sides"].values():
+        if side["edge"] is None:                                # a zone that cannot meet its target
+            assert side["exists"] is False
+        else:
+            assert side["coverage"] >= zones["rule"]["min_coverage"]
+            assert side["achieved"] >= side["target"]
+    metrics = pd.read_csv(workspace.folder("explain", "report_dir") / "zone_metrics.csv")
+    counted = metrics[["n_zone_susceptible", "n_zone_uncertain", "n_zone_resistant"]].sum(axis=1)
+    assert (counted == metrics["n"]).all()                      # every row lands in exactly one zone
+
+
+def test_explanations_on_anything_but_validation_are_refused(workspace, explain_scripts):
+    config = copy.deepcopy(workspace.config)
+    config["explain"]["rows"] = "test"
+    path = workspace.write_config(config, "config_explain_test_rows.yaml")
+    log, outputs = workspace.test_log(), workspace.outputs()
+    run = run_script(explain_scripts[0], workspace, "--config", path)
+    assert run.code == 1
+    assert run.log.has("validation part only")
+    pd.testing.assert_frame_equal(workspace.test_log(), log)
+    assert workspace.outputs() == outputs
+
+
+def test_version_06_tables_are_generated_and_claim_no_protein_identity(workspace, explained, explain_scripts):
+    assert explained.code == 0
+    run = run_script(explain_scripts[1], workspace, "--config", workspace.config_path)
+    assert run.code == 0, run.stdout
+    text = (workspace.folder("explain", "report_dir") / "tables.md").read_text(encoding="utf-8")
+    assert "generated by scripts/explain_tables.py" in text
+    assert "No m/z region is given a protein or peptide identity" in text or \
+           "regions.csv" not in {p.name for p in workspace.folder("explain", "report_dir").iterdir()}
+    assert not any(secret in text for secret in workspace.secrets)
+
+
+def test_version_06_outputs_hold_no_patient_identifiers(workspace, explained):
+    folder = workspace.folder("explain", "report_dir")
+    files = [p for p in folder.rglob("*") if p.suffix in (".csv", ".json", ".md")]
+    assert files
+    for path in files:
+        assert not any(secret in path.read_text(encoding="utf-8") for secret in workspace.secrets), path.name
+    assert not any(secret in explained.stdout for secret in workspace.secrets)
