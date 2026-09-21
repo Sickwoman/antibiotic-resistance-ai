@@ -191,7 +191,8 @@ def merge_regions(importance: pd.DataFrame, top_bins: int = 100, merge_gap: int 
     if towards_from == "value_correlation" and not np.isfinite(basis).any():
         raise ExplainError("No value correlations available: pass the model columns to global_importance, "
                            "or ask for towards_from='signed' (one spectrum).")
-    frame["towards"] = np.where(basis > 0, "resistant", "susceptible")
+    direction = np.where(basis > 0, "resistant", "susceptible")
+    frame["towards"] = np.where(np.isfinite(basis), direction, "unclear")
     frame = frame.drop(columns=["_weighted", "_weight"]).sort_values("total_abs", ascending=False)
     frame = frame.reset_index(drop=True)
     frame.insert(0, "rank", np.arange(1, len(frame) + 1))
@@ -249,11 +250,12 @@ def permutation_importance(model: Any, X: np.ndarray, y: np.ndarray, blocks: lis
     return frame.sort_values("auroc_drop_mean", ascending=False).reset_index(drop=True)
 
 
-def class_contrast(X: np.ndarray, y: np.ndarray, regions: pd.DataFrame) -> pd.DataFrame:
+def class_contrast(X: np.ndarray, y: np.ndarray, regions: pd.DataFrame, span: int = 1) -> pd.DataFrame:
     """Standardised mean difference of summed region intensity, resistant minus susceptible.
 
     No model is involved: this says whether a region differs between the classes on its own. Positive
-    means higher intensity in resistant spectra.
+    means higher intensity in resistant spectra. `X` holds raw bins while a region's bounds are model
+    columns, so `span` converts between them; getting that wrong would describe the wrong m/z window.
     """
     features = np.asarray(X, dtype=np.float64)
     labels = np.asarray(y).astype(np.int64)
@@ -261,8 +263,8 @@ def class_contrast(X: np.ndarray, y: np.ndarray, regions: pd.DataFrame) -> pd.Da
         raise ExplainError("The class contrast needs both classes.")
     out: list[dict[str, Any]] = []
     for row in regions.itertuples(index=False):
-        first, last = int(row.first_column), int(row.last_column)
-        total = features[:, first:last + 1].sum(axis=1)
+        first, last = int(row.first_column) * span, (int(row.last_column) + 1) * span
+        total = features[:, first:last].sum(axis=1)
         resistant, susceptible = total[labels == 1], total[labels == 0]
         pooled = np.sqrt((resistant.var(ddof=1) + susceptible.var(ddof=1)) / 2)
         difference = float(resistant.mean() - susceptible.mean())

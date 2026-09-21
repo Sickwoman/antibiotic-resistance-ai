@@ -58,7 +58,8 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   (config section `explain`, `results/metrics/v0.6`) and fits the confident / uncertain zones; tables come from
   `scripts\explain_tables.py`. It **never scores a test row**: contributions and importances use the validation
   part only (`explain.rows`, enforced), the test-side zone numbers are derived from the stored
-  `test_probabilities.npz` after they reproduce the logged test AUROC, and the run compares the test log byte
-  for byte before and after. Nothing in Version 0.6 may change a model, a setting or a cut-off, and no m/z
+  `test_probabilities.npz` after they cover that test part's rows and reproduce the logged AUROC *and Brier
+  score* (AUROC alone survives any monotone rescaling), and the run compares the test log byte for byte
+  before and after. Nothing in Version 0.6 may change a model, a setting or a cut-off, and no m/z
   region is ever given a protein or peptide identity (`docs/v0.6_explainability_plan.md`, protocol amendment 2).
   `scripts\predict_spectrum.py` now defaults to the Version 0.4 model and takes `--explain`.

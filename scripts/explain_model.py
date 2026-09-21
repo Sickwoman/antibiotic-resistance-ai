@@ -13,8 +13,9 @@ Run from the project root with the virtual environment active:
 **Test rows are never scored here.** Contributions and importances use the validation part; the training
 part is used only for the class contrast and the shuffled-label control. Where a test-side number appears
 it is derived from the probabilities the one-time test scoring already saved, after checking that they
-reproduce the logged test AUROC exactly. The run asserts that the append-only test log is byte-identical
-when it finishes.
+cover exactly that test part's rows and reproduce both the logged AUROC and the logged Brier score (the
+AUROC alone would not: it is unchanged by any monotone rescaling, which the zones are not). The run
+asserts that the append-only test log is byte-identical when it finishes.
 
 Writes (paths from config.yaml -> explain):
 - results/metrics/v0.6/<dataset>/* and results/plots/v0.6/* (committed; no identifiers)
@@ -40,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src import exploration as ex  # noqa: E402  (plot style only)
 from src.data_loader import DataError  # noqa: E402
 from src.dataset import load_dataset  # noqa: E402
-from src.evaluate import EvaluationError  # noqa: E402
+from src.evaluate import EvaluationError, assert_split_allowed  # noqa: E402
 from src.explain import (  # noqa: E402
     ExplainError,
     bin_span,
@@ -119,6 +120,9 @@ class Context:
         self.split_name = str(self.xc["split"])
         if self.split_name not in self.splits:
             raise SplitError(f"The dataset has no {self.split_name!r} split.")
+        # Version 0.6 scores no test row at all, but a locked split must still be refused here, before
+        # anything is computed: that is the first of the two refusals the protocol requires.
+        assert_split_allowed(self.split_name, self.ev["locked_test_splits"])
         self.split = self.splits[self.split_name]
         check_split(self.meta, self.split)
         assert_usable(self.meta, self.split)
@@ -145,13 +149,21 @@ class Context:
         self.train_rows = np.asarray(self.split.train, dtype=np.int64)
 
     def _reports_of_the_explained_model(self) -> Path:
-        """Where the model being explained wrote its own reports (its config section owns both paths)."""
+        """Where the model being explained wrote its own reports (its config section owns both paths).
+
+        The `explain` section is skipped: it names the same `model_dir` as the section that produced the
+        model, so matching it would point this at Version 0.6's own reports and silently lose both the
+        per-seed verification and the whole test-side summary.
+        """
         wanted = str(self.xc["model_dir"]).rstrip("/")
-        for section in self.config.values():
-            if isinstance(section, dict) and str(section.get("model_dir", "")).rstrip("/") == wanted:
+        for name, section in self.config.items():
+            if name == "explain" or not isinstance(section, dict) or "report_dir" not in section:
+                continue
+            if str(section.get("model_dir", "")).rstrip("/") == wanted:
                 return project_path(section["report_dir"]) / self.dataset_name
-        raise ConfigError(f"No config section has model_dir {wanted!r}, so its reports cannot be found. "
-                          "explain.model_dir must name a section that produced a model.")
+        raise ConfigError(f"No config section other than 'explain' has model_dir {wanted!r}, so the reports "
+                          "of the model being explained cannot be found. explain.model_dir must name a "
+                          "section that produced a model.")
 
     def _check_bundle_matches_dataset(self) -> None:
         """The saved model must belong to this dataset build, or the explanation describes other data."""
@@ -180,8 +192,13 @@ class Context:
                                                                     default=str), encoding="utf-8")
 
     def write_config(self, **extra: Any) -> None:
-        (self.report_dir / "run_config.json").write_text(json.dumps(self.record("finished", **extra), indent=2,
-                                                                    default=str), encoding="utf-8")
+        """The record of a finished run. The status file is finished too, so a leftover 'running' always
+        means the run really did stop early."""
+        record = self.record("finished", **extra)
+        (self.report_dir / "run_config.json").write_text(json.dumps(record, indent=2, default=str),
+                                                         encoding="utf-8")
+        (self.report_dir / "run_status.json").write_text(json.dumps(record, indent=2, default=str),
+                                                         encoding="utf-8")
 
     def assert_test_log_untouched(self) -> None:
         if file_hash(self.test_log) != self.test_log_hash:
@@ -273,10 +290,14 @@ def permutation_tables(ctx: Context, X_val: np.ndarray, y_val: np.ndarray,
     return per_block, single
 
 
-def block_shap(importance: pd.DataFrame, blocks: list[tuple[int, int]]) -> np.ndarray:
-    """SHAP importance summed to the same blocks the permutation used, so the two can be compared."""
+def block_shap(importance: pd.DataFrame, blocks: list[tuple[int, int]], span: int = 1) -> np.ndarray:
+    """SHAP importance summed to the same blocks the permutation used, so the two can be compared.
+
+    The blocks are ranges of raw input bins; the importances are per model column, which covers `span`
+    raw bins. Mapping one to the other is what keeps the two measures aligned when the pipeline coarsens.
+    """
     by_column = importance.sort_values("column")["mean_abs"].to_numpy()
-    return np.array([by_column[start:end].sum() for start, end in blocks])
+    return np.array([by_column[start // span:-(-end // span)].sum() for start, end in blocks])
 
 
 # --- is it stable? -------------------------------------------------------------------------------------------------
@@ -357,16 +378,23 @@ def null_control(ctx: Context, X_val: np.ndarray, regions: pd.DataFrame) -> dict
     set_threads(pipeline, 1)
     contrib, _ = contributions(pipeline, X_val)
     strength = np.abs(contrib).mean(axis=0)
+    # Like for like: the control's strongest region is found by exactly the same merging procedure as the
+    # real one, so a contiguous region is compared with a contiguous region rather than with the strongest
+    # scattered bins (which would flatter the real model).
+    null_importance = global_importance(contrib, ctx.span, ctx.pcfg, model_columns(pipeline, X_val))
+    null_regions = merge_regions(null_importance, top_bins=int(ctx.xc["regions"]["top_bins"]),
+                                 merge_gap=int(ctx.xc["regions"]["merge_gap_bins"]), keep=1)
+    null_region = float(null_regions["total_abs"].iloc[0]) if len(null_regions) else float("nan")
     real = float(regions["total_abs"].iloc[0]) if len(regions) else float("nan")
     # The control has no calibration step, so only magnitudes on the margin are compared, never probabilities.
     return {"seed": seed, "fit_seconds": round(time.perf_counter() - started, 1),
             "shuffled_labels": True, "n_train": int(ctx.train_rows.size),
             "null_strongest_bin": float(strength.max()), "null_mean_bin": float(strength.mean()),
-            "null_top_region_equivalent": float(np.sort(strength)[::-1][:int(regions["n_columns"].iloc[0])].sum())
-            if len(regions) else float("nan"),
+            "null_strongest_region": null_region,
+            "null_region_columns": int(null_regions["n_columns"].iloc[0]) if len(null_regions) else 0,
             "real_strongest_region": real,
-            "real_over_null": real / float(np.sort(strength)[::-1][:int(regions["n_columns"].iloc[0])].sum())
-            if len(regions) and strength.max() > 0 else float("nan")}
+            "real_region_columns": int(regions["n_columns"].iloc[0]) if len(regions) else 0,
+            "real_over_null": real / null_region if null_region and np.isfinite(null_region) else float("nan")}
 
 
 def cross_model(ctx: Context, X_val: np.ndarray, y_val: np.ndarray,
@@ -446,13 +474,23 @@ def stored_test_summary(ctx: Context, zones: Zones) -> tuple[dict[str, Any] | No
     if logged.empty:
         log.warning("no logged test row for %s seed %d; the test-side zone summary is left out", model, seed)
         return None, None
+    # AUROC alone is not enough: it is invariant under any monotone transform of the probabilities, while
+    # every zone number depends on their absolute values. The Brier score is not invariant, and the row
+    # order has to be the test part's own, so both are checked as well.
+    if not np.array_equal(rows, np.asarray(ctx.split.test, dtype=np.int64)):
+        raise EvaluationError(f"The stored rows in {path.name} are not this dataset's {ctx.split_name} test "
+                              "part (order included); refusing to derive anything from them.")
     achieved, expected = roc_auc(ctx.y[rows], prob), float(logged["roc_auc"].iloc[0])
-    if abs(achieved - expected) > EXACT:
-        raise EvaluationError(f"The stored test probabilities give AUROC {achieved:.12f} but {expected:.12f} "
-                              f"was logged. They are not the scored predictions; refusing to derive from them.")
-    log.info("stored test predictions verified against the log (AUROC %.12f); deriving zone behaviour only",
-             achieved)
-    summary = {"reproduces_logged_auroc": achieved, "logged_auroc": expected, "n": int(rows.size),
+    brier = float(np.mean((prob - ctx.y[rows]) ** 2))
+    logged_brier = float(logged["brier"].iloc[0])
+    for name, got, want in (("AUROC", achieved, expected), ("Brier score", brier, logged_brier)):
+        if abs(got - want) > EXACT:
+            raise EvaluationError(f"The stored test probabilities give {name} {got:.12f} but {want:.12f} was "
+                                  f"logged. They are not the scored predictions; refusing to derive from them.")
+    log.info("stored test predictions verified against the log (AUROC %.12f, Brier %.12f, same %d rows); "
+             "deriving zone behaviour only", achieved, brier, rows.size)
+    summary = {"reproduces_logged_auroc": achieved, "logged_auroc": expected,
+               "reproduces_logged_brier": brier, "logged_brier": logged_brier, "n": int(rows.size),
                **zone_metrics(ctx.y[rows], prob, zones)}
     intervals = bootstrap_zone_metrics(ctx.y[rows], ctx.meta["group_id"].to_numpy()[rows], prob, zones,
                                        resamples=int(ctx.ev["bootstrap"]["resamples"]),
@@ -500,7 +538,7 @@ def figures(ctx: Context, X_val: np.ndarray, y_val: np.ndarray, prob: np.ndarray
                                    mz, f"Version 0.6: influential m/z regions ({ctx.bundle['model_version']})",
                                    ctx.plot_dir / f"{stem}_regions.png"))
         out.append(plot_importance_agreement(
-            block_shap(importance, blocks), ordered["auroc_drop_mean"].to_numpy(),
+            block_shap(importance, blocks, ctx.span), ordered["auroc_drop_mean"].to_numpy(),
             mz[[start for start, _ in blocks]],
             "Version 0.6: contribution size against AUROC loss, per 18 Da block",
             ctx.plot_dir / f"{stem}_importance_agreement.png"))
@@ -510,6 +548,7 @@ def figures(ctx: Context, X_val: np.ndarray, y_val: np.ndarray, prob: np.ndarray
 # --- the run ---------------------------------------------------------------------------------------------------
 
 def run(ctx: Context) -> None:
+    started = time.perf_counter()
     ctx.write_status("running")
     X_val, y_val, prob_val, validation_auroc = validation_probabilities(ctx)
 
@@ -517,9 +556,10 @@ def run(ctx: Context) -> None:
     importance = regions = method_agreement = control = None
     if exact:
         importance, regions, _ = importance_and_regions(ctx, X_val)
-        write_csv(importance.head(500), ctx.report_dir / "global_importance.csv")
+        write_csv(importance, ctx.report_dir / "global_importance.csv")
         write_csv(regions, ctx.report_dir / "regions.csv")
-        contrast = class_contrast(load_rows(ctx.X, ctx.train_rows), ctx.y[ctx.train_rows], regions)
+        contrast = class_contrast(load_rows(ctx.X, ctx.train_rows), ctx.y[ctx.train_rows], regions,
+                                  span=ctx.span)
         write_csv(contrast, ctx.report_dir / "region_contrast.csv")
 
     per_block, single = permutation_tables(ctx, X_val, y_val, importance)
@@ -529,7 +569,7 @@ def run(ctx: Context) -> None:
     blocks = contiguous_blocks(int(ctx.X.shape[1]), int(ctx.xc["permutation"]["block_bins"]))
 
     if exact:
-        method_agreement = rank_agreement(block_shap(importance, blocks),
+        method_agreement = rank_agreement(block_shap(importance, blocks, ctx.span),
                                           per_block.sort_values("bin_start")["auroc_drop_mean"].to_numpy(),
                                           top_k=20)
         stability, pairs = seed_stability(ctx, X_val, regions)
@@ -539,7 +579,7 @@ def run(ctx: Context) -> None:
         control = null_control(ctx, X_val, regions)
         (ctx.report_dir / "null_control.json").write_text(json.dumps(control, indent=2), encoding="utf-8")
         log.info("shuffled-label control: strongest real region %.4f against %.4f by chance (ratio %.1f)",
-                 control["real_strongest_region"], control["null_top_region_equivalent"],
+                 control["real_strongest_region"], control["null_strongest_region"],
                  control["real_over_null"])
 
     other_blocks, cross = cross_model(ctx, X_val, y_val, per_block)
@@ -564,7 +604,8 @@ def run(ctx: Context) -> None:
     log.info("figures: %s", ", ".join(p.name for p in made))
 
     ctx.assert_test_log_untouched()
-    ctx.write_config(validation_roc_auc=validation_auroc, exact_contributions=exact,
+    ctx.write_config(seconds=round(time.perf_counter() - started, 1),
+                     validation_roc_auc=validation_auroc, exact_contributions=exact,
                      method_agreement=method_agreement,
                      cross_model_agreement=cross, null_control=control, zones=zone_record,
                      test_log_sha256=ctx.test_log_hash, plots=[p.name for p in made])
