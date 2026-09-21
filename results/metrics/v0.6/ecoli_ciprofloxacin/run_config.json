@@ -1,9 +1,9 @@
 {
   "stage": "v0.6-explain",
   "status": "finished",
-  "updated": "2026-09-20 22:46:07",
+  "updated": "2026-09-21 09:28:21",
   "timezone": "India Standard Time+0530",
-  "git_commit": "92f8c74",
+  "git_commit": "d55e13f",
   "dataset": "ecoli_ciprofloxacin",
   "rows_fingerprint": "151415a4d03dbcc5",
   "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
@@ -21,6 +21,7 @@
     "lightgbm": "4.7.0",
     "joblib": "1.6.0"
   },
+  "seconds": 403.6,
   "validation_roc_auc": 0.7764860715069094,
   "exact_contributions": true,
   "method_agreement": {
@@ -39,14 +40,16 @@
   },
   "null_control": {
     "seed": 42,
-    "fit_seconds": 16.6,
+    "fit_seconds": 36.2,
     "shuffled_labels": true,
     "n_train": 2977,
     "null_strongest_bin": 0.11211036169207872,
     "null_mean_bin": 0.002529556740021918,
-    "null_top_region_equivalent": 0.445412880535354,
+    "null_strongest_region": 0.1471091217808373,
+    "null_region_columns": 3,
     "real_strongest_region": 0.570937787807695,
-    "real_over_null": 1.2818169674874897
+    "real_region_columns": 5,
+    "real_over_null": 3.881049529058275
   },
   "zones": {
     "threshold": 0.14261540693905073,

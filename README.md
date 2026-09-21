@@ -909,8 +909,11 @@ used, which rows they could touch and how the confidence zones would be fitted w
 [`docs/v0.6_explainability_plan.md`](docs/v0.6_explainability_plan.md) and committed **before the first
 explanation was computed**, together with [amendment 2](docs/evaluation_protocol.md#amendments) to the
 evaluation protocol. **No test row was scored again.** The explanations use the 426 rows of the `random`
-validation part; the one test-side number below is derived from the probabilities that the single test
-scoring of 2026-09-18 already saved, after checking that they reproduce the logged test AUROC to 1e-12.
+validation part, and the test-side numbers below are derived from the probabilities that the single test
+scoring of 2026-09-18 already saved — after checking that they cover exactly that test part's rows and
+reproduce both its logged AUROC and its logged Brier score to 1e-12. (The AUROC alone would not do: it is
+unchanged by any monotone rescaling of the probabilities, while every zone number depends on their
+absolute values.)
 
 **The short answer: the model can point at where it looks, and it can decline a call — but only in one
 direction.** A quarter of isolates now get a high-confidence *susceptible* answer that is right about
@@ -996,18 +999,19 @@ No m/z region is given a protein or peptide identity: this project has no MS/MS 
 
 **Do the methods, the seeds and the two model families agree?**
 
-| Comparison | Spearman | Top-20 blocks shared |
+| Comparison | Spearman over all blocks | Strongest shared |
 |---|---|---|
-| TreeSHAP against permutation importance (same model) | -0.08 | 14 of 20 |
-| Permutation importance against v0.5.0-tuned_mlp-random-seed42 | 0.16 | 8 of 20 |
-| Between the 10 seed pairs of the same setting (mean) | 0.35 | 69.6 of 100 |
+| TreeSHAP against permutation importance (same model) | -0.08 | 14 of the top 20 blocks |
+| Permutation importance against v0.5.0-tuned_mlp-random-seed42 | 0.16 | 8 of the top 20 blocks |
+| Between the 10 seed pairs of the same setting (mean) | 0.35 | 69.6 of the top 100 bins |
+| Reported regions shared with seed 42, by the other 4 seeds | – | 8 to 14 of the 20 reported regions |
 
 **Against chance (the same setting refitted on shuffled labels)**
 
-| Model | Mean absolute contribution |
-|---|---|
-| The fitted model, strongest region | 0.5709 |
-| Shuffled training labels, same setting and size (2,977 rows) | 0.4454 |
+| Model | Strongest region | Mean absolute contribution |
+|---|---|---|
+| The fitted model | 5 bins | 0.5709 |
+| Shuffled training labels, same setting and size (2,977 rows) | 3 bins | 0.1471 |
 
 **Confidence zones**
 
@@ -1040,22 +1044,24 @@ Test-part interval for the confident share: 0.249 [0.212, 0.286] (patient-group 
 Four checks were run on the regions, and they do not all agree. Taken together they support a narrow
 claim, not a broad one.
 
-- **The strongest regions are reproducible; their exact ranking is not.** Across the five fitted seeds of
-  the same setting, the rank correlation of the 6,000 bin importances averages 0.35 (0.34 to 0.37 across
-  the ten seed pairs), but 65 to 73 of
-  the top 100 bins are shared, and all five seeds put their strongest region at the same place
-  (m/z 11,771 onwards). Read the top of the table, not its order.
+- **Only the strongest regions survive a change of seed.** Across the five fitted seeds of the same
+  setting, the rank correlation of the 6,000 bin importances averages 0.35 (0.34 to 0.37 over the ten
+  pairs) and 65 to 73 of the top 100 bins are shared. The pre-registered measure is harsher still: of the
+  **20 regions reported below, only 8 to 14 also appear in another seed's 20**. All five seeds do put
+  their strongest region in the same place (m/z 11,771 onwards). Read the top few rows of that table, not
+  its tail and not its order.
 - **The two methods agree where it matters and nowhere else.** Over all 1,000 blocks the rank correlation
   between contribution size and AUROC loss is −0.08, essentially zero — but 14 of the top 20 blocks are
   the same under both. The figure shows why: a few blocks sit clearly in the top right, while most scatter
   around zero, and 565 of the 1,000 have a *negative* AUROC drop (permuting them made the model very
   slightly better). Noise dominates the ranking, so the overall correlation says little.
-- **Contribution size alone does not separate signal from noise.** The same setting refitted on shuffled
-  training labels still produces a strongest region of 0.4454 against the real model's 0.5709 — a ratio of
-  only 1.3. A model fitted on noise still splits on something and still moves its predictions, so a large
-  contribution is not by itself evidence. What the noise model cannot do is lose AUROC when a region is
-  permuted, which is why the permutation column is the stronger evidence, and there the strongest block
-  costs 0.047 AUROC.
+- **The strongest regions are well clear of chance, but the rest of the table is not.** The same setting
+  refitted on shuffled training labels still concentrates contributions somewhere — a model fitted on
+  noise still splits on something — but far less: its strongest region reaches 0.1471 against the real
+  model's 0.5709 (a ratio of 3.9), and its strongest single bin 0.1121 against 0.3801 (3.4). Both models
+  have the same *mean* contribution per bin, 0.0025, which is the point: what distinguishes the real model
+  is the height of its peaks, not the size of its contributions in general. A region well down the table
+  is not distinguishable from what a noise model produces.
 - **A second model family points only partly at the same places.** The Version 0.5 MLP shares 8 of the top
   20 blocks (rank correlation 0.16). It is also a much weaker model (validation AUROC 0.694 against
   0.776), so its importances are less reliable; this is weak corroboration, not confirmation.
@@ -1064,8 +1070,8 @@ So: the handful of strongest regions is a real property of this data and this mo
 below the top is not, and nothing here identifies a molecule.
 
 **Why the resistant zone is missing.** It is the coverage floor, not the 95 % target, that removes it. On
-validation the nine highest-probability isolates are all truly resistant, and 14 of the top 15 — but nine
-rows is 2.1 % of the part, and a 95 % confidence interval on 9 out of 9 still runs from 0.66 to 1.00. The
+validation the twelve highest-probability isolates are all truly resistant, and 14 of the top 15 — but
+twelve rows is 2.8 % of the part, and a 95 % confidence interval on 12 out of 12 still starts at 0.74. The
 5 % floor was pre-registered precisely so that a zone cannot be declared on a handful of rows; at that
 width the best any cut achieves is 84.0 %. The trade-off curve for both sides is in
 `results/metrics/v0.6/<dataset>/uncertainty_curve.csv` and in the figure.
@@ -1098,18 +1104,22 @@ python scripts/explain_tables.py          # the tables above, from the saved rep
 python scripts/predict_spectrum.py <spectrum.txt> --explain   # one spectrum, explained, with a confidence
 ```
 
-The run took 2.9 minutes on this laptop (CPU only); a first, cold run of the same command took 9.5. Most
-of it is the 10,000 permuted scorings across the two models (1,000 blocks × 5 repeats each).
+The runtime is recorded in `run_config.json`. Most of it is the 10,000 permuted scorings across the two
+models (1,000 blocks × 5 repeats each).
 
-It scores no test row, and it checks that it has not: the saved model first has to reproduce its logged
-validation AUROC of 0.776486 exactly, each of the five cached per-seed fits has to reproduce its own
-logged AUROC before its importances are used, the stored test probabilities have to reproduce the logged
-test AUROC of 0.750861, and the append-only test log is compared byte for byte before and after the run.
+It scores no test row, and it checks that it has not: a locked split is refused before anything is
+computed, the saved model has to reproduce its logged validation AUROC of 0.776486 exactly, each of the
+five cached per-seed fits has to reproduce its own logged AUROC before its importances are used, the
+stored test probabilities have to be that test part's own rows and reproduce both the logged AUROC of
+0.750861 and the logged Brier score, and the append-only test log is compared byte for byte before and
+after the run.
 
-The command was run twice, the second time on a clean checkout so that `run_config.json` records the
-commit the results came from. **Every reported file came out byte-identical between the two runs** —
-regions, importances, seed agreement, zones, intervals and examples alike. The only difference anywhere
-was the wall-clock `fit_seconds` of the shuffled-label control.
+The command was run three times, the last on a clean checkout so that `run_config.json` records the commit
+the results came from. **Seventeen of the twenty written files came out byte-identical every time** —
+regions, importances, seed agreement, zones, intervals, examples and all three figures alike. The three
+that differ are the two provenance records and the control's `fit_seconds`, and they differ only in the
+commit hash, the timestamp and the wall-clock times (204.9, 640.2 and 403.6 seconds for the same
+computation, depending on what else the laptop was doing).
 
 ## Project structure (Version 0.6)
 
