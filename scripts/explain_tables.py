@@ -65,32 +65,47 @@ def permutation_section(blocks: pd.DataFrame, keep: int = 10) -> str:
     return md_table(rows)
 
 
-def agreement_section(run_config: dict[str, Any], pairs: pd.DataFrame | None) -> str:
+def agreement_section(run_config: dict[str, Any], pairs: pd.DataFrame | None,
+                      stability: pd.DataFrame | None) -> str:
+    """Every agreement measure the plan asked for, including the one that comes out worst."""
     rows = []
     method = run_config.get("method_agreement") or {}
     if method:
         rows.append({"Comparison": "TreeSHAP against permutation importance (same model)",
-                     "Spearman": number(method.get("spearman"), 2),
-                     "Top-20 blocks shared": f"{method.get('overlap', 0)} of {method.get('top_k', 0)}"})
+                     "Spearman over all blocks": number(method.get("spearman"), 2),
+                     "Strongest shared": f"{method.get('overlap', 0)} of the top {method.get('top_k', 0)} blocks"})
     cross = run_config.get("cross_model_agreement") or {}
     if cross:
         rows.append({"Comparison": f"Permutation importance against {cross.get('model', 'the other model')}",
-                     "Spearman": number(cross.get("spearman"), 2),
-                     "Top-20 blocks shared": f"{cross.get('overlap', 0)} of {cross.get('top_k', 0)}"})
+                     "Spearman over all blocks": number(cross.get("spearman"), 2),
+                     "Strongest shared": f"{cross.get('overlap', 0)} of the top {cross.get('top_k', 0)} blocks"})
     if pairs is not None and not pairs.empty:
         rows.append({"Comparison": f"Between the {len(pairs)} seed pairs of the same setting (mean)",
-                     "Spearman": number(float(pairs["spearman"].mean()), 2),
-                     "Top-20 blocks shared": f"{pairs['overlap'].mean():.1f} of {int(pairs['top_k'].iloc[0])}"})
+                     "Spearman over all blocks": number(float(pairs["spearman"].mean()), 2),
+                     "Strongest shared": f"{pairs['overlap'].mean():.1f} of the top "
+                                         f"{int(pairs['top_k'].iloc[0])} bins"})
+    # The pre-registered stability measure: how many of the *reported regions* survive a change of seed.
+    # It is the least flattering number in the run, so it is reported next to the others, not left in a CSV.
+    if stability is not None and len(stability) > 1:
+        other = stability[stability["seed"] != stability["seed"].iloc[0]]
+        shared = other["regions_shared_with_seed42"]
+        rows.append({"Comparison": f"Reported regions shared with seed {int(stability['seed'].iloc[0])}, "
+                                   f"by the other {len(other)} seeds",
+                     "Spearman over all blocks": "–",
+                     "Strongest shared": f"{shared.min()} to {shared.max()} of the "
+                                         f"{int(stability['n_regions'].iloc[0])} reported regions"})
     return md_table(rows)
 
 
 def control_section(control: dict[str, Any] | None) -> str:
     if not control:
         return ""
-    rows = [{"Model": "The fitted model, strongest region",
+    rows = [{"Model": "The fitted model",
+             "Strongest region": f"{control.get('real_region_columns', 0)} bins",
              "Mean absolute contribution": number(control.get("real_strongest_region"), 4)},
             {"Model": f"Shuffled training labels, same setting and size ({control.get('n_train', 0):,} rows)",
-             "Mean absolute contribution": number(control.get("null_top_region_equivalent"), 4)}]
+             "Strongest region": f"{control.get('null_region_columns', 0)} bins",
+             "Mean absolute contribution": number(control.get("null_strongest_region"), 4)}]
     return md_table(rows)
 
 
@@ -171,7 +186,8 @@ def build_tables(report_dir: Path) -> str:
     if blocks is not None:
         parts += ["**What the model's AUROC depends on (block permutation importance)**",
                   permutation_section(blocks)]
-    agreement = agreement_section(run_config, read(report_dir, "seed_agreement.csv"))
+    agreement = agreement_section(run_config, read(report_dir, "seed_agreement.csv"),
+                                  read(report_dir, "seed_stability.csv"))
     if agreement:
         parts += ["**Do the methods, the seeds and the two model families agree?**", agreement]
     control = control_section(run_config.get("null_control"))

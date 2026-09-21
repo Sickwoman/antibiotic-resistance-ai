@@ -46,18 +46,19 @@ No m/z region is given a protein or peptide identity: this project has no MS/MS 
 
 **Do the methods, the seeds and the two model families agree?**
 
-| Comparison | Spearman | Top-20 blocks shared |
+| Comparison | Spearman over all blocks | Strongest shared |
 |---|---|---|
-| TreeSHAP against permutation importance (same model) | -0.08 | 14 of 20 |
-| Permutation importance against v0.5.0-tuned_mlp-random-seed42 | 0.16 | 8 of 20 |
-| Between the 10 seed pairs of the same setting (mean) | 0.35 | 69.6 of 100 |
+| TreeSHAP against permutation importance (same model) | -0.08 | 14 of the top 20 blocks |
+| Permutation importance against v0.5.0-tuned_mlp-random-seed42 | 0.16 | 8 of the top 20 blocks |
+| Between the 10 seed pairs of the same setting (mean) | 0.35 | 69.6 of the top 100 bins |
+| Reported regions shared with seed 42, by the other 4 seeds | – | 8 to 14 of the 20 reported regions |
 
 **Against chance (the same setting refitted on shuffled labels)**
 
-| Model | Mean absolute contribution |
-|---|---|
-| The fitted model, strongest region | 0.5709 |
-| Shuffled training labels, same setting and size (2,977 rows) | 0.4454 |
+| Model | Strongest region | Mean absolute contribution |
+|---|---|---|
+| The fitted model | 5 bins | 0.5709 |
+| Shuffled training labels, same setting and size (2,977 rows) | 3 bins | 0.1471 |
 
 **Confidence zones**
 

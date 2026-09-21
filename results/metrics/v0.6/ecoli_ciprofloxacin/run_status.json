@@ -1,9 +1,9 @@
 {
   "stage": "v0.6-explain",
-  "status": "running",
-  "updated": "2026-09-20 22:43:15",
+  "status": "finished",
+  "updated": "2026-09-21 09:28:21",
   "timezone": "India Standard Time+0530",
-  "git_commit": "92f8c74",
+  "git_commit": "d55e13f",
   "dataset": "ecoli_ciprofloxacin",
   "rows_fingerprint": "151415a4d03dbcc5",
   "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
@@ -21,6 +21,79 @@
     "lightgbm": "4.7.0",
     "joblib": "1.6.0"
   },
+  "seconds": 403.6,
+  "validation_roc_auc": 0.7764860715069094,
+  "exact_contributions": true,
+  "method_agreement": {
+    "spearman": -0.08163495094620199,
+    "top_k": 20,
+    "overlap": 14,
+    "overlap_fraction": 0.7
+  },
+  "cross_model_agreement": {
+    "spearman": 0.15570277522535522,
+    "top_k": 20,
+    "overlap": 8,
+    "overlap_fraction": 0.4,
+    "model": "v0.5.0-tuned_mlp-random-seed42",
+    "baseline_roc_auc": 0.6936044871995739
+  },
+  "null_control": {
+    "seed": 42,
+    "fit_seconds": 36.2,
+    "shuffled_labels": true,
+    "n_train": 2977,
+    "null_strongest_bin": 0.11211036169207872,
+    "null_mean_bin": 0.002529556740021918,
+    "null_strongest_region": 0.1471091217808373,
+    "null_region_columns": 3,
+    "real_strongest_region": 0.570937787807695,
+    "real_region_columns": 5,
+    "real_over_null": 3.881049529058275
+  },
+  "zones": {
+    "threshold": 0.14261540693905073,
+    "lower": 0.10255963637363619,
+    "upper": null,
+    "rule": {
+      "target_npv": 0.95,
+      "target_precision": 0.95,
+      "min_coverage": 0.05
+    },
+    "fitted_on": "validation",
+    "n_fitted": 426,
+    "model_version": "v0.4.0-tuned_lightgbm-random-seed42",
+    "sides": {
+      "susceptible": {
+        "target": 0.95,
+        "edge": 0.10255963637363619,
+        "n_covered": 110,
+        "coverage": 0.25821596244131456,
+        "achieved": 0.9545454545454546,
+        "exists": true,
+        "best_achieved": 0.9791666666666666,
+        "best_edge": 0.05529045425162089,
+        "best_coverage": 0.11267605633802817
+      },
+      "resistant": {
+        "target": 0.95,
+        "edge": null,
+        "n_covered": 0,
+        "coverage": 0.0,
+        "achieved": NaN,
+        "exists": false,
+        "best_achieved": 0.84,
+        "best_edge": 0.6703732126141841,
+        "best_coverage": 0.05868544600938967
+      }
+    }
+  },
+  "test_log_sha256": "d38e53716f902a51cdb05dc2de737fdfd136217d526f09e8e9f7ea2a2fe7dfd1",
+  "plots": [
+    "ecoli_ciprofloxacin_random_regions.png",
+    "ecoli_ciprofloxacin_random_uncertainty_zones.png",
+    "ecoli_ciprofloxacin_random_importance_agreement.png"
+  ],
   "config": {
     "project": {
       "name": "antibiotic-resistance-ai",

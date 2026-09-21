@@ -189,10 +189,12 @@ uncertain call — fits the existing rules. Nothing here was prompted by a test 
    output is *called*.
 3. **No test row is scored again in Version 0.6.** The test part was scored once per final model and the
    probabilities were saved. Where a Version 0.6 report gives a test-side number for the confidence zones,
-   it is *derived from those stored predictions*, after asserting that they reproduce the logged test AUROC
-   to 1e-12. Such a derivation is not a new evaluation: it adds no row to the test log, and the run asserts
-   the log is unchanged when it finishes. This is the same treatment the recomputed Version 0.4 intervals
-   received under amendment 1, point 3.
+   it is *derived from those stored predictions*, after asserting that they cover exactly that test part's
+   rows and reproduce both the logged AUROC and the logged Brier score to 1e-12. The AUROC alone would not
+   be enough: it is unchanged by any monotone rescaling of the probabilities, while a confidence zone
+   depends on their absolute values. Such a derivation is not a new evaluation: it adds no row to the test
+   log, and the run asserts the log is unchanged when it finishes. This is the same treatment the recomputed
+   Version 0.4 intervals received under amendment 1, point 3.
 4. **Nothing in Version 0.6 may change a model, a setting or a cut-off.** If an explanation suggests a
    change, that change belongs to a later version, is pre-registered there, and is evaluated as a new model.
 5. **No m/z region is given a protein or peptide identity.** This project has no MS/MS confirmation and no

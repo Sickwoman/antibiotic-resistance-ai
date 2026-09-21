@@ -855,6 +855,9 @@ def test_explaining_the_saved_model_never_touches_the_test_log(workspace, explai
     record = workspace.read_json("explain", "run_config.json")
     assert record["status"] == "finished" and record["test_parts_scored"] is False
     assert record["rows_explained"] == "validation"
+    # a leftover "running" status must always mean the run really stopped early
+    assert workspace.read_json("explain", "run_status.json")["status"] == "finished"
+    assert record["seconds"] > 0                               # the runtime is recorded, not just logged
     assert record["n_rows_explained"] == len(workspace.splits()[1][workspace.config["explain"]["split"]].validation)
     # the run records the hash it checked, and the file still has it
     log_path = Path(workspace.config["evaluation"]["test_log"])
@@ -927,3 +930,50 @@ def test_version_06_outputs_hold_no_patient_identifiers(workspace, explained):
     for path in files:
         assert not any(secret in path.read_text(encoding="utf-8") for secret in workspace.secrets), path.name
     assert not any(secret in explained.stdout for secret in workspace.secrets)
+
+
+def test_a_locked_split_is_refused_before_anything_is_explained(workspace, explain_scripts):
+    """Protocol point 5: a locked part is refused by the script too, not only by the test log."""
+    config = copy.deepcopy(workspace.config)
+    config["evaluation"]["locked_test_splits"] = [*config["evaluation"]["locked_test_splits"],
+                                                  config["explain"]["split"]]
+    path = workspace.write_config(config, "config_explain_locked.yaml")
+    log, outputs = workspace.test_log(), workspace.outputs()
+    run = run_script(explain_scripts[0], workspace, "--config", path)
+    assert run.code == 1
+    assert run.log.has("locked until Version 0.7")
+    pd.testing.assert_frame_equal(workspace.test_log(), log)
+    assert workspace.outputs() == outputs                    # nothing was written before the refusal
+
+
+def test_rescaled_test_probabilities_are_refused_although_their_auroc_matches(workspace, explained,
+                                                                              explain_scripts):
+    """AUROC cannot police this on its own: it is unchanged by any monotone rescaling, while every zone
+    number depends on the absolute probabilities. The Brier check is what catches it."""
+    assert explained.code == 0
+    path = workspace.folder("explain", "model_dir") / "test_probabilities.npz"
+    if not path.is_file():
+        pytest.skip("no stored test probabilities in this workspace")
+    original = dict(np.load(path))
+    card = workspace.read_json("tuning", "best_model_card.json")
+    key = f"{workspace.config['explain']['split']}__{card['model']}__seed{card['seed']}"
+    if key not in original:
+        pytest.skip(f"{key} was not saved")
+    try:
+        tampered = {**original, key: np.sqrt(original[key])}     # same ranking, different probabilities
+        np.savez(path, **tampered)
+        before = roc_auc_score(*_labels_and_probabilities(workspace, original, key))
+        after = roc_auc_score(*_labels_and_probabilities(workspace, tampered, key))
+        assert after == pytest.approx(before, abs=1e-12)         # the rescaling is invisible to AUROC
+        run = run_script(explain_scripts[0], workspace, "--config", workspace.config_path)
+        assert run.code == 1
+        assert run.log.has("Brier score")
+    finally:
+        np.savez(path, **original)
+        run_script(explain_scripts[0], workspace, "--config", workspace.config_path)   # restore the reports
+
+
+def _labels_and_probabilities(workspace, stored: dict[str, np.ndarray], key: str):
+    meta, _ = workspace.splits()
+    rows = stored[f"{workspace.config['explain']['split']}__rows"]
+    return meta["label"].to_numpy().astype(int)[rows], stored[key]
