@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "0.6.0"
+  version: "0.7.0"
   random_seed: 42
 
 paths:
@@ -206,6 +206,13 @@ splits:
     # rates differ: B 27.7 %, D 19.1 % of E. coli with a ciprofloxacin result).
     test_sites: [DRIAMS-B, DRIAMS-D]  # add DRIAMS-C when available
     validation_fraction: 0.1
+  external_ab:
+    # The specification's "train two sites, test a third" experiment (protocol amendment 3, point 1).
+    # B is a *training* site here and a test site in `external`, so the same DRIAMS-D rows are scored
+    # under two training regimes on purpose; the difference is compared with a paired bootstrap.
+    train_sites: [DRIAMS-A, DRIAMS-B]
+    test_sites: [DRIAMS-D]
+    validation_fraction: 0.1
 
 evaluation:
   # Fixed in docs/evaluation_protocol.md (approved 2026-09-17) before any model was trained.
@@ -381,3 +388,29 @@ explain:
     target_precision: 0.95            # high-confidence resistant: >= 95 % of those calls truly resistant
     target_npv: 0.95                  # high-confidence susceptible: >= 95 % truly susceptible
     min_coverage: 0.05                # a zone must cover >= 5 % of rows to be reported at all
+
+generalisation:
+  # Version 0.7, fixed before any locked test part was scored (docs/v0.7_generalisation_plan.md,
+  # protocol amendment 3). This version spends the `temporal` and `external` test parts that
+  # decision 7 locked until now. It changes no model and no setting: the hyperparameters below are
+  # read from the Version 0.4 winning model card, never re-searched, so a gap between experiments
+  # can only come from the data.
+  source_model: models/v0.4             # where the winning setting and the saved bundle come from
+  source_split: random                  # which saved bundle: best_<split>.joblib
+  experiments: [temporal, external, external_ab]   # refit the fixed setting on each of these
+  reuse_logged: [random, within_year]   # reference rows taken from the existing test log, not re-scored
+  score_saved_model_on: [external]      # the saved bundle, no refit; leakage-checked splits only
+  seeds: [42, 43, 44, 45, 46]           # protocol decision 6: mean and range, intervals for seed 42
+  model_dir: models/v0.7
+  report_dir: results/metrics/v0.7
+  plot_dir: results/plots/v0.7
+  zone_transfer:
+    # Apply the Version 0.6 edge unchanged to each new test part. Never refitted there: that would
+    # need the new site's labels and is a different experiment (amendment 3, point 5).
+    zones: results/metrics/v0.6         # where uncertainty.json was written
+    target_npv: 0.95                    # the pre-registered reading: >= 0.95, or interval covering it
+  shift_diagnostic:
+    # Feature-only, no AST label, computed after every scoring is logged, so it cannot influence a
+    # model or a threshold. It describes the shift; it does not correct for it.
+    low_mz_bins: 20                     # reported separately: D starts ~2,000 Da, A and B ~1,960 Da
+    regions_from: results/metrics/v0.6  # the Version 0.6 top regions the model actually relies on

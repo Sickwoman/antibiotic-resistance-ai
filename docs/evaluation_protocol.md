@@ -199,3 +199,37 @@ uncertain call — fits the existing rules. Nothing here was prompted by a test 
    change, that change belongs to a later version, is pre-registered there, and is evaluated as a new model.
 5. **No m/z region is given a protein or peptide identity.** This project has no MS/MS confirmation and no
    independent panel, so regions are named by their m/z interval only, in every report and every figure.
+
+### Amendment 3 — 2026-09-23: the generalisation experiments
+
+Added before any locked test part was scored, together with
+[the Version 0.7 plan](v0.7_generalisation_plan.md). Decision 7 releases the `temporal` and `external` test
+parts at Version 0.7, which is what this amendment prepares. It changes no metric, no threshold rule and no
+existing split, and it adds no model choice: the hyperparameters are the ones Version 0.4 already selected.
+Nothing here was prompted by a test result — none had been seen.
+
+1. **One new split, `external_ab`: train on DRIAMS-A + DRIAMS-B, test on DRIAMS-D.** The specification asks
+   for a "train two sites, test a third" experiment, which the four approved splits do not contain: in
+   `external`, B is a test site. Validation is 10 % of the combined training sites, patient-grouped, with
+   the project seed. It answers whether adding a second, small site to the training data helps at a third
+   site. It is listed alongside the section 3 splits from now on, and the same rules apply to it.
+2. **The DRIAMS-D test rows are therefore scored under two training regimes** (trained on A, and trained on
+   A + B). Both are reported whichever way the difference falls, and because they are the *same* rows the
+   difference is compared with a paired bootstrap, pre-specified in the Version 0.7 plan. Neither result may
+   be selected afterwards as "the" external result.
+3. **The saved project model is scored on the external test part without a refit.**
+   `v0.4.0-tuned_lightgbm-random-seed42` was trained on the `random` training part (DRIAMS-A only), whose
+   intersection with the `external` test part is 0 rows and 0 patient groups. It keeps the threshold chosen
+   on the `random` validation part, which is stated wherever that row appears, because the threshold was not
+   chosen on the site it is being applied to. The same model is **not** scored on the `temporal` test part:
+   848 of those 1,233 rows are in its training data.
+4. **A further external site is added as a separate cohort, never by rebuilding the primary dataset.** A new
+   site is built with the same preprocessing settings, so it shares the `feature_fingerprint` and has its own
+   `row_fingerprint`. The primary dataset's rows, its saved splits, the saved models and every logged test
+   result are left untouched. Rebuilding the primary dataset would change its row fingerprint and invalidate
+   the provenance of results that were scored once and may not be scored again. The pre-registered
+   pair-selection rule is checked on the new site before it is used, as section 3 already requires.
+5. **A Version 0.6 confidence zone may be applied to a new test part, but never refitted there.** Carrying
+   the fitted edge across unchanged is a test of the zone; refitting it per site would need that site's
+   labels and is a different experiment. The pre-registered reading of the outcome is fixed in the Version
+   0.7 plan, including what it means if the zone does not transfer.
