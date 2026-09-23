@@ -51,11 +51,17 @@ if str(SCRIPTS_DIR) not in sys.path:
 DATASET = "e2e_synthetic"           # not the real dataset name, so a stray write would be easy to spot
 SITE = "DRIAMS-Y"                   # dated site with patient IDs (like DRIAMS-A)
 EXTERNAL_SITE = "DRIAMS-Z"          # no patient IDs, no dates (like DRIAMS-B/D); used by the external split only
+# A second external site, so the three-site shape of `external_ab` exists here too: Z is a *test* site in
+# `external` and a *training* site in `external_ab`, exactly as DRIAMS-B is in the real configuration.
+EXTERNAL_SITE_2 = "DRIAMS-W"
 YEAR_SIZES = {"2016": 50, "2017": 96, "2018": 54}
 EXTERNAL_SIZE = 30
+EXTERNAL_SIZE_2 = 40
 MARKER_MZ = 7000.0                  # resistant spectra carry a stronger peak here (a learnable signal)
 SEEDS = [42, 43]
-NEVER_SCORED = {"temporal", "external"}   # locked until Version 0.7 (docs/evaluation_protocol.md)
+# Locked until Version 0.7 (docs/evaluation_protocol.md). `external_ab` was created for Version 0.7 and so
+# was never available to the Version 0.3-0.6 scripts either; it belongs in the same set.
+NEVER_SCORED = {"temporal", "external", "external_ab"}
 SPIED = ("run_search", "fit_calibrated")  # tune_models functions that do the expensive work
 TEST_REPORTS = ("test_metrics.csv", "test_intervals.json", "test_intervals.csv", "seed_variation.csv",
                 "patient_overlap_check.csv")
@@ -126,14 +132,17 @@ def write_driams(root: Path) -> set[str]:
         id_dir.mkdir(parents=True)
         pd.DataFrame(rows).to_csv(id_dir / f"{year}_strat.csv", index=False)
 
-    rows = []
-    for k in range(EXTERNAL_SIZE):
-        value = "R" if k % 4 == 0 else "S"
-        rows.append({"species": "Escherichia coli", "code": f"z{k:03d}", "combined_code": None, "Ciprofloxacin": value})
-        write_raw(root / EXTERNAL_SITE / "raw" / "2018" / f"z{k:03d}.txt", 900_000 + k, value == "R")
-    id_dir = root / EXTERNAL_SITE / "id" / "2018"
-    id_dir.mkdir(parents=True)
-    pd.DataFrame(rows).to_csv(id_dir / "2018_clean.csv", index=False)
+    for site, size, letter, offset in ((EXTERNAL_SITE, EXTERNAL_SIZE, "z", 900_000),
+                                       (EXTERNAL_SITE_2, EXTERNAL_SIZE_2, "w", 950_000)):
+        rows = []
+        for k in range(size):
+            value = "R" if k % 4 == 0 else "S"
+            rows.append({"species": "Escherichia coli", "code": f"{letter}{k:03d}", "combined_code": None,
+                         "Ciprofloxacin": value})
+            write_raw(root / site / "raw" / "2018" / f"{letter}{k:03d}.txt", offset + k, value == "R")
+        id_dir = root / site / "id" / "2018"
+        id_dir.mkdir(parents=True)
+        pd.DataFrame(rows).to_csv(id_dir / "2018_clean.csv", index=False)
     return secrets
 
 
@@ -141,13 +150,15 @@ def make_config(tmp: Path, root: Path) -> dict[str, Any]:
     """The project configuration with every data/output path in `tmp` and small, fast model settings."""
     config = copy.deepcopy(load_config())
     config["paths"]["driams_root"] = str(root)
-    config["dataset"].update(name=DATASET, output_dir=str(tmp / "processed"), sites=[SITE, EXTERNAL_SITE],
+    config["dataset"].update(name=DATASET, output_dir=str(tmp / "processed"),
+                             sites=[SITE, EXTERNAL_SITE, EXTERNAL_SITE_2],
                              verify_against_driams_binned=False)
     s = config["splits"]
     s["random"]["sites"] = [SITE]
     s["within_year"].update(sites=[SITE], year_folder="2017")
     s["temporal"]["sites"] = [SITE]
-    s["external"].update(train_sites=[SITE], test_sites=[EXTERNAL_SITE])
+    s["external"].update(train_sites=[SITE], test_sites=[EXTERNAL_SITE, EXTERNAL_SITE_2])
+    s["external_ab"].update(train_sites=[SITE, EXTERNAL_SITE], test_sites=[EXTERNAL_SITE_2])
 
     ev = config["evaluation"]
     ev.update(test_log=str(tmp / "results" / "experiments" / "test_evaluations.csv"), timing_samples=5)
@@ -181,8 +192,18 @@ def make_config(tmp: Path, root: Path) -> dict[str, Any]:
               regions={"top_bins": 20, "merge_gap_bins": 2, "report_regions": 5},
               permutation={"block_bins": 300, "repeats": 2, "seed": 42, "top_single_bins": 5})
 
+    # Version 0.7 refits the setting Version 0.4 chose and spends the previously locked test parts.
+    gn = config["generalisation"]
+    gn.update(source_model=tc["model_dir"], source_split=tc["split"], seeds=SEEDS,
+              model_dir=str(tmp / "models" / "v0.7"),
+              report_dir=str(tmp / "results" / "metrics" / "v0.7"),
+              plot_dir=str(tmp / "results" / "plots" / "v0.7"))
+    gn["zone_transfer"] = {**gn["zone_transfer"], "zones": xp["report_dir"]}
+    gn["shift_diagnostic"] = {**gn["shift_diagnostic"], "regions_from": xp["report_dir"], "low_mz_bins": 20}
+
     written = [config["dataset"]["output_dir"], ev["test_log"],
-               *(section[key] for section in (bl, tc, dp, xp) for key in ("model_dir", "report_dir", "plot_dir"))]
+               *(section[key] for section in (bl, tc, dp, xp) for key in ("model_dir", "report_dir", "plot_dir")),
+               *(gn[key] for key in ("model_dir", "report_dir", "plot_dir"))]
     assert all(Path(p).resolve().is_relative_to(tmp.resolve()) for p in written), written
     return config
 
@@ -291,7 +312,7 @@ class Run:
 def run_script(module: ModuleType, ws: Workspace, *args: Any, spy: tuple[str, ...] = ()) -> Run:
     """Call `module.main()` as if run from the command line; `spy` names module functions to count."""
     handler, out, calls = Messages(), io.StringIO(), []
-    loggers = [logging.getLogger(name) for name in ("baselines", "tuning", "explain")]
+    loggers = [logging.getLogger(name) for name in ("baselines", "tuning", "explain", "generalise")]
 
     def counted(name: str, fn):
         def wrapper(*a, **kw):
@@ -341,7 +362,7 @@ def workspace(tmp_path_factory) -> Workspace:
     del X
     skipped: list[str] = []
     splits = build_splits(meta, config, DATASET, data_dir.parent, skipped)   # as scripts/build_dataset.py does
-    assert skipped == [] and set(splits) == {"random", "within_year", "temporal", "external"}
+    assert skipped == [] and set(splits) == {"random", "within_year", "temporal", "external", "external_ab"}
     for name, split in splits.items():
         split.save(data_dir / "splits" / f"{name}.json", meta)
     ws = Workspace(tmp, config, tmp / "config.yaml", data_dir, secrets)
@@ -828,12 +849,12 @@ def test_locked_test_parts_are_refused(workspace, scripts, pipeline, script, loc
     log, outputs = workspace.test_log(), workspace.outputs()
     run = run_script(module, workspace, "--config", path, "--evaluate-test", *extra, spy=spy)
     assert run.code == 1 and run.calls == []
-    assert run.log.has("locked until Version 0.7")
+    assert run.log.has("locked by the evaluation protocol")
     pd.testing.assert_frame_equal(workspace.test_log(), log)
     assert workspace.outputs() == outputs                    # nothing trained, saved or scored
     if script == "tune_models":                              # the refusal is recorded, not silent
         status = workspace.run_status()
-        assert status["status"] == "failed" and "locked until Version 0.7" in status["error"]
+        assert status["status"] == "failed" and "locked by the evaluation protocol" in status["error"]
 
 
 # ------------------------------------------------------------------------------------------------ Version 0.6
@@ -941,7 +962,7 @@ def test_a_locked_split_is_refused_before_anything_is_explained(workspace, expla
     log, outputs = workspace.test_log(), workspace.outputs()
     run = run_script(explain_scripts[0], workspace, "--config", path)
     assert run.code == 1
-    assert run.log.has("locked until Version 0.7")
+    assert run.log.has("locked by the evaluation protocol")
     pd.testing.assert_frame_equal(workspace.test_log(), log)
     assert workspace.outputs() == outputs                    # nothing was written before the refusal
 
@@ -977,3 +998,239 @@ def _labels_and_probabilities(workspace, stored: dict[str, np.ndarray], key: str
     meta, _ = workspace.splits()
     rows = stored[f"{workspace.config['explain']['split']}__rows"]
     return meta["label"].to_numpy().astype(int)[rows], stored[key]
+
+
+# ------------------------------------------------------------------------------------------------ Version 0.7
+
+@pytest.fixture(scope="module")
+def generalise_script() -> ModuleType:
+    return importlib.import_module("measure_generalisation")
+
+
+@pytest.fixture(scope="module")
+def generalisation_tables_script() -> ModuleType:
+    return importlib.import_module("generalisation_tables")
+
+
+@pytest.fixture(scope="module")
+def generalised(workspace, pipeline, explained, generalise_script) -> Run:
+    """One Version 0.7 run. It needs Version 0.4 (the setting and the saved model), and Version 0.6 for the
+    confidence zones and the regions the shift diagnostic looks at."""
+    assert pipeline.runs["test"].code == 0 and explained.code == 0
+    return run_script(generalise_script, workspace, "--config", workspace.config_path)
+
+
+def test_generalisation_refits_the_saved_setting_and_scores_the_released_parts(workspace, generalised):
+    run = generalised
+    assert run.code == 0, run.log.messages
+    gn = workspace.config["generalisation"]
+    reports = workspace.folder("generalisation", "report_dir")
+    for name in ("test_metrics.csv", "validation_metrics.csv", "generalisation_gaps.csv",
+                 "shift_diagnostic.csv", "run_config.json", "run_status.json"):
+        assert (reports / name).is_file(), name
+
+    record = workspace.read_json("generalisation", "run_config.json")
+    assert record["status"] == "finished" and record["seconds"] > 0
+    assert workspace.read_json("generalisation", "run_status.json")["status"] == "finished"
+    # the setting is the one Version 0.4 chose, not a new search
+    card = workspace.read_json("tuning", "best_model_card.json")
+    assert record["setting"] == card["params"]
+    assert record["reused_setting_from"] == card["model_version"]
+    # and the refit was proved to reproduce that model before anything was scored
+    faithful = record["refit_faithful"]
+    assert faithful["difference"] <= 1e-9
+    assert faithful["refit_validation_roc_auc"] == pytest.approx(
+        card["metrics"]["validation"]["roc_auc"], abs=1e-9)
+    assert run.log.has("refit proved faithful")
+
+    test = pd.read_csv(reports / "test_metrics.csv")
+    assert set(test["split"]) == set(gn["experiments"]) | set(gn["score_saved_model_on"])
+    # every experiment is reported per site, never pooled
+    meta, splits = workspace.splits()
+    for name in gn["experiments"]:
+        sites = sorted(set(meta["site"].to_numpy()[splits[name].test].tolist()))
+        rows = test[(test["split"] == name) & (test["model"] != "prevalence")]
+        assert sorted(set(rows["site"])) == sites, name
+
+
+def test_the_released_test_parts_are_scored_once_per_model_and_only_appended(workspace, generalised,
+                                                                             explained):
+    """The log is append-only: Version 0.7 adds rows and changes none of the earlier ones."""
+    assert generalised.code == 0
+    log = workspace.test_log()
+    v07 = log[log["stage"].str.startswith("v0.7")]
+    assert len(v07) > 0
+    # the previously locked parts appear for the first time here and nowhere earlier
+    earlier = log[~log["stage"].str.startswith("v0.7")]
+    assert not set(earlier["split"]) & NEVER_SCORED
+    assert set(v07["split"]) & NEVER_SCORED
+    # one row per (experiment, model, seed), never twice
+    keys = v07[["experiment", "model", "seed"]]
+    assert not keys.duplicated().any()
+    record = workspace.read_json("generalisation", "run_config.json")
+    assert record["n_test_evaluations"] == len(v07)
+
+
+def test_the_saved_model_is_scored_on_the_external_part_but_never_on_the_temporal_one(workspace, generalised):
+    """Protocol amendment 3, point 3: the saved model has seen most of the temporal test rows."""
+    assert generalised.code == 0
+    log = workspace.test_log()
+    saved = log[log["stage"] == "v0.7-reference"]
+    saved = saved[saved["experiment"].str.contains("saved_model")]
+    assert len(saved) > 0
+    assert set(saved["split"]) == set(workspace.config["generalisation"]["score_saved_model_on"])
+    assert "temporal" not in set(saved["split"])
+    # it keeps its own threshold, chosen on the source split's validation part
+    card = workspace.read_json("tuning", "best_model_card.json")
+    assert np.allclose(saved["threshold"].to_numpy(), float(card["threshold"]))
+
+
+def test_scoring_the_saved_model_on_rows_it_trained_on_is_refused_as_leakage(workspace, generalise_script):
+    """The guard, not the configuration, is what keeps this honest.
+
+    The real case is the temporal part: it is date-separated from its *own* training part, but the saved
+    model was trained on the `random` training part, which reaches into the later year. Scoring it there
+    would measure memory, not generalisation.
+    """
+    gn = workspace.config["generalisation"]
+    meta, splits = workspace.splits()
+    source_train = splits[gn["source_split"]].train
+    overlapping = [name for name in splits
+                   if len(np.intersect1d(source_train, splits[name].test))
+                   or len(np.intersect1d(np.unique(meta["group_id"].to_numpy()[source_train]),
+                                         np.unique(meta["group_id"].to_numpy()[splits[name].test])))]
+    overlapping = [n for n in overlapping if n != gn["source_split"]]
+    if not overlapping:
+        pytest.skip("no split in this workspace overlaps the saved model's training rows")
+    config = copy.deepcopy(workspace.config)
+    config["generalisation"]["score_saved_model_on"] = [overlapping[0]]
+    path = workspace.write_config(config, "config_gn_leak.yaml")
+    log = workspace.test_log()
+    run = run_script(generalise_script, workspace, "--config", path)
+    assert run.code == 1
+    assert run.log.has("would be leakage")
+    pd.testing.assert_frame_equal(workspace.test_log(), log)      # nothing was appended
+
+
+def test_a_refit_that_does_not_reproduce_the_saved_model_stops_the_run(workspace, generalise_script):
+    """If the reused setting is not the saved model's setting, no gap measured against it means anything."""
+    config = copy.deepcopy(workspace.config)
+    reports = Path(config["tuning"]["report_dir"]) / DATASET
+    card_path = reports / "best_model_card.json"
+    original = card_path.read_text(encoding="utf-8")
+    card = json.loads(original)
+    try:
+        card["params"] = {**card["params"], "n_estimators": int(card["params"].get("n_estimators", 10)) + 7}
+        card_path.write_text(json.dumps(card, indent=2), encoding="utf-8")
+        log = workspace.test_log()
+        run = run_script(generalise_script, workspace, "--config", workspace.config_path)
+        assert run.code == 1
+        assert run.log.has("The refit is not the saved model")
+        assert run.log.has("Nothing was scored")
+        pd.testing.assert_frame_equal(workspace.test_log(), log)
+    finally:
+        card_path.write_text(original, encoding="utf-8")
+
+
+def test_a_locked_split_is_refused_before_anything_is_generalised(workspace, generalise_script):
+    """Releasing the parts is a configuration act; putting one back must still stop the run."""
+    config = copy.deepcopy(workspace.config)
+    config["evaluation"]["locked_test_splits"] = [config["generalisation"]["experiments"][0]]
+    path = workspace.write_config(config, "config_gn_locked.yaml")
+    log = workspace.test_log()
+    run = run_script(generalise_script, workspace, "--config", path)
+    assert run.code == 1
+    assert run.log.has("locked by the evaluation protocol")
+    pd.testing.assert_frame_equal(workspace.test_log(), log)
+
+
+def test_the_two_training_regimes_are_compared_on_the_same_rows(workspace, generalised):
+    """The specification's 'train two sites, test a third' comparison must be paired, and must happen.
+
+    The pair is found from the rows, not from experiment names, so this also checks that the comparison is
+    not silently missing when a site is named differently.
+    """
+    assert generalised.code == 0
+    path = workspace.folder("generalisation", "report_dir") / "two_sites_versus_one.json"
+    assert path.is_file(), "the paired comparison is missing; the run warned instead of producing it"
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    for paired in (loaded if isinstance(loaded, list) else [loaded]):
+        assert paired["kind"] == "paired (same rows)"
+        assert isinstance(paired["demonstrated"], bool)
+        assert paired["low"] <= paired["high"]
+        # the side called "more sites" really does train on more of them
+        assert len(paired["more_sites"]["train_sites"]) > len(paired["fewer_sites"]["train_sites"])
+        meta, splits = workspace.splits()
+        assert paired["n"] == len(splits[paired["more_sites"]["experiment"]].test)
+
+
+def test_the_generalisation_gaps_are_reported_with_intervals_and_an_honest_verdict(workspace, generalised):
+    assert generalised.code == 0
+    gaps = pd.read_csv(workspace.folder("generalisation", "report_dir") / "generalisation_gaps.csv")
+    assert len(gaps) > 0
+    assert set(gaps["kind"]) == {"unpaired (different rows)"}
+    for row in gaps.itertuples(index=False):
+        assert row.low <= row.high
+        # a gap counts as shown only when the interval excludes zero
+        assert bool(row.demonstrated) == bool(row.low > 0 or row.high < 0)
+
+
+def test_the_confidence_zone_is_carried_across_unchanged_and_never_refitted(workspace, generalised):
+    assert generalised.code == 0
+    reports = workspace.folder("generalisation", "report_dir")
+    path = reports / "zone_transfer.csv"
+    if not path.is_file():
+        pytest.skip("no Version 0.6 zones in this workspace")
+    transfer = pd.read_csv(path)
+    zones = workspace.read_json("explain", "uncertainty.json")
+    if zones.get("lower") is None:
+        pytest.skip("Version 0.6 found no susceptible zone here")
+    # the edge is the Version 0.6 edge, everywhere: it is applied, not refitted
+    assert np.allclose(transfer["edge"].to_numpy(), float(zones["lower"]))
+    assert transfer["pure_site_test"].any()          # the saved model gives at least one clean test
+
+
+def test_the_shift_diagnostic_uses_no_label_and_runs_after_the_scoring(workspace, generalised):
+    assert generalised.code == 0
+    shift = pd.read_csv(workspace.folder("generalisation", "report_dir") / "shift_diagnostic.csv")
+    assert len(shift) > 0
+    for column in ("median_abs_smd", "share_bins_abs_smd_over_half", "median_abs_smd_lowest_bins"):
+        assert shift[column].notna().all() and (shift[column] >= 0).all()
+    assert (shift["share_bins_abs_smd_over_half"] <= 1).all()
+    # it describes inputs only: no metric that needs a label may appear here
+    assert not {"roc_auc", "pr_auc", "brier", "sensitivity"} & set(shift.columns)
+
+
+def test_version_07_outputs_hold_no_patient_identifiers(workspace, generalised):
+    assert generalised.code == 0
+    folder = workspace.folder("generalisation", "report_dir")
+    files = [p for p in folder.rglob("*") if p.is_file() and p.suffix in (".csv", ".json", ".md")]
+    assert files
+    for path in files:
+        assert not any(secret in path.read_text(encoding="utf-8") for secret in workspace.secrets), path.name
+    assert not any(secret in generalised.stdout for secret in workspace.secrets)
+
+
+def test_version_07_tables_are_generated_and_carry_the_required_caveats(workspace, generalised,
+                                                                        generalisation_tables_script):
+    """Every number in the tables comes from the saved reports; no metric is typed by hand."""
+    assert generalised.code == 0
+    run = run_script(generalisation_tables_script, workspace, "--config", workspace.config_path)
+    assert run.code == 0, run.log.messages
+    path = workspace.folder("generalisation", "report_dir") / "tables.md"
+    assert path.is_file()
+    text = path.read_text(encoding="utf-8")
+
+    assert "generated by scripts/generalisation_tables.py" in text
+    # the caveats the protocol amendments require are generated, not typed, so they cannot be dropped
+    assert "date-separated evaluation with incomplete patient linkage" in text
+    assert "sample-level with unknown within-patient dependence" in text
+    assert "do not show that the problem is solved" in text
+    # a literal pipe inside a cell splits the row: every table row must have a constant column count
+    for block in text.split("\n\n"):
+        lines = [ln for ln in block.splitlines() if ln.startswith("|")]
+        if len(lines) < 2:
+            continue
+        widths = {ln.count("|") for ln in lines}
+        assert len(widths) == 1, f"ragged table ({widths}):\n{block}"
+    assert not any(secret in text for secret in workspace.secrets)

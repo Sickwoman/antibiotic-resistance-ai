@@ -11,3 +11,6 @@ temporal,test,1233,271,962,648,{'DRIAMS-A': 1233},2018-01-03 .. 2018-08-31
 external,train,3831,873,2958,1919,{'DRIAMS-A': 3831},2015-11-20 .. 2018-08-31
 external,validation,428,98,330,218,{'DRIAMS-A': 428},2015-11-22 .. 2018-08-28
 external,test,2151,429,1722,2151,"{'DRIAMS-B': 213, 'DRIAMS-D': 1938}",None .. None
+external_ab,train,4023,926,3097,2116,"{'DRIAMS-A': 3835, 'DRIAMS-B': 188}",2015-11-20 .. 2018-08-31
+external_ab,validation,449,104,345,234,"{'DRIAMS-A': 424, 'DRIAMS-B': 25}",2015-11-25 .. 2018-08-23
+external_ab,test,1938,370,1568,1938,{'DRIAMS-D': 1938},None .. None

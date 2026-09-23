@@ -268,8 +268,8 @@ def unpaired_difference(a: np.ndarray, b: np.ndarray, level: float, seed: int = 
 def assert_split_allowed(split: str, locked: Iterable[str]) -> None:
     """Refuse a test part that the evaluation protocol locks (docs/evaluation_protocol.md)."""
     if split in set(locked):
-        raise EvaluationError(f"The {split} test part is locked until Version 0.7 "
-                              "(evaluation.locked_test_splits).")
+        raise EvaluationError(f"The {split} test part is locked by the evaluation protocol "
+                              "(evaluation.locked_test_splits in config.yaml).")
 
 
 def append_test_log(path: Path, rows: list[dict[str, Any]], locked: Iterable[str] = ()) -> None:

@@ -244,7 +244,7 @@ def test_the_test_log_refuses_a_locked_split(tmp_path):
     row = {c: 0 for c in TEST_LOG_COLUMNS}
     row.update(split="temporal", model="m", experiment="temporal")
     path = tmp_path / "log.csv"
-    with pytest.raises(EvaluationError, match="locked until Version 0.7"):
+    with pytest.raises(EvaluationError, match="locked by the evaluation protocol"):
         append_test_log(path, [row], locked=["temporal", "external"])
     assert not path.exists()                                   # nothing written
     append_test_log(path, [{**row, "split": "random", "experiment": "random"}], locked=["temporal", "external"])

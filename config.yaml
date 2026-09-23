@@ -225,8 +225,11 @@ evaluation:
     level: 0.95
     seed: 42
   calibration_bins: 10                # equal-count bins for reliability plots
-  # Test parts of these splits stay unused until Version 0.7 (the generalisation experiment).
-  locked_test_splits: [temporal, external]
+  # Protocol decision 7 locked the `temporal` and `external` test parts so they could not influence any
+  # model choice in Versions 0.3-0.6, and released them at Version 0.7, the generalisation experiment.
+  # Released on 2026-09-23 by scripts/measure_generalisation.py (docs/v0.7_generalisation_plan.md); the
+  # guard itself stays in place, so putting a split back in this list still refuses it everywhere.
+  locked_test_splits: []
   test_log: results/experiments/test_evaluations.csv   # append-only, one row per test evaluation
   timing_samples: 200                 # validation spectra timed end to end (read + preprocess + predict)
 

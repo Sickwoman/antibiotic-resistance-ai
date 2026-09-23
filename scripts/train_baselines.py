@@ -188,8 +188,8 @@ def main() -> int:
             raise SplitError(f"Split(s) {missing} are not saved for {dataset_name}; rebuild the dataset.")
         locked = set(ev["locked_test_splits"]) & set(needed)
         if locked and args.evaluate_test:
-            raise SplitError(f"The test parts of {sorted(locked)} are locked until Version 0.7 "
-                             "(docs/evaluation_protocol.md); remove them from baselines.")
+            raise SplitError(f"The test parts of {sorted(locked)} are locked by the evaluation protocol "
+                             "(evaluation.locked_test_splits in config.yaml); remove them from baselines.")
         log_path = project_path(ev["test_log"])
         if args.evaluate_test and log_path.is_file() and log_path.stat().st_size:
             done = pd.read_csv(log_path)

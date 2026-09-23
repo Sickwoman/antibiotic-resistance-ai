@@ -32,7 +32,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from src.dataset import load_dataset, row_fingerprint, sample_keys
 
 PARTS = ("train", "validation", "test")
-SPLIT_ORDER = ("random", "within_year", "temporal", "external")   # order used in reports
+SPLIT_ORDER = ("random", "within_year", "temporal", "external", "external_ab")   # order used in reports
 
 
 class LeakageError(RuntimeError):
@@ -268,14 +268,16 @@ def temporal_split(meta: pd.DataFrame, sites: Iterable[str], validation_start: s
 
 
 def external_split(meta: pd.DataFrame, train_sites: Iterable[str], test_sites: Iterable[str],
-                   validation_fraction: float, seed: int) -> Split:
+                   validation_fraction: float, seed: int, name: str = "external") -> Split:
+    """Train on some sites, test on others. `name` lets a second site combination be a separate split
+    (`external_ab` trains on A + B and tests on D; protocol amendment 3, point 1)."""
     train_sites, test_sites = list(train_sites), list(test_sites)
     if set(train_sites) & set(test_sites):
         raise SplitError("A site cannot be used for both training and external testing.")
     pool = _rows_for_sites(meta, train_sites)
     test = _rows_for_sites(meta, test_sites)
     train, validation = _group_fold(meta, pool, validation_fraction, seed)
-    split = Split("external", train, validation, np.sort(test),
+    split = Split(name, train, validation, np.sort(test),
                   f"Train/validation on {train_sites}, external test on {test_sites} "
                   f"(validation {validation.size / pool.size:.1%} of the training-site samples, "
                   f"requested {validation_fraction:.0%}, seed {seed}).",
@@ -354,6 +356,16 @@ def make_splits(meta: pd.DataFrame, config: dict[str, Any], skipped: list[str] |
         if not_built:
             external.notes.append(f"Configured test site(s) {not_built} are not in this dataset yet.")
         splits["external"] = external
+    # `external_ab` is optional: it only exists once every one of its sites is in the dataset, so a
+    # dataset built from fewer sites simply reports it as skipped instead of failing.
+    ab = s.get("external_ab")
+    if ab:
+        if missing(ab["train_sites"]) or missing(ab["test_sites"]):
+            skipped.append(f"external_ab: site(s) {missing([*ab['train_sites'], *ab['test_sites']])} "
+                           "not in this dataset")
+        else:
+            splits["external_ab"] = external_split(meta, ab["train_sites"], ab["test_sites"],
+                                                   ab["validation_fraction"], seed, name="external_ab")
     return splits
 
 

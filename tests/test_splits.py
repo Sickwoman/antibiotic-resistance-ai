@@ -242,12 +242,16 @@ def test_make_splits_skips_splits_whose_sites_are_missing():
     only_b = only_b[only_b["site"] == "DRIAMS-B"].reset_index(drop=True)
     skipped: list[str] = []
     assert make_splits(only_b, config, skipped) == {}
-    assert len(skipped) == 4 and all("not in this dataset" in s for s in skipped)
+    # one message per configured split: random, within_year, temporal, external, external_ab
+    assert len(skipped) == len(config["splits"]) and all("not in this dataset" in s for s in skipped)
 
     config["splits"]["within_year"]["year_folder"] = "2014"
     skipped = []
     assert "within_year" not in make_splits(make_meta(), config, skipped)
-    assert skipped == ["within_year: year folder 2014 not in this dataset"]
+    assert "within_year: year folder 2014 not in this dataset" in skipped
+    # This fixture has DRIAMS-A and DRIAMS-B but no DRIAMS-D, so external_ab is skipped for a missing
+    # site. Nothing else may be skipped.
+    assert [s for s in skipped if "year folder" not in s] == ["external_ab: site(s) ['DRIAMS-D'] not in this dataset"]
 
 
 def test_make_splits_from_project_config():
