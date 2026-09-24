@@ -16,7 +16,12 @@ import numpy as np
 import pandas as pd
 
 from src.adaptation import CONFIRMATORY_ARMS, AdaptationError, bootstrap_p_value, brier, classify, holm
-from src.evaluate import append_test_log, classification_metrics, summarize_bootstrap
+from src.evaluate import (
+    append_test_log,
+    assert_log_ready_for_append,
+    classification_metrics,
+    summarize_bootstrap,
+)
 from src.uncertainty import bootstrap_zone_metrics, zone_metrics
 from src.utils import file_hash, get_logger, show_path
 
@@ -116,14 +121,21 @@ def run_analysis(ctx: Any, arms: list[dict[str, Any]]) -> None:
                      100 * (zm.get("share_susceptible") or 0.0), zm.get("npv_susceptible", float("nan")),
                      ci["npv_susceptible"]["low"], ci["npv_susceptible"]["high"])
 
-    # --- append once, before anything else is written -------------------------------------------------
-    keys = pd.DataFrame(log_rows)[["experiment", "model", "seed"]]
-    if keys.duplicated().any():
-        raise AdaptationError("Duplicate (experiment, model, seed) among the rows to append; refusing.")
-    if len(before) and set(pd.DataFrame(log_rows)["experiment"]) & set(before["experiment"]):
-        raise AdaptationError("An experiment key already exists in the log; refusing to score it twice.")
+    # --- the seven pre-write checks, then append once --------------------------------------------------
+    # A production append is the one irreversible act here, so the state is verified BEFORE the write and
+    # the returned pre-write hash and row count go into this run's own metadata. Doing it afterwards would
+    # mean reconstructing the pre-write state from the file the write had already changed.
+    pre_write = assert_log_ready_for_append(
+        ctx.test_log, log_rows, expected_sha256=ctx.test_log_hash_before,
+        expected_rows=int(len(before)), committed=before if len(before) else None)
+    log.info("pre-write checks passed: log at %s with %d data rows; appending %d new key(s)",
+             pre_write["pre_write_sha256"][:16], pre_write["pre_write_rows"], pre_write["rows_to_append"])
+
     append_test_log(ctx.test_log, log_rows, locked=ctx.ev["locked_test_splits"])
     after = pd.read_csv(ctx.test_log)
+    if len(after) != pre_write["expected_rows_after"]:
+        raise AdaptationError(f"After appending the log holds {len(after)} rows but "
+                              f"{pre_write['expected_rows_after']} were expected.")
     if len(before):
         pd.testing.assert_frame_equal(after.iloc[:len(before)].reset_index(drop=True),
                                       before.reset_index(drop=True))
@@ -198,6 +210,7 @@ def run_analysis(ctx: Any, arms: list[dict[str, Any]]) -> None:
                   n_test_evaluations=len(log_rows),
                   primary=next((v for v in verdicts if v["arm"] == PRIMARY_ARM), None),
                   verdicts=verdicts, holm=holm_out, arms=details,
+                  pre_write_checks=pre_write,
                   test_log_sha256_before=ctx.test_log_hash_before,
                   test_log_sha256_after=file_hash(ctx.test_log),
                   plots=[p.name for p in made])

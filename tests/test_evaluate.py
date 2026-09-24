@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,6 +23,7 @@ from src.evaluate import (
     TEST_LOG_COLUMNS,
     EvaluationError,
     append_test_log,
+    assert_log_ready_for_append,
     bootstrap,
     calibration_slope_intercept,
     choose_threshold,
@@ -249,3 +252,82 @@ def test_the_test_log_refuses_a_locked_split(tmp_path):
     assert not path.exists()                                   # nothing written
     append_test_log(path, [{**row, "split": "random", "experiment": "random"}], locked=["temporal", "external"])
     assert pd.read_csv(path)["split"].tolist() == ["random"]
+
+
+# --- the seven pre-write checks on a production append -------------------------------------------------
+
+def _log_frame(n: int = 3) -> pd.DataFrame:
+    return pd.DataFrame([{c: (f"e{i}" if c == "experiment" else "m" if c == "model" else i if c == "seed" else 0)
+                          for c in TEST_LOG_COLUMNS} for i in range(n)])
+
+
+def _write_log(tmp_path, frame: pd.DataFrame):
+    path = tmp_path / "log.csv"
+    frame.to_csv(path, index=False, lineterminator="\n")
+    return path, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_the_pre_write_gate_returns_the_state_to_record_when_everything_holds(tmp_path):
+    """It must hand back the pre-write hash AND row count, so both land in the immutable run metadata."""
+    existing = _log_frame(3)
+    path, sha = _write_log(tmp_path, existing)
+    new = [{c: (f"new{i}" if c == "experiment" else "m2" if c == "model" else 99 + i if c == "seed" else 0)
+            for c in TEST_LOG_COLUMNS} for i in range(2)]
+    state = assert_log_ready_for_append(path, new, expected_sha256=sha, expected_rows=3, committed=existing)
+    assert state["pre_write_sha256"] == sha
+    assert state["pre_write_rows"] == 3          # the field whose absence was the partial condition 7
+    assert state["rows_to_append"] == 2 and state["expected_rows_after"] == 5
+    assert state["checked_against_committed"] is True
+
+
+def test_the_gate_refuses_a_log_whose_hash_moved(tmp_path):
+    existing = _log_frame(3)
+    path, sha = _write_log(tmp_path, existing)
+    _write_log(tmp_path, _log_frame(4))          # something else wrote to it meanwhile
+    with pytest.raises(EvaluationError, match="changed since this run started"):
+        assert_log_ready_for_append(path, [dict.fromkeys(TEST_LOG_COLUMNS, 0)], expected_sha256=sha,
+                                    expected_rows=3)
+
+
+def test_the_gate_refuses_an_unexpected_row_count(tmp_path):
+    existing = _log_frame(3)
+    path, sha = _write_log(tmp_path, existing)
+    with pytest.raises(EvaluationError, match="holds 3 data rows but 84 were expected"):
+        assert_log_ready_for_append(path, [dict.fromkeys(TEST_LOG_COLUMNS, 0)], expected_sha256=sha,
+                                    expected_rows=84)
+
+
+def test_the_gate_refuses_when_an_existing_row_changed(tmp_path):
+    existing = _log_frame(3)
+    altered = existing.copy()
+    altered.loc[0, "experiment"] = "tampered"
+    path, sha = _write_log(tmp_path, altered)
+    with pytest.raises(EvaluationError, match="differs from the committed version"):
+        assert_log_ready_for_append(path, [dict.fromkeys(TEST_LOG_COLUMNS, 0)], expected_sha256=sha,
+                                    expected_rows=3, committed=existing)
+
+
+def test_the_gate_refuses_a_duplicate_or_already_present_key(tmp_path):
+    existing = _log_frame(3)
+    path, sha = _write_log(tmp_path, existing)
+    repeat = [{c: (f"e{0}" if c == "experiment" else "m" if c == "model" else 0 if c == "seed" else 0)
+               for c in TEST_LOG_COLUMNS}]
+    with pytest.raises(EvaluationError, match="already exist"):
+        assert_log_ready_for_append(path, repeat, expected_sha256=sha, expected_rows=3)
+    twice = [{c: (f"z{0}" if c == "experiment" else "m" if c == "model" else 7 if c == "seed" else 0)
+              for c in TEST_LOG_COLUMNS}] * 2
+    with pytest.raises(EvaluationError, match="duplicate"):
+        assert_log_ready_for_append(path, twice, expected_sha256=sha, expected_rows=3)
+
+
+def test_the_gate_refuses_a_no_op_write(tmp_path):
+    existing = _log_frame(3)
+    path, sha = _write_log(tmp_path, existing)
+    with pytest.raises(EvaluationError, match="No rows to append"):
+        assert_log_ready_for_append(path, [], expected_sha256=sha, expected_rows=3)
+
+
+def test_the_gate_refuses_a_missing_log(tmp_path):
+    with pytest.raises(EvaluationError, match="does not exist"):
+        assert_log_ready_for_append(tmp_path / "absent.csv", [dict.fromkeys(TEST_LOG_COLUMNS, 0)],
+                                    expected_sha256="x", expected_rows=0)
