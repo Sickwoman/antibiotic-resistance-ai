@@ -1,0 +1,99 @@
+{
+  "primary_baseline": "baseline_saved",
+  "primary_arm": "recalibrated",
+  "endpoint": "brier",
+  "direction": "lower_is_better",
+  "baseline_coverage_for_the_floor": 0.23220973782771537,
+  "coverage_slack": 0.05,
+  "target_npv": 0.95,
+  "verdicts": [
+    {
+      "arm": "recalibrated",
+      "role": "A1",
+      "kind": "primary",
+      "brier_baseline": 0.14581310366389247,
+      "brier_arm": 0.1493213005086028,
+      "delta": -0.0035081968447103207,
+      "low": -0.01613216830836761,
+      "high": 0.008470833318378418,
+      "p_value": 0.576,
+      "holm": {
+        "p_value": 0.576,
+        "threshold": 0.05,
+        "rejected": false,
+        "adjusted_level": 0.95,
+        "rank": 2,
+        "n_compared": 2
+      },
+      "zone": {
+        "npv": 0.9259259259259259,
+        "npv_target": 0.95,
+        "npv_ok": false,
+        "coverage": 0.20224719101123595,
+        "baseline_coverage": 0.23220973782771537,
+        "coverage_floor": 0.18220973782771538,
+        "coverage_ok": true,
+        "passes": false
+      },
+      "baseline_zone_passes": false,
+      "verdict": "not demonstrated",
+      "reasons": [
+        "Brier interval [-0.0161, 0.0085] includes 0",
+        "zone pair does not hold"
+      ]
+    },
+    {
+      "arm": "refit_a_plus_c",
+      "role": "A2",
+      "kind": "confirmatory secondary",
+      "brier_baseline": 0.14581310366389247,
+      "brier_arm": 0.1271198382312609,
+      "delta": 0.018693265432631556,
+      "low": 0.008621640128836042,
+      "high": 0.029006013226649193,
+      "p_value": 0.001,
+      "holm": {
+        "p_value": 0.001,
+        "threshold": 0.025,
+        "rejected": true,
+        "adjusted_level": 0.975,
+        "rank": 1,
+        "n_compared": 2
+      },
+      "zone": {
+        "npv": 0.904,
+        "npv_target": 0.95,
+        "npv_ok": false,
+        "coverage": 0.4681647940074906,
+        "baseline_coverage": 0.23220973782771537,
+        "coverage_floor": 0.18220973782771538,
+        "coverage_ok": true,
+        "passes": false
+      },
+      "baseline_zone_passes": false,
+      "verdict": "mixed",
+      "reasons": [
+        "Brier interval [0.0086, 0.0290] excludes 0 in favour of adaptation",
+        "zone pair does not hold"
+      ]
+    }
+  ],
+  "holm": {
+    "recalibrated": {
+      "p_value": 0.576,
+      "threshold": 0.05,
+      "rejected": false,
+      "adjusted_level": 0.95,
+      "rank": 2,
+      "n_compared": 2
+    },
+    "refit_a_plus_c": {
+      "p_value": 0.001,
+      "threshold": 0.025,
+      "rejected": true,
+      "adjusted_level": 0.975,
+      "rank": 1,
+      "n_compared": 2
+    }
+  }
+}

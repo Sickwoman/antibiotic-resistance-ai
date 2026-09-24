@@ -1,0 +1,1010 @@
+{
+  "stage": "v0.8-adaptation",
+  "status": "finished",
+  "updated": "2026-09-24 18:22:29",
+  "timezone": "India Standard Time+0530",
+  "git_commit": "4d82a22",
+  "methodology_hash": "e0ceb1727e63d7e3f6c9c72ecbe47795a61ac98d6b7f0a8dced3d1456f91cf60",
+  "config_hash": "fb4c1d4950a41c4cce87d3c4b9729b204195dbbef46b9a21cf0bb7dfcd7bc097",
+  "cohort": "ecoli_ciprofloxacin__site-C",
+  "cohort_rows_fingerprint": "83d504f4d0f83ae8",
+  "cohort_x_sha256": "18329b134b4b52fbb3be2ed2abab53e51072f03dc6a7acfbd7251fbefec1320e",
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "archive_sha256": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867",
+  "partition_fingerprint": {
+    "adaptation": "f872f41e20186198",
+    "evaluation": "6cc5e77552224208"
+  },
+  "partition_seed": 42,
+  "adaptation_rows": 622,
+  "evaluation_rows": 267,
+  "decision_threshold": 0.14261540693905073,
+  "threshold_reading": "the plan enumerates the changeable parameters as the Platt pair and the zone edge, so the decision threshold is unchanged and every arm is evaluated at the saved model's deployed cut-off",
+  "carried_zone_edge": 0.10255963637363619,
+  "group_limitation": "DRIAMS-C provides no patient identifier in the available metadata. Each spectrum is therefore treated as an independent group for partitioning. Consequently, uncertainty intervals for C are sample-level and may be narrower than appropriate if multiple spectra originate from the same unobserved patient.",
+  "bootstrap": {
+    "resamples": 2000,
+    "seed": 42,
+    "level": 0.95,
+    "paired": true,
+    "resample_unit": "group (each C spectrum is its own group)"
+  },
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  },
+  "seconds": 65.7,
+  "n_test_evaluations": 5,
+  "primary": {
+    "arm": "recalibrated",
+    "role": "A1",
+    "kind": "primary",
+    "brier_baseline": 0.14581310366389247,
+    "brier_arm": 0.1493213005086028,
+    "delta": -0.0035081968447103207,
+    "low": -0.01613216830836761,
+    "high": 0.008470833318378418,
+    "p_value": 0.576,
+    "holm": {
+      "p_value": 0.576,
+      "threshold": 0.05,
+      "rejected": false,
+      "adjusted_level": 0.95,
+      "rank": 2,
+      "n_compared": 2
+    },
+    "zone": {
+      "npv": 0.9259259259259259,
+      "npv_target": 0.95,
+      "npv_ok": false,
+      "coverage": 0.20224719101123595,
+      "baseline_coverage": 0.23220973782771537,
+      "coverage_floor": 0.18220973782771538,
+      "coverage_ok": true,
+      "passes": false
+    },
+    "baseline_zone_passes": false,
+    "verdict": "not demonstrated",
+    "reasons": [
+      "Brier interval [-0.0161, 0.0085] includes 0",
+      "zone pair does not hold"
+    ]
+  },
+  "verdicts": [
+    {
+      "arm": "recalibrated",
+      "role": "A1",
+      "kind": "primary",
+      "brier_baseline": 0.14581310366389247,
+      "brier_arm": 0.1493213005086028,
+      "delta": -0.0035081968447103207,
+      "low": -0.01613216830836761,
+      "high": 0.008470833318378418,
+      "p_value": 0.576,
+      "holm": {
+        "p_value": 0.576,
+        "threshold": 0.05,
+        "rejected": false,
+        "adjusted_level": 0.95,
+        "rank": 2,
+        "n_compared": 2
+      },
+      "zone": {
+        "npv": 0.9259259259259259,
+        "npv_target": 0.95,
+        "npv_ok": false,
+        "coverage": 0.20224719101123595,
+        "baseline_coverage": 0.23220973782771537,
+        "coverage_floor": 0.18220973782771538,
+        "coverage_ok": true,
+        "passes": false
+      },
+      "baseline_zone_passes": false,
+      "verdict": "not demonstrated",
+      "reasons": [
+        "Brier interval [-0.0161, 0.0085] includes 0",
+        "zone pair does not hold"
+      ]
+    },
+    {
+      "arm": "refit_a_plus_c",
+      "role": "A2",
+      "kind": "confirmatory secondary",
+      "brier_baseline": 0.14581310366389247,
+      "brier_arm": 0.1271198382312609,
+      "delta": 0.018693265432631556,
+      "low": 0.008621640128836042,
+      "high": 0.029006013226649193,
+      "p_value": 0.001,
+      "holm": {
+        "p_value": 0.001,
+        "threshold": 0.025,
+        "rejected": true,
+        "adjusted_level": 0.975,
+        "rank": 1,
+        "n_compared": 2
+      },
+      "zone": {
+        "npv": 0.904,
+        "npv_target": 0.95,
+        "npv_ok": false,
+        "coverage": 0.4681647940074906,
+        "baseline_coverage": 0.23220973782771537,
+        "coverage_floor": 0.18220973782771538,
+        "coverage_ok": true,
+        "passes": false
+      },
+      "baseline_zone_passes": false,
+      "verdict": "mixed",
+      "reasons": [
+        "Brier interval [0.0086, 0.0290] excludes 0 in favour of adaptation",
+        "zone pair does not hold"
+      ]
+    }
+  ],
+  "holm": {
+    "recalibrated": {
+      "p_value": 0.576,
+      "threshold": 0.05,
+      "rejected": false,
+      "adjusted_level": 0.95,
+      "rank": 2,
+      "n_compared": 2
+    },
+    "refit_a_plus_c": {
+      "p_value": 0.001,
+      "threshold": 0.025,
+      "rejected": true,
+      "adjusted_level": 0.975,
+      "rank": 1,
+      "n_compared": 2
+    }
+  },
+  "arms": {
+    "prevalence": {
+      "role": "B0",
+      "model": "prevalence",
+      "setting": "always predicts 0.1929 (the adaptation part's resistance rate)",
+      "rate": 0.19292604501607716
+    },
+    "baseline_saved": {
+      "role": "B1",
+      "model": "v0.4_tuned_lightgbm",
+      "setting": "saved model, unchanged; carried-over Version 0.6 zone edge",
+      "model_version": "v0.4.0-tuned_lightgbm-random-seed42"
+    },
+    "baseline_v07_external": {
+      "role": "B2",
+      "model": "v0.7_external_refit",
+      "setting": "Version 0.7 external refit (DRIAMS-A only); carried-over zone edge",
+      "source": "external_seed42.joblib"
+    },
+    "recalibrated": {
+      "role": "A1",
+      "model": "recalibrated_v0.4_tuned_lightgbm",
+      "setting": "recalibration-only: Platt (a, b) and the zone edge refitted on the C adaptation part; the LightGBM model is frozen",
+      "platt": {
+        "method": "platt_sigmoid",
+        "a": -4.936997744914323,
+        "b": 2.3926624817813127,
+        "n_fitted": 622,
+        "n_resistant": 120,
+        "fitted_on": "adaptation",
+        "changed": [
+          "calibrator_a",
+          "calibrator_b"
+        ],
+        "frozen": [
+          "model",
+          "preprocessing",
+          "features",
+          "threshold_rule"
+        ]
+      },
+      "zone": {
+        "edge": 0.0877970210579224,
+        "fitted_on": "C adaptation part",
+        "n_fitted": 622,
+        "achieved_npv_on_adaptation": 0.9504132231404959,
+        "coverage_on_adaptation": 0.1945337620578778,
+        "resistant_side_exists": false
+      },
+      "seconds": 0.27
+    },
+    "refit_a_plus_c": {
+      "role": "A2",
+      "model": "refit_a_plus_c_tuned_lightgbm",
+      "setting": {
+        "subsample": 1.0,
+        "reg_lambda": 10.0,
+        "num_leaves": 31,
+        "n_estimators": 300,
+        "min_child_samples": 10,
+        "learning_rate": 0.1,
+        "colsample_bytree": 0.3,
+        "class_weight": null
+      },
+      "a_rows": 3831,
+      "c_adaptation_rows": 622,
+      "zone": {
+        "edge": 0.14261540693905073,
+        "fitted_on": "C adaptation part",
+        "n_fitted": 622,
+        "achieved_npv_on_adaptation": 1.0,
+        "coverage_on_adaptation": 0.8054662379421221,
+        "resistant_side_exists": true
+      },
+      "fit_seconds": 106.1
+    }
+  },
+  "test_log_sha256_before": "e97480ab72acaaa54ad71d65860fc61026616a08a35525a7184cabc26c8a048a",
+  "test_log_sha256_after": "c395fcb34dcdd041ca6d953605b517d6992f95e4df718566ba4b2e59a076e0c7",
+  "plots": [
+    "ecoli_ciprofloxacin__site-C_adaptation_brier.png",
+    "ecoli_ciprofloxacin__site-C_adaptation_zone.png"
+  ],
+  "config": {
+    "project": {
+      "name": "antibiotic-resistance-ai",
+      "version": "0.7.0",
+      "random_seed": 42
+    },
+    "paths": {
+      "driams_root": "C:/DRIAMS",
+      "archives_subdir": "archives",
+      "manifests_subdir": "manifests",
+      "eda_metrics_dir": "results/metrics/eda",
+      "eda_plots_dir": "results/plots/eda"
+    },
+    "driams": {
+      "archives": {
+        "A": {
+          "site": "DRIAMS-A",
+          "institution": "University Hospital Basel",
+          "period": "11/2015-08/2018",
+          "filename": "DRIAMS_A.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_A.tar.gz?download=1",
+          "size_bytes": 86161411795,
+          "checksum_type": "md5",
+          "checksum": "ca32ee8893afd57f6e80f4d7f3a37cf1"
+        },
+        "B": {
+          "site": "DRIAMS-B",
+          "institution": "Canton Hospital Basel-Land",
+          "period": "01/2018-06/2018",
+          "filename": "DRIAMS_B.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_B.tar.gz?download=1",
+          "size_bytes": 3688166065,
+          "checksum_type": "md5",
+          "checksum": "86ef245c53b1a2cf547d04dee1dc79ea"
+        },
+        "C": {
+          "site": "DRIAMS-C",
+          "institution": "Canton Hospital Aarau",
+          "period": "01/2018-08/2018",
+          "filename": "DRIAMS_C.tar.gz",
+          "url": null,
+          "manual_download_page": "https://datadryad.org/dataset/doi:10.5061/dryad.bzkh1899q",
+          "size_bytes": 12433273727,
+          "checksum_type": "sha256",
+          "checksum": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867"
+        },
+        "D": {
+          "site": "DRIAMS-D",
+          "institution": "Viollier AG (diagnostic laboratory)",
+          "period": "01/2018-06/2018",
+          "filename": "DRIAMS_D.tar.gz",
+          "url": "https://zenodo.org/records/5640517/files/DRIAMS_D.tar.gz?download=1",
+          "size_bytes": 42557466856,
+          "checksum_type": "md5",
+          "checksum": "21483b6232da155edc324febe5208ee1"
+        }
+      },
+      "spectra_folders": [
+        "raw",
+        "preprocessed",
+        "binned_6000"
+      ],
+      "id_folder": "id",
+      "id_suffixes": [
+        "strat",
+        "clean"
+      ],
+      "metadata_columns": [
+        "id",
+        "code",
+        "combined_code",
+        "species",
+        "genus",
+        "laboratory_species",
+        "patient_no",
+        "case_no",
+        "order_no",
+        "acquisition_date",
+        "acquisition_time",
+        "workstation"
+      ],
+      "group_columns": [
+        "patient_no",
+        "case_no"
+      ],
+      "index_artifact_prefix": "Unnamed:",
+      "binary_marker_values": [
+        "0",
+        "1"
+      ],
+      "failed_identification_species": [
+        "no peaks found"
+      ],
+      "mixed_species_prefix": "MIX!",
+      "n_bins": 6000
+    },
+    "labels": {
+      "intermediate_as": "resistant",
+      "ambiguous_values": [
+        "S(2)",
+        "R(1)",
+        "R(2)",
+        "L(1)",
+        "I(1)",
+        "I(1), S(1)",
+        "R(1), I(1)",
+        "R(1), S(1)",
+        "R(1), I(1), S(1)"
+      ],
+      "missing_values": [
+        "-",
+        ""
+      ]
+    },
+    "target": {
+      "species": "Escherichia coli",
+      "preferred_antibiotic": "Ciprofloxacin",
+      "benchmark_antibiotic": "Ceftriaxone"
+    },
+    "pair_selection": {
+      "development_site": "DRIAMS-A",
+      "min_resistant_dev": 500,
+      "min_susceptible_dev": 500,
+      "min_minority_fraction": 0.1,
+      "min_years_with_labels": 3,
+      "temporal_test_year": "2018",
+      "min_resistant_test_year": 50,
+      "external_sites": [
+        "DRIAMS-B",
+        "DRIAMS-C",
+        "DRIAMS-D"
+      ],
+      "min_per_class_external": 30,
+      "min_external_sites": 2
+    },
+    "extraction": {
+      "default_folders": [
+        "id",
+        "binned_6000"
+      ],
+      "min_free_disk_gb": 20
+    },
+    "preprocessing": {
+      "spectrum_folder": "raw",
+      "min_raw_points": 100,
+      "intensity_transform": "sqrt",
+      "smoothing": {
+        "method": "savitzky_golay",
+        "half_window_size": 10,
+        "polynomial_order": 3
+      },
+      "baseline": {
+        "method": "snip",
+        "iterations": [
+          20,
+          100
+        ]
+      },
+      "normalization": "tic",
+      "mz_min": 2000.0,
+      "mz_max": 20000.0,
+      "bin_width": 3.0,
+      "dtype": "float32"
+    },
+    "dataset": {
+      "name": "ecoli_ciprofloxacin",
+      "output_dir": "data/processed",
+      "sites": [
+        "DRIAMS-A",
+        "DRIAMS-B",
+        "DRIAMS-D"
+      ],
+      "exclude_workstations": [
+        "HospitalHygiene"
+      ],
+      "require_acquisition_date": false,
+      "flag_duplicate_spectra": true,
+      "verify_against_driams_binned": true,
+      "verification_tolerance": 0.0001,
+      "chunk_size": 256
+    },
+    "splits": {
+      "random": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "test_fraction": 0.2,
+        "validation_fraction": 0.1
+      },
+      "within_year": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "year_folder": "2017",
+        "test_fraction": 0.2,
+        "validation_fraction": 0.1
+      },
+      "temporal": {
+        "sites": [
+          "DRIAMS-A"
+        ],
+        "date_column": "acquisition_date",
+        "validation_start": "2017-10-01",
+        "test_start": "2018-01-01"
+      },
+      "external": {
+        "train_sites": [
+          "DRIAMS-A"
+        ],
+        "test_sites": [
+          "DRIAMS-B",
+          "DRIAMS-D"
+        ],
+        "validation_fraction": 0.1
+      },
+      "external_ab": {
+        "train_sites": [
+          "DRIAMS-A",
+          "DRIAMS-B"
+        ],
+        "test_sites": [
+          "DRIAMS-D"
+        ],
+        "validation_fraction": 0.1
+      }
+    },
+    "evaluation": {
+      "threshold": {
+        "rule": "min_sensitivity",
+        "min_sensitivity": 0.9
+      },
+      "primary_metric": "roc_auc",
+      "bootstrap": {
+        "resamples": 2000,
+        "level": 0.95,
+        "seed": 42
+      },
+      "calibration_bins": 10,
+      "locked_test_splits": [],
+      "test_log": "results/experiments/test_evaluations.csv",
+      "timing_samples": 200
+    },
+    "baselines": {
+      "splits": [
+        "random",
+        "within_year"
+      ],
+      "size_matched": {
+        "split": "random",
+        "size_of": "within_year"
+      },
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "model_dir": "models/v0.3",
+      "report_dir": "results/metrics/v0.3",
+      "plot_dir": "results/plots/v0.3",
+      "models": {
+        "prevalence": {
+          "kind": "dummy"
+        },
+        "logistic_regression": {
+          "kind": "logistic_regression",
+          "scale": true,
+          "params": {
+            "C": 1.0,
+            "max_iter": 5000
+          }
+        },
+        "random_forest": {
+          "kind": "random_forest",
+          "stochastic": true,
+          "params": {
+            "n_estimators": 500
+          }
+        },
+        "lightgbm": {
+          "kind": "lightgbm",
+          "params": {}
+        }
+      }
+    },
+    "tuning": {
+      "split": "random",
+      "cv_folds": 5,
+      "cv_seed": 42,
+      "search_metric": "roc_auc",
+      "calibration": "sigmoid",
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "retune_experiments": [
+        "within_year",
+        "random_size_matched"
+      ],
+      "model_dir": "models/v0.4",
+      "report_dir": "results/metrics/v0.4",
+      "plot_dir": "results/plots/v0.4",
+      "families": {
+        "logistic_regression": {
+          "kind": "logistic_regression",
+          "n_jobs": 4,
+          "grid": [
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da",
+                "pca_50",
+                "pca_200",
+                "kbest_300",
+                "kbest_1000"
+              ],
+              "penalty": [
+                "l2"
+              ],
+              "C": [
+                0.0001,
+                0.001,
+                0.01,
+                0.1,
+                1.0,
+                10.0,
+                100.0
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            },
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da"
+              ],
+              "penalty": [
+                "l1"
+              ],
+              "C": [
+                0.01,
+                0.1,
+                1.0,
+                10.0
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            }
+          ]
+        },
+        "random_forest": {
+          "kind": "random_forest",
+          "n_jobs": 1,
+          "stochastic": true,
+          "fixed": {
+            "n_estimators": 500
+          },
+          "grid": [
+            {
+              "max_features": [
+                "sqrt",
+                "log2",
+                0.05
+              ],
+              "min_samples_leaf": [
+                1,
+                3,
+                10
+              ],
+              "class_weight": [
+                null,
+                "balanced_subsample"
+              ]
+            }
+          ]
+        },
+        "lightgbm": {
+          "kind": "lightgbm",
+          "n_jobs": 1,
+          "stochastic": true,
+          "fixed": {
+            "subsample_freq": 1
+          },
+          "random_draws": 30,
+          "space": {
+            "n_estimators": [
+              100,
+              300,
+              600
+            ],
+            "learning_rate": [
+              0.01,
+              0.03,
+              0.1
+            ],
+            "num_leaves": [
+              7,
+              15,
+              31
+            ],
+            "min_child_samples": [
+              10,
+              20,
+              40
+            ],
+            "colsample_bytree": [
+              0.1,
+              0.3,
+              1.0
+            ],
+            "subsample": [
+              0.7,
+              1.0
+            ],
+            "reg_lambda": [
+              0.0,
+              1.0,
+              10.0
+            ],
+            "class_weight": [
+              null,
+              "balanced"
+            ]
+          }
+        },
+        "svm_rbf": {
+          "kind": "svm_rbf",
+          "n_jobs": 4,
+          "grid": [
+            {
+              "C": [
+                0.01,
+                0.1,
+                1.0,
+                10.0,
+                100.0,
+                1000.0
+              ],
+              "gamma": [
+                1e-05,
+                0.0001,
+                0.001
+              ],
+              "class_weight": [
+                null,
+                "balanced"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "deep": {
+      "split": "random",
+      "cv_folds": 5,
+      "cv_seed": 42,
+      "search_metric": "roc_auc",
+      "calibration": "sigmoid",
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "model_dir": "models/v0.5",
+      "report_dir": "results/metrics/v0.5",
+      "plot_dir": "results/plots/v0.5",
+      "compare_with": "models/v0.4",
+      "training": {
+        "max_epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "patience": 8,
+        "inner_validation_fraction": 0.15,
+        "threads": 8
+      },
+      "families": {
+        "mlp": {
+          "kind": "mlp",
+          "stochastic": true,
+          "grid": [
+            {
+              "features": [
+                "bins_3da",
+                "bins_18da"
+              ],
+              "hidden": [
+                "256,64",
+                "512,128"
+              ],
+              "dropout": [
+                0.2,
+                0.5
+              ],
+              "positive_class_weight": [
+                false,
+                true
+              ]
+            }
+          ]
+        },
+        "cnn": {
+          "kind": "cnn",
+          "stochastic": true,
+          "grid": [
+            {
+              "features": [
+                "bins_3da"
+              ],
+              "channels": [
+                "16,32"
+              ],
+              "kernel_size": [
+                9,
+                25
+              ],
+              "dropout": [
+                0.3
+              ],
+              "positive_class_weight": [
+                true
+              ]
+            },
+            {
+              "features": [
+                "bins_18da"
+              ],
+              "channels": [
+                "16,32",
+                "32,64"
+              ],
+              "kernel_size": [
+                9,
+                15
+              ],
+              "dropout": [
+                0.3
+              ],
+              "positive_class_weight": [
+                true
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "explain": {
+      "model_dir": "models/v0.4",
+      "split": "random",
+      "rows": "validation",
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "report_dir": "results/metrics/v0.6",
+      "plot_dir": "results/plots/v0.6",
+      "regions": {
+        "top_bins": 100,
+        "merge_gap_bins": 2,
+        "report_regions": 20
+      },
+      "permutation": {
+        "block_bins": 6,
+        "repeats": 5,
+        "seed": 42,
+        "top_single_bins": 50
+      },
+      "cross_model": "models/v0.5",
+      "null_control": {
+        "label_shuffle_seed": 42
+      },
+      "uncertainty": {
+        "target_precision": 0.95,
+        "target_npv": 0.95,
+        "min_coverage": 0.05
+      }
+    },
+    "generalisation": {
+      "source_model": "models/v0.4",
+      "source_split": "random",
+      "experiments": [
+        "temporal",
+        "external",
+        "external_ab"
+      ],
+      "reuse_logged": [
+        "random",
+        "within_year"
+      ],
+      "score_saved_model_on": [
+        "external"
+      ],
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "model_dir": "models/v0.7",
+      "report_dir": "results/metrics/v0.7",
+      "plot_dir": "results/plots/v0.7",
+      "zone_transfer": {
+        "zones": "results/metrics/v0.6",
+        "target_npv": 0.95
+      },
+      "shift_diagnostic": {
+        "low_mz_bins": 20,
+        "regions_from": "results/metrics/v0.6"
+      }
+    },
+    "reservation": {
+      "driams_c": {
+        "site": "DRIAMS-C",
+        "reserved_for": "0.8",
+        "used_in_v07": false,
+        "adaptation_fraction": 0.7,
+        "holdout_fraction": 0.3,
+        "seed": 42,
+        "fallback_site": "DRIAMS-D",
+        "rebuilds_primary_dataset": false
+      }
+    },
+    "adaptation": {
+      "cohort": {
+        "site": "DRIAMS-C",
+        "name": "ecoli_ciprofloxacin__site-C",
+        "archive_checksum": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867",
+        "require_feature_fingerprint": "347cbd6d5d956ff9"
+      },
+      "eligibility": {
+        "e1_min_per_class_site": 30,
+        "e2_min_per_class_holdout": 30,
+        "on_failure": "stop"
+      },
+      "partition": {
+        "adaptation_fraction": 0.7,
+        "holdout_fraction": 0.3,
+        "seed": 42,
+        "unit": "patient_group",
+        "method": "grouped_subsample"
+      },
+      "baseline": {
+        "model_dir": "models/v0.4",
+        "split": "random",
+        "zones": "results/metrics/v0.6",
+        "secondary_model_dir": "models/v0.7"
+      },
+      "arms": {
+        "primary": "recalibrated",
+        "secondary": "refit_a_plus_c",
+        "recalibration_method": "platt_sigmoid",
+        "frozen_under_recalibration": [
+          "model",
+          "preprocessing",
+          "features",
+          "threshold_rule"
+        ],
+        "hyperparameter_search_on_c": false,
+        "adaptation_size": "full",
+        "learning_curve_fractions": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "learning_curve_scored_on_holdout": false
+      },
+      "endpoints": {
+        "primary": "brier",
+        "primary_direction": "lower_is_better",
+        "coprimary": "confidence_zone",
+        "zone_target_npv": 0.95,
+        "zone_coverage_slack": 0.05,
+        "zone_baseline": "B1",
+        "secondary": [
+          "roc_auc",
+          "pr_auc",
+          "npv_susceptible",
+          "share_susceptible",
+          "calibration_slope",
+          "calibration_intercept",
+          "sensitivity",
+          "specificity",
+          "balanced_accuracy"
+        ],
+        "auroc_is_a_guardrail_not_an_endpoint": true
+      },
+      "statistics": {
+        "paired": true,
+        "bootstrap_resamples": 2000,
+        "bootstrap_seed": 42,
+        "level": 0.95,
+        "resample_unit": "patient_group",
+        "multiple_comparison": "holm",
+        "holm_arms": [
+          "recalibrated",
+          "refit_a_plus_c"
+        ],
+        "holm_alpha": 0.05
+      },
+      "decision": {
+        "outcomes": [
+          "success",
+          "not demonstrated",
+          "harm",
+          "mixed"
+        ],
+        "success": "brier interval excludes 0 favourably AND the zone pair holds",
+        "null_result": "brier interval includes 0",
+        "harm": "brier interval excludes 0 unfavourably OR the adapted zone falls below target where B1 held",
+        "mixed": "brier interval excludes 0 favourably AND the zone pair fails"
+      },
+      "established": {
+        "archive_sha256_verified": true,
+        "archive_sha256": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867",
+        "cohort_rows_fingerprint": "83d504f4d0f83ae8",
+        "cohort_x_sha256_prefix": "18329b134b4b52fb",
+        "cohort_total": 889,
+        "cohort_resistant": 191,
+        "cohort_susceptible": 698,
+        "excluded_total": 38,
+        "excluded_reasons": {
+          "no_ast_result": 38,
+          "ambiguous": 0,
+          "other": 0
+        },
+        "adaptation_rows": 622,
+        "adaptation_resistant": 120,
+        "adaptation_susceptible": 502,
+        "evaluation_rows": 267,
+        "evaluation_resistant": 71,
+        "evaluation_susceptible": 196,
+        "partition_fingerprint_adaptation": "f872f41e20186198",
+        "partition_fingerprint_evaluation": "6cc5e77552224208",
+        "partition_reproduced_independently": true,
+        "achieved_adaptation_fraction": 0.699663,
+        "driams_binned_max_relative_difference": 5.4786432816848436e-08,
+        "grouping_limitation": "no_patient_identifier_each_spectrum_its_own_group",
+        "groups": 889,
+        "evaluation_scored": false
+      },
+      "report_dir": "results/metrics/v0.8",
+      "plot_dir": "results/plots/v0.8",
+      "model_dir": "models/v0.8"
+    }
+  }
+}
