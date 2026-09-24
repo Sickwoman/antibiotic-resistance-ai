@@ -233,3 +233,44 @@ Nothing here was prompted by a test result — none had been seen.
    the fitted edge across unchanged is a test of the zone; refitting it per site would need that site's
    labels and is a different experiment. The pre-registered reading of the outcome is fixed in the Version
    0.7 plan, including what it means if the zone does not transfer.
+
+### Amendment 4 — 2026-09-24: the Version 0.8 adaptation experiment
+
+Added when the Version 0.8 methodology was approved, **before DRIAMS-C was downloaded, extracted,
+partitioned or inspected**, and before any Version 0.8 code existed. It changes no Version 0.7 result and
+rewrites no earlier methodology: Versions 0.1–0.7 stand exactly as recorded. It fixes how a new site may be
+adapted to and how the outcome is judged. Nothing here was prompted by a result, because none exists.
+
+1. **A locally refitted confidence zone is a different fitted object from the carried-over one, and the two
+   may never be compared as though they were the same.** The Version 0.6 edge (probability below 0.1026) was
+   fitted once, on the `random` validation part, and *carried* to new data unchanged; its number answers
+   "does a zone fitted elsewhere still hold here?". A zone refitted on a new site's adaptation part answers
+   a different question — "can a zone be found here, given local labels?" — and will almost always look
+   better, because it was fitted where it is measured. Every report must name which of the two a number
+   belongs to, and a difference between them is never presented as transfer, improvement or degradation of
+   the same object.
+2. **The adaptation arms may change only what is listed.** Recalibration-only changes the two Platt
+   parameters and the zone edge, and nothing else; the trees, the preprocessing, the feature space and the
+   threshold rule stay frozen. The confirmatory A + C refit re-fits the model with the Version 0.4 winning
+   setting unchanged. **No hyperparameter search may be run on the new site**, because a search would let
+   the adaptation part choose the setting, and a difference could no longer be attributed to adaptation.
+3. **The new site's held-out part is protected exactly as a locked test part.** It is listed in
+   `evaluation.locked_test_splits` from the moment it is created until the single Version 0.8 scoring, so
+   every script refuses it, and it may never influence the adaptation size, the method, the edge, the
+   threshold or any hyperparameter. The partition is drawn once, deterministically, by whole patient groups
+   with the project seed, before any label distribution in the parts is examined.
+4. **The primary endpoint is the Brier score, not AUROC, and the reason is mathematical rather than
+   practical.** Recalibration is a monotone map of the probabilities, so it preserves every pairwise
+   ordering and leaves AUROC exactly unchanged — verified on the recorded Version 0.7 DRIAMS-D
+   probabilities, where five different recalibrations gave bit-identical AUROC. Pairing AUROC with a
+   recalibration arm would guarantee a null result by construction. AUROC remains a reported guardrail.
+5. **The confidence-zone endpoint is a pair, with a coverage floor.** Negative predictive value on its own
+   can be raised arbitrarily by shrinking the zone, so the zone counts as improved only if its NPV reaches
+   the pre-registered 0.95 *and* its coverage is within 0.05 of the baseline's. The number of covered
+   spectra is reported beside every zone number, because Version 0.7 showed how little a zone number on 51
+   spectra establishes.
+6. **Eligibility is checked before anything is fitted, on class counts only.** The existing rule
+   (`pair_selection.min_per_class_external`) decides whether the site may be used at all; a Version 0.8
+   power precondition additionally requires at least that many of each class in the held-out part. A
+   failure of either **stops the experiment and is reported with its counts**. Another site is never
+   silently substituted, and neither rule may be changed after the counts are seen.

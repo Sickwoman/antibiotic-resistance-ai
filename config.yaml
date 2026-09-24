@@ -443,3 +443,70 @@ reservation:
     # Adding C later must never rebuild the primary dataset (protocol amendment 3, point 4) and never
     # re-date Version 0.7: it is reported as a dated addendum.
     rebuilds_primary_dataset: false
+
+adaptation:
+  # Version 0.8, APPROVED 2026-09-24 (docs/v0.8_adaptive_plan.md, protocol amendment 4). Every
+  # methodology-critical value is fixed here BEFORE DRIAMS-C was opened. Changing any of them after an
+  # evaluation result exists would void the pre-registration.
+  cohort:
+    site: DRIAMS-C
+    name: ecoli_ciprofloxacin__site-C     # a SEPARATE cohort; the primary dataset is never rebuilt
+    archive_checksum: 77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867
+    # Must equal the primary dataset's, or C was built with other preprocessing and is not comparable.
+    require_feature_fingerprint: 347cbd6d5d956ff9
+  eligibility:
+    # E1 is the existing pre-registered site rule (pair_selection.min_per_class_external).
+    # E2 is the Version 0.8 power precondition on the part that carries the result.
+    e1_min_per_class_site: 30
+    e2_min_per_class_holdout: 30
+    on_failure: stop                      # never relax the rule, never substitute another site
+  partition:
+    adaptation_fraction: 0.70
+    holdout_fraction: 0.30
+    seed: 42
+    unit: patient_group                   # whole groups; a spectrum without an ID is its own group
+    method: grouped_subsample             # the existing tested function
+  baseline:
+    # B1, the primary baseline: the saved project model, unchanged, with the carried-over Version 0.6 edge.
+    model_dir: models/v0.4
+    split: random
+    zones: results/metrics/v0.6           # the carried-over edge; NEVER refitted for the baseline
+    secondary_model_dir: models/v0.7      # B2, the Version 0.7 `external` refit
+  arms:
+    primary: recalibrated                 # Platt (a, b) + zone edge refitted on the adaptation part only
+    secondary: refit_a_plus_c             # confirmatory, NOT exploratory; same success/failure rules
+    recalibration_method: platt_sigmoid   # sklearn _SigmoidCalibration, as CalibratedClassifierCV uses
+    frozen_under_recalibration: [model, preprocessing, features, threshold_rule]
+    hyperparameter_search_on_c: false     # rejected in the plan; must stay false
+    adaptation_size: full                 # ONE fixed size for the primary; no selection on the held-out set
+    learning_curve_fractions: [0.25, 0.50, 0.75, 1.00]   # by CV INSIDE the adaptation part only
+    learning_curve_scored_on_holdout: false              # must stay false: it would spend the protected set
+  endpoints:
+    primary: brier                        # (1/n) * sum (p_i - y_i)^2, lower is better
+    primary_direction: lower_is_better
+    coprimary: confidence_zone
+    zone_target_npv: 0.95
+    zone_coverage_slack: 0.05             # adapted coverage >= baseline coverage - 0.05
+    zone_baseline: B1                     # whose coverage the floor is measured against
+    secondary: [roc_auc, pr_auc, npv_susceptible, share_susceptible, calibration_slope,
+                calibration_intercept, sensitivity, specificity, balanced_accuracy]
+    auroc_is_a_guardrail_not_an_endpoint: true   # recalibration cannot move it (monotone map)
+  statistics:
+    paired: true                          # both models scored on the same held-out rows
+    bootstrap_resamples: 2000
+    bootstrap_seed: 42
+    level: 0.95
+    resample_unit: patient_group
+    multiple_comparison: holm
+    holm_arms: [recalibrated, refit_a_plus_c]
+    holm_alpha: 0.05
+  decision:
+    # Arithmetic, and the only vocabulary the report may use.
+    outcomes: [success, "not demonstrated", harm, mixed]
+    success: "brier interval excludes 0 favourably AND the zone pair holds"
+    null_result: "brier interval includes 0"
+    harm: "brier interval excludes 0 unfavourably OR the adapted zone falls below target where B1 held"
+    mixed: "brier interval excludes 0 favourably AND the zone pair fails"
+  report_dir: results/metrics/v0.8
+  plot_dir: results/plots/v0.8
+  model_dir: models/v0.8
