@@ -508,3 +508,83 @@ def plot_region_shift(frame: pd.DataFrame, title: str, path: Path, keep: int = 1
     ax.legend(title="Tested on", fontsize=8.5, title_fontsize=8.5)
     ax.grid(axis="x", visible=False)
     return ex._save(fig, path)
+
+
+def plot_adaptation_brier(verdicts: pd.DataFrame, title: str, path: Path) -> Path:
+    """Paired change in Brier score per adaptation arm, with its interval and pre-registered verdict.
+
+    Brier is lower-is-better, so the plotted quantity is baseline minus arm: a point to the right of zero
+    means the arm scored better. The zero line is the decision: an interval crossing it is 'not
+    demonstrated', which is a verdict rather than a near miss, so it is labelled rather than shaded.
+    """
+    import matplotlib.pyplot as plt
+
+    if verdicts.empty:
+        raise ValueError("Nothing to plot: no arm was compared.")
+    ex.apply_style()
+    frame = verdicts.iloc[::-1].reset_index(drop=True)
+    y = np.arange(len(frame))
+    fig, ax = plt.subplots(figsize=(9.2, 1.4 + 0.85 * len(frame)))
+
+    ax.axvline(0, ls="--", lw=1.4, color=ex.SERIES[1], zorder=1, label="no change from the baseline")
+    low = frame["delta"].to_numpy() - frame["low"].to_numpy()
+    high = frame["high"].to_numpy() - frame["delta"].to_numpy()
+    ax.errorbar(frame["delta"], y, xerr=np.vstack([low, high]), fmt="o", ms=8, lw=1.7, capsize=5,
+                color=ex.SERIES[0], markeredgecolor=ex.SURFACE, markeredgewidth=1.3, zorder=3,
+                label="paired difference, 95 % interval")
+    for i, r in frame.iterrows():
+        ax.annotate(f"{r['delta']:+.4f}  [{r['low']:+.4f}, {r['high']:+.4f}]   {str(r['verdict']).upper()}",
+                    (r["high"], i), textcoords="offset points", xytext=(10, 0), fontsize=8.5,
+                    color=ex.INK_2, va="center")
+    ax.set_yticks(y, [f"{r['role']}  {r['arm']}\n({r['kind']})" for _, r in frame.iterrows()], fontsize=9)
+    span = max(float(np.abs(frame[["low", "high"]].to_numpy()).max()), 1e-4)
+    ax.set_xlim(-1.35 * span, 2.6 * span)
+    ax.set_ylim(-0.8, len(frame) - 0.2)
+    ax.set_xlabel("Baseline Brier minus arm Brier  (positive = the arm predicts better)")
+    ax.set_title(title, pad=22)
+    ex._subtitle(ax, "An interval crossing the dashed line means the improvement was not demonstrated")
+    ax.legend(loc="lower right", fontsize=8.5)
+    ax.grid(axis="y", visible=False)
+    return ex._save(fig, path)
+
+
+def plot_adaptation_zone(zones: pd.DataFrame, target_npv: float, coverage_slack: float,
+                         title: str, path: Path) -> Path:
+    """Coverage against NPV for every arm's confidence zone, with both pre-registered requirements drawn.
+
+    The zone is a *pair*: NPV alone can be raised by shrinking coverage, so the admissible region is the
+    corner where both conditions hold, and it is drawn as such rather than implied by two numbers in a table.
+    """
+    import matplotlib.pyplot as plt
+
+    if zones.empty:
+        raise ValueError("Nothing to plot: no zone was evaluated.")
+    ex.apply_style()
+    baseline = zones[zones["role"] == "B1"]
+    floor = float(baseline["coverage"].iloc[0]) - coverage_slack if len(baseline) else float("nan")
+
+    fig, ax = plt.subplots(figsize=(8.6, 6.2))
+    ax.axhline(target_npv, ls="--", lw=1.4, color=ex.SERIES[1], zorder=2,
+               label=f"NPV target {target_npv:.2f}")
+    if np.isfinite(floor):
+        ax.axvline(floor, ls=":", lw=1.4, color=ex.SERIES[3], zorder=2,
+                   label=f"coverage floor {floor:.3f} (baseline − {coverage_slack:.2f})")
+        ax.axhspan(target_npv, 1.02, xmin=0, xmax=1, color=ex.SERIES[2], alpha=0.06, zorder=1)
+    for i, r in zones.reset_index(drop=True).iterrows():
+        colour = ex.SERIES[0] if str(r["role"]).startswith("A") else ex.INK_2
+        filled = colour if str(r["role"]).startswith("A") else "none"
+        ax.errorbar(r["coverage"], r["npv"],
+                    xerr=[[r["coverage"] - r["coverage_low"]], [r["coverage_high"] - r["coverage"]]],
+                    yerr=[[r["npv"] - r["npv_low"]], [r["npv_high"] - r["npv"]]],
+                    fmt="o", ms=9, lw=1.5, capsize=4, color=colour, markerfacecolor=filled,
+                    markeredgecolor=colour, markeredgewidth=1.6, zorder=4)
+        ax.annotate(f"{r['role']} {r['arm']}\n{int(r['n_zone_susceptible'])} of {int(r['n'])}",
+                    (r["coverage"], r["npv"]), textcoords="offset points",
+                    xytext=(12, 8 if i % 2 == 0 else -20), fontsize=8.5, color=ex.INK_2)
+    ax.set(xlabel="Coverage: share of spectra given a confident susceptible call",
+           ylabel="NPV: share of those calls that were truly susceptible")
+    ax.set_ylim(min(0.80, float(zones["npv_low"].min()) - 0.03), 1.02)
+    ax.set_title(title, pad=22)
+    ex._subtitle(ax, "Both requirements must hold: filled markers are adapted arms, hollow are baselines")
+    ax.legend(loc="lower left", fontsize=8.5)
+    return ex._save(fig, path)
