@@ -1234,3 +1234,48 @@ def test_version_07_tables_are_generated_and_carry_the_required_caveats(workspac
         widths = {ln.count("|") for ln in lines}
         assert len(widths) == 1, f"ragged table ({widths}):\n{block}"
     assert not any(secret in text for secret in workspace.secrets)
+
+
+def test_version_07_draws_its_figures(workspace, generalised):
+    """The figures are drawn from the written reports, and a figure failure never loses a scored run."""
+    assert generalised.code == 0
+    record = workspace.read_json("generalisation", "run_config.json")
+    plots = list(Path(workspace.config["generalisation"]["plot_dir"]).glob("*.png"))
+    assert plots, "no figure was written"
+    assert sorted(p.name for p in plots) == sorted(record["plots"])
+    for path in plots:
+        assert path.stat().st_size > 5_000, f"{path.name} looks empty"
+
+
+def test_already_scored_regimes_are_reused_from_the_log_not_scored_again(workspace, generalised):
+    """The plan reports the earlier regimes beside the new ones; reusing them must add no test-log row."""
+    assert generalised.code == 0
+    reports = workspace.folder("generalisation", "report_dir")
+    path = reports / "reused_from_log.csv"
+    assert path.is_file(), "the reused reference rows are missing"
+    reused = pd.read_csv(path)
+    gn = workspace.config["generalisation"]
+    assert set(reused["split"]) <= set(gn["reuse_logged"])
+    # every reused row must already exist in the log under an earlier stage, with the same numbers
+    log = workspace.test_log()
+    for r in reused.itertuples(index=False):
+        match = log[(log["experiment"] == r.experiment) & (log["model"] == r.model) & (log["seed"] == r.seed)]
+        assert len(match) >= 1, f"{r.experiment} is not in the log at all"
+        assert not str(r.logged_stage).startswith("v0.7"), "a reused row must come from an earlier version"
+        assert float(match["roc_auc"].iloc[0]) == pytest.approx(float(r.roc_auc), abs=1e-12)
+    # and none of those splits may appear among this version's own scorings
+    v07 = log[log["stage"].str.startswith("v0.7")]
+    assert not set(v07["split"]) & set(gn["reuse_logged"])
+
+
+def test_a_split_cannot_be_both_reused_and_rescored(workspace, generalise_script):
+    """Asking for both would spend an already-scored test part a second time."""
+    config = copy.deepcopy(workspace.config)
+    gn = config["generalisation"]
+    gn["experiments"] = [*gn["experiments"], gn["reuse_logged"][0]]
+    path = workspace.write_config(config, "config_gn_double.yaml")
+    log = workspace.test_log()
+    run = run_script(generalise_script, workspace, "--config", path)
+    assert run.code == 1
+    assert run.log.has("would spend them twice")
+    pd.testing.assert_frame_equal(workspace.test_log(), log)

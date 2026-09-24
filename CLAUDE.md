@@ -63,3 +63,20 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   before and after. Nothing in Version 0.6 may change a model, a setting or a cut-off, and no m/z
   region is ever given a protein or peptide identity (`docs/v0.6_explainability_plan.md`, protocol amendment 2).
   `scripts\predict_spectrum.py` now defaults to the Version 0.4 model and takes `--explain`.
+- Version 0.7 generalisation: `.\.venv\Scripts\python.exe scripts\measure_generalisation.py` (config section
+  `generalisation`, `results/metrics/v0.7`); tables from `scripts\generalisation_tables.py`. This is the
+  version protocol decision 7 released the `temporal` and `external` test parts for, so
+  `evaluation.locked_test_splits` is now empty — the guard stays, and putting a split back in that list still
+  refuses it everywhere. It chooses **no setting**: the Version 0.4 winning LightGBM setting is read from its
+  saved model card and refitted unchanged on each experiment's own training part, so a gap can only come from
+  the data. Three checks run before anything is fitted: a locked split is refused, the saved model is refused
+  on any part it shares rows or patient groups with (which is what keeps it off the `temporal` part, where 848
+  of 1,233 rows are in its own training data), and the refit must reproduce the saved model's logged
+  validation AUROC to 1e-9. The `random` result is never re-scored: its probabilities are reused from Version
+  0.4 after checking rows, AUROC and Brier. New split `external_ab` (train A+B, test D) is the
+  specification's "train two sites, test a third"; add a split with
+  `scripts\build_dataset.py --splits-only`, which never rewrites X.npy.
+- DRIAMS-C is **reserved for Version 0.8** (`config.yaml` → `reservation`, and the 2026-09-24 addendum in
+  `docs/v0.7_generalisation_plan.md`): it is not built, not scored, and not in any split. Version 0.8 needs a
+  site whose labels were never spent, and after Version 0.7 B and D no longer qualify. Its partition is fixed
+  in advance (70 % adaptation / 30 % held-out, seed 42). A test refuses any config that spends a reserved site.

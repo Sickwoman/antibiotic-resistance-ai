@@ -385,3 +385,126 @@ def plot_uncertainty_zones(curve: pd.DataFrame, zones, probabilities: np.ndarray
     fig.suptitle(title, x=0.01, ha="left", fontsize=13, fontweight="semibold")
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     return ex._save(fig, path)
+
+
+def plot_generalisation(frame: pd.DataFrame, reference: float, reference_label: str,
+                        title: str, path: Path) -> Path:
+    """AUROC where the model was not trained, one row per experiment and site, with its interval.
+
+    A forest plot rather than bars: the interval is the point of the figure, and bars invite reading the
+    distance from zero, which is meaningless for AUROC. The reference line is the split the model was
+    developed on, and 0.5 is drawn because a site whose interval reaches it has no demonstrated skill there.
+    """
+    import matplotlib.pyplot as plt
+
+    if frame.empty:
+        raise ValueError("Nothing to plot: no experiment was scored.")
+    ex.apply_style()
+    frame = frame.iloc[::-1].reset_index(drop=True)          # first experiment at the top
+    y = np.arange(len(frame))
+    fig, ax = plt.subplots(figsize=(8.6, 1.0 + 0.62 * len(frame)))
+
+    ax.axvline(0.5, ls=":", lw=1.2, color=ex.MUTED, zorder=1)
+    ax.annotate("no skill", (0.5, len(frame) - 0.42), fontsize=8, color=ex.MUTED, ha="center", va="bottom")
+    ax.axvline(reference, ls="--", lw=1.3, color=ex.SERIES[1], zorder=1,
+               label=f"{reference_label} ({reference:.3f})")
+
+    low = frame["roc_auc"].to_numpy() - frame["low"].to_numpy()
+    high = frame["high"].to_numpy() - frame["roc_auc"].to_numpy()
+    ax.errorbar(frame["roc_auc"], y, xerr=np.vstack([low, high]), fmt="o", ms=7, lw=1.6, capsize=4,
+                color=ex.SERIES[0], markeredgecolor=ex.SURFACE, markeredgewidth=1.2, zorder=3,
+                label="AUROC with a 95 % interval")
+    for i, r in frame.iterrows():
+        ax.annotate(f"{r['roc_auc']:.3f}", (r["high"], i), textcoords="offset points", xytext=(9, 0),
+                    fontsize=8.5, color=ex.INK_2, va="center")
+    ax.set_yticks(y, [f"{r['label']}\n{int(r['n']):,} spectra, {int(r['n_resistant']):,} resistant"
+                      for _, r in frame.iterrows()], fontsize=9)
+    ax.set_xlim(min(0.42, float(frame["low"].min()) - 0.04), max(0.9, float(frame["high"].max()) + 0.1))
+    ax.set_ylim(-0.7, len(frame) - 0.2)
+    ax.set_xlabel("AUROC on that test part")
+    ax.set_title(title, pad=22)
+    ex._subtitle(ax, "An interval that reaches the dotted line means no skill was demonstrated at that site")
+    ax.legend(loc="lower right", fontsize=8.5)
+    ax.grid(axis="y", visible=False)
+    return ex._save(fig, path)
+
+
+def plot_zone_transfer(frame: pd.DataFrame, target: float, title: str, path: Path) -> Path:
+    """Does the confidence zone fitted at one site still hold at another?
+
+    The zone was fitted once, on the development site, and is applied here unchanged. Rows that isolate the
+    change of site are drawn filled; rows that also carry a recalibrated probability scale are drawn hollow,
+    because those two things do not mean the same thing and the figure should not hide the difference.
+    """
+    import matplotlib.pyplot as plt
+
+    if frame.empty:
+        raise ValueError("Nothing to plot: the zone was not carried anywhere.")
+    ex.apply_style()
+    frame = frame.iloc[::-1].reset_index(drop=True)
+    y = np.arange(len(frame))
+    fig, ax = plt.subplots(figsize=(8.8, 1.0 + 0.62 * len(frame)))
+
+    ax.axvline(target, ls="--", lw=1.3, color=ex.SERIES[1], zorder=1, label=f"target ({target:.0%})")
+    pure = frame["pure_site_test"].to_numpy(dtype=bool)
+    low = frame["npv_susceptible"].to_numpy() - frame["npv_low"].to_numpy()
+    high = frame["npv_high"].to_numpy() - frame["npv_susceptible"].to_numpy()
+    for mask, face, label in ((pure, ex.SERIES[0], "same model, new site"),
+                              (~pure, "none", "new site and a refitted, recalibrated model")):
+        if not mask.any():
+            continue
+        ax.errorbar(frame["npv_susceptible"][mask], y[mask],
+                    xerr=np.vstack([low[mask], high[mask]]), fmt="o", ms=7.5, lw=1.6, capsize=4,
+                    color=ex.SERIES[0], markerfacecolor=face, markeredgecolor=ex.SERIES[0],
+                    markeredgewidth=1.4, zorder=3, label=label)
+    for i, r in frame.iterrows():
+        ax.annotate(f"{r['npv_susceptible']:.3f}  ({r['share_susceptible']:.0%} of spectra)",
+                    (r["npv_high"], i), textcoords="offset points", xytext=(9, 0), fontsize=8.5,
+                    color=ex.INK_2, va="center")
+    ax.set_yticks(y, [f"{r['part']}\n{r['model']}" for _, r in frame.iterrows()], fontsize=9)
+    ax.set_xlim(min(0.5, float(frame["npv_low"].min()) - 0.05), 1.06)
+    ax.set_ylim(-0.7, len(frame) - 0.2)
+    ax.set_xlabel("Share of the confident-susceptible calls that were truly susceptible")
+    ax.set_title(title, pad=22)
+    ex._subtitle(ax, "The edge is the one fitted on the development site, applied unchanged and never refitted")
+    ax.legend(loc="lower left", fontsize=8.5)
+    ax.grid(axis="y", visible=False)
+    return ex._save(fig, path)
+
+
+def plot_region_shift(frame: pd.DataFrame, title: str, path: Path, keep: int = 10) -> Path:
+    """How different do the regions the model relies on look at each site? No label is involved.
+
+    Grouped bars, one group per m/z region and one bar per test part, so a drop in performance can be read
+    next to how much the input actually moved. A standardised mean difference of 0 means the region looks
+    the same as at the training site.
+    """
+    import matplotlib.pyplot as plt
+
+    if frame.empty:
+        raise ValueError("Nothing to plot: no region shift was computed.")
+    ex.apply_style()
+    regions = sorted(frame["rank"].unique())[:keep]
+    frame = frame[frame["rank"].isin(regions)]
+    parts = list(dict.fromkeys(frame["part"]))
+    labels = [f"{r.mz_start:,.0f}–{r.mz_end:,.0f}"
+              for r in frame.drop_duplicates("rank").sort_values("rank").itertuples(index=False)]
+    x = np.arange(len(regions))
+    width = min(0.8 / max(len(parts), 1), 0.26)
+
+    fig, ax = plt.subplots(figsize=(max(8.4, 1.0 + 1.15 * len(regions)), 5.4))
+    ax.axhline(0, lw=1.1, color=ex.AXIS, zorder=1)
+    for i, part in enumerate(parts):
+        values = [float(frame[(frame["rank"] == r) & (frame["part"] == part)]["smd"].iloc[0])
+                  if len(frame[(frame["rank"] == r) & (frame["part"] == part)]) else np.nan
+                  for r in regions]
+        ax.bar(x + (i - (len(parts) - 1) / 2) * width, values, width * 0.92, label=part,
+               color=ex.SERIES[i % len(ex.SERIES)], edgecolor=ex.SURFACE, linewidth=1.2, zorder=2)
+    ax.set_xticks(x, labels, rotation=30, ha="right", fontsize=8.5)
+    ax.set_xlabel("m/z region the model relies on (Version 0.6 ranking, strongest first)")
+    ax.set_ylabel("Standardised mean difference\nagainst the training site")
+    ax.set_title(title, pad=22)
+    ex._subtitle(ax, "0 means the region looks the same as where the model was trained; no AST label is used here")
+    ax.legend(title="Tested on", fontsize=8.5, title_fontsize=8.5)
+    ax.grid(axis="x", visible=False)
+    return ex._save(fig, path)

@@ -65,7 +65,8 @@ def main(argv: list[str] | None = None) -> int:
                                                  "(not a clinically validated result).")
     parser.add_argument("spectrum", type=Path, help="raw spectrum .txt file")
     parser.add_argument("--model", type=Path, default=None,
-                        help="model file (default: the project's Version 0.6 model from config.yaml)")
+                        help="model file (default: the project's model, the Version 0.4 tuned LightGBM "
+                             "named by explain.model_dir in config.yaml)")
     parser.add_argument("--uncertainty", type=Path, default=None,
                         help="confidence zones JSON fitted on validation (default: the Version 0.6 report "
                              "for this dataset, used when that file exists)")

@@ -42,9 +42,11 @@ from src.evaluate import (  # noqa: E402
     bootstrap,
     choose_threshold,
     classification_metrics,
+    interval,
     summarize_bootstrap,
     unpaired_difference,
 )
+from src.model_plots import plot_generalisation, plot_region_shift, plot_zone_transfer  # noqa: E402
 from src.predict import ModelError, load_bundle, predict_features  # noqa: E402
 from src.splits import SplitError, assert_usable, check_split, load_splits  # noqa: E402
 from src.train import load_rows  # noqa: E402
@@ -112,6 +114,14 @@ class Context:
 
         self.source_split = str(self.gc["source_split"])
         self.experiments = [str(name) for name in self.gc["experiments"]]
+        # Splits whose result is taken from the existing log instead of being scored again. A split cannot
+        # be both: asking for that would re-score a test part that was already spent, which protocol
+        # section 4 allows only as an additional, separately reported run.
+        self.reuse_logged = [str(name) for name in (self.gc.get("reuse_logged") or [])]
+        both = sorted(set(self.reuse_logged) & set(self.experiments))
+        if both:
+            raise ConfigError(f"generalisation lists {both} in both 'experiments' and 'reuse_logged'. Those "
+                              "test parts were already scored; re-scoring them here would spend them twice.")
         for name in (self.source_split, *self.experiments):
             if name not in self.splits:
                 raise SplitError(f"The dataset has no {name!r} split; rebuild the splits "
@@ -340,9 +350,13 @@ def saved_model_rows(ctx: Context, name: str) -> list[dict[str, Any]]:
                  site_rows.size, metrics["roc_auc"])
         # The site belongs in the experiment name: the test log has no site column, so two sites scored
         # under one name would be two rows nothing could tell apart.
+        # train_sites is the *source* split's training sites: this model was never refitted here, and a
+        # report row that left it empty printed "nan" in the published table.
+        source_train, _, _ = ctx.rows(ctx.source_split)
         rows_out.append({"experiment": f"{name}__{site}__saved_model", "split": name,
                          "model": f"v0.4_{ctx.bundle['model']}", "seed": int(ctx.bundle["seed"]),
                          "train_size": int(ctx.bundle["split"]["train_size"]),
+                         "train_sites": "+".join(ctx.sites_of(source_train)),
                          "setting": f"saved model, unchanged; threshold from the {ctx.source_split} "
                                     "validation part, not from this site",
                          "site": site, "prob": prob, **metrics})
@@ -398,6 +412,43 @@ def stored_source_probabilities(ctx: Context) -> dict[int, np.ndarray]:
     return out
 
 
+def logged_reference(ctx: Context) -> pd.DataFrame:
+    """The already-scored results this version reuses instead of scoring again.
+
+    The plan reports `random` and `within_year` beside the new regimes so the three can be read together,
+    and the patient-overlap comparison (random against within_year) is one of its pre-specified
+    comparisons. Both were scored in Version 0.4; their rows are read from the append-only log here, and
+    nothing is re-scored. A split with no logged row is reported as missing rather than quietly dropped.
+
+    Selection is by *split*, not by experiment, and that is deliberate: it also picks up the size-matched
+    `random` run, which protocol section 3 and decision 5 make part of the patient-overlap comparison
+    (without it, a difference between `random` and `within_year` could be less training data rather than
+    patient overlap). Narrowing this to the split's own name would silently drop that control.
+    """
+    if not ctx.reuse_logged:
+        return pd.DataFrame()
+    logged = pd.read_csv(ctx.test_log)
+    model = str(ctx.card["model"])
+    rows = []
+    for name in ctx.reuse_logged:
+        part = logged[(logged["split"] == name) & (logged["model"] == model)]
+        if part.empty:
+            log.warning("the test log has no %s row for %s, so it cannot be reused as a reference", name, model)
+            continue
+        for r in part.itertuples(index=False):
+            rows.append({"experiment": r.experiment, "split": r.split, "model": r.model, "seed": r.seed,
+                         "train_size": r.train_size, "n": r.n, "n_resistant": r.n_resistant,
+                         "threshold": r.threshold, "roc_auc": r.roc_auc, "pr_auc": r.pr_auc,
+                         "brier": r.brier, "sensitivity": r.sensitivity, "specificity": r.specificity,
+                         "logged_at": r.logged_at, "logged_stage": r.stage,
+                         "source": "reused from the test log; not scored again in this version"})
+    frame = pd.DataFrame(rows)
+    if len(frame):
+        log.info("reusing %d logged row(s) as reference, from %s", len(frame),
+                 ", ".join(sorted(set(frame["experiment"]))))
+    return frame
+
+
 # --- the comparisons the plan pre-specified --------------------------------------------------------------------
 
 def auroc_samples(ctx: Context, rows: np.ndarray, prob: np.ndarray, threshold: float) -> np.ndarray:
@@ -416,12 +467,18 @@ def generalisation_gaps(ctx: Context, source_prob: np.ndarray, source_threshold:
     base = auroc_samples(ctx, source_rows, source_prob, source_threshold)
     source_point = classification_metrics(ctx.y[source_rows], source_prob, source_threshold)["roc_auc"]
     level = float(ctx.ev["bootstrap"]["level"])
+    source_low, source_high = interval(base, level)
     out = []
     for e in scored:
         draws = auroc_samples(ctx, e["rows"], e["prob"], e["threshold"])
+        # The part's own interval, kept next to the difference: a gap whose interval includes 0 still says
+        # nothing about whether the model works *there*, which is what this pair of numbers answers.
+        e["low"], e["high"] = interval(draws, level)
         low, high = unpaired_difference(base, draws, level, seed=int(ctx.ev["bootstrap"]["seed"]))
         demonstrated = bool(low > 0 or high < 0)
         out.append({"comparison": f"{ctx.source_split} minus {e['label']}",
+                    "source_low": source_low, "source_high": source_high,
+                    "other_low": e["low"], "other_high": e["high"],
                     "kind": "unpaired (different rows)", "source_roc_auc": source_point,
                     "other_roc_auc": e["roc_auc"], "gap": source_point - e["roc_auc"],
                     "low": low, "high": high, "n": int(e["rows"].size),
@@ -579,6 +636,39 @@ def write_csv(frame: pd.DataFrame, path: Path) -> None:
     frame.to_csv(path, index=False, lineterminator="\n")
 
 
+def figures(ctx: Context, refits: list[dict[str, Any]], source_roc_auc: float,
+            source_interval: tuple[float, float], transfer: pd.DataFrame,
+            regions: pd.DataFrame) -> list[Path]:
+    """Three figures, drawn only from what was written above. A failure here must not lose a run that has
+    already spent its test parts, so each one is attempted separately and a failure is logged, not raised."""
+    stem = f"{ctx.dataset_name}_generalisation"
+    made: list[Path] = []
+    wanted: list[tuple[str, Any]] = [
+        ("forest", lambda: plot_generalisation(
+            pd.DataFrame([{"label": e["label"], "roc_auc": e["roc_auc"], "low": e["low"], "high": e["high"],
+                           "n": e["rows"].size, "n_resistant": int((ctx.y[e["rows"]] == 1).sum())}
+                          for e in refits if "low" in e]),
+            source_roc_auc, f"{ctx.source_split} split",
+            f"Version 0.7: where the model was not trained ({ctx.card['model_version']})",
+            ctx.plot_dir / f"{stem}_auroc.png")),
+        ("zones", lambda: plot_zone_transfer(
+            transfer, float(ctx.gc["zone_transfer"]["target_npv"]),
+            "Version 0.7: does the Version 0.6 confidence zone still hold elsewhere?",
+            ctx.plot_dir / f"{stem}_zone_transfer.png")),
+        ("region shift", lambda: plot_region_shift(
+            regions, "Version 0.7: how different the regions the model relies on look at each site",
+            ctx.plot_dir / f"{stem}_region_shift.png")),
+    ]
+    for name, draw in wanted:
+        try:
+            made.append(draw())
+        except (ValueError, KeyError, IndexError) as exc:
+            log.warning("the %s figure was not drawn (%s: %s)", name, type(exc).__name__, exc)
+    if made:
+        log.info("figures: %s", ", ".join(p.name for p in made))
+    return made
+
+
 def run(ctx: Context) -> None:
     started = time.perf_counter()
     ctx.write_status("running")
@@ -651,6 +741,9 @@ def run(ctx: Context) -> None:
                         **{f"{ctx.source_split}__{model_name}__seed{s}": p for s, p in source.items()})
     write_csv(pd.DataFrame(report_rows), ctx.report_dir / "test_metrics.csv")
     write_csv(pd.DataFrame(validation_rows), ctx.report_dir / "validation_metrics.csv")
+    reused = logged_reference(ctx)
+    if len(reused):
+        write_csv(reused, ctx.report_dir / "reused_from_log.csv")
 
     # Comparisons. The saved-model rows are left out of the gap table: that model's threshold comes from
     # another site's validation part, so it answers a different question and gets its own rows above.
@@ -677,10 +770,19 @@ def run(ctx: Context) -> None:
     if len(regions):
         write_csv(regions, ctx.report_dir / "region_shift.csv")
 
+    _, _, source_rows = ctx.rows(ctx.source_split)
+    source_point = classification_metrics(ctx.y[source_rows], source[main_seed],
+                                          float(ctx.card["threshold"]))["roc_auc"]
+    source_interval = (float(gaps["source_low"].iloc[0]), float(gaps["source_high"].iloc[0])) \
+        if len(gaps) else (float("nan"), float("nan"))
+    made = figures(ctx, refits, source_point, source_interval, transfer, regions)
+
     ctx.assert_test_log_only_grew(before)
     ctx.write_config(seconds=round(time.perf_counter() - started, 1), refit_faithful=faithful,
                      n_test_evaluations=len(log_rows),
                      zone_transfer_tested=bool(len(transfer)),
+                     source_roc_auc=source_point, plots=[p.name for p in made],
+                     reused_logged_rows=int(len(reused)), reuse_logged=ctx.reuse_logged,
                      test_log_sha256=file_hash(ctx.test_log))
     log.info("Version 0.7 reports written to %s", show_path(ctx.report_dir))
     log.info("finished in %.1f minutes", (time.perf_counter() - started) / 60)

@@ -47,6 +47,26 @@ def read_json(folder: Path, name: str) -> Any | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
+def refuse_missing_cells(text: str) -> str:
+    """A published table may not contain a raw `nan`.
+
+    `number()` renders a missing value as a dash, so a literal "nan" can only come from a column that was
+    formatted without it -- which means a value is genuinely absent from the report, not that it is
+    unknowable. That is a defect in the run, and printing it would put "nan" in the README.
+    """
+    offenders = []
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if any(c.lower() in ("nan", "none", "<na>") for c in cells):
+            offenders.append(line)
+    if offenders:
+        raise ConfigError("a generated table has a missing cell, so a value is absent from the saved "
+                          "reports rather than merely undefined:\n" + "\n".join(offenders[:5]))
+    return text
+
+
 def verdict(low: float, high: float) -> str:
     """The pre-registered reading: a gap counts only when its interval excludes zero."""
     if low > 0 or high < 0:
@@ -91,6 +111,18 @@ def seed_section(test: pd.DataFrame) -> str:
                      "Mean AUROC": number(float(group["roc_auc"].mean()), 3),
                      "Lowest": number(float(group["roc_auc"].min()), 3),
                      "Highest": number(float(group["roc_auc"].max()), 3)})
+    return md_table(rows)
+
+
+def reused_section(reused: pd.DataFrame, seed: int) -> str:
+    """The already-scored regimes, read from the log. Nothing here was scored again in this version."""
+    rows = []
+    for r in reused[reused["seed"] == seed].itertuples(index=False):
+        rows.append({"Experiment": r.experiment, "Tested on": f"{int(r.n):,} spectra",
+                     "Resistant": int(r.n_resistant), "Train size": int(r.train_size),
+                     "AUROC": number(float(r.roc_auc), 3), "PR-AUC": number(float(r.pr_auc), 3),
+                     "Brier": number(float(r.brier), 3), "First scored": str(r.logged_at)[:10],
+                     "In version": str(r.logged_stage)})
     return md_table(rows)
 
 
@@ -170,6 +202,15 @@ def build_tables(report_dir: Path) -> str:
         TEMPORAL_CAVEAT,
         EXTERNAL_CAVEAT,
     ]
+    reused = read(report_dir, "reused_from_log.csv")
+    if reused is not None:
+        parts += ["**The regimes that were already scored**, read from the append-only log rather than "
+                  "scored again. `random` is the reference this version measures a loss against; "
+                  "`within_year` and the size-matched `random` run are the patient-overlap comparison "
+                  "(protocol section 3), which is why the size-matched row is here: without it a "
+                  "difference between the first two could be less training data rather than patient "
+                  "overlap.",
+                  reused_section(reused, main_seed)]
     references = reference_section(test)
     if references:
         parts += ["**What no-skill scores on the same rows** (always predicts the training resistance rate)",
@@ -196,7 +237,7 @@ def build_tables(report_dir: Path) -> str:
         parts += ["**How different are the spectra themselves?** No AST label is used here; this describes "
                   "the shift, it does not correct for it.", shift_section(shift)]
     parts.append(NOT_SOLVED)
-    return "\n\n".join(p for p in parts if p) + "\n"
+    return refuse_missing_cells("\n\n".join(p for p in parts if p) + "\n")
 
 
 def main() -> int:
