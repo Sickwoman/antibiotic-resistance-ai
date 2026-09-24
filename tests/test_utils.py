@@ -23,6 +23,27 @@ def test_unknown_site_raises():
         archive_info(load_config(), "Z")
 
 
+def test_reserved_sites_are_not_used_by_any_version_that_reserved_them():
+    """A reserved site must be genuinely out of reach, not merely described as reserved in prose.
+
+    DRIAMS-C is kept for Version 0.8 as an adaptation target whose labels have never been spent
+    (docs/v0.7_generalisation_plan.md, addendum 2026-09-24). If it ever appears in the built sites or in a
+    split's test part, Version 0.7 would spend it and Version 0.8 would lose the only site that can answer
+    its question.
+    """
+    config = load_config()
+    for key, entry in (config.get("reservation") or {}).items():
+        site = entry["site"]
+        assert not entry["used_in_v07"], f"{key}: the reservation says it is used after all"
+        assert site not in config["dataset"]["sites"], f"{site} is built into the primary dataset"
+        for name, split in config["splits"].items():
+            assert site not in (split.get("test_sites") or []), f"{site} is a test site of {name}"
+            assert site not in (split.get("train_sites") or []), f"{site} is a training site of {name}"
+            assert site not in (split.get("sites") or []), f"{site} is used by {name}"
+        assert entry["adaptation_fraction"] + entry["holdout_fraction"] == pytest.approx(1.0)
+        assert not entry["rebuilds_primary_dataset"]
+
+
 def test_missing_config_raises(tmp_path):
     with pytest.raises(ConfigError, match="not found"):
         load_config(tmp_path / "nope.yaml")

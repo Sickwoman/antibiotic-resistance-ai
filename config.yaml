@@ -417,3 +417,29 @@ generalisation:
     # model or a threshold. It describes the shift; it does not correct for it.
     low_mz_bins: 20                     # reported separately: D starts ~2,000 Da, A and B ~1,960 Da
     regions_from: results/metrics/v0.6  # the Version 0.6 top regions the model actually relies on
+
+reservation:
+  # Data deliberately kept out of a version so a later version can still ask a question that needs
+  # unspent labels. Fixed in docs/v0.7_generalisation_plan.md (addendum 2026-09-24) before the Version 0.7
+  # run, with no result of it seen.
+  #
+  # DRIAMS-C is not on disk: it needs a 12.43 GB browser download from Dryad, whose API refuses scripted
+  # downloads (401, re-checked 2026-09-23). Version 0.7 therefore runs on A, B and D, and C is reserved
+  # rather than rushed. After Version 0.7 has scored them, B and D can no longer answer "does adapting to
+  # a NEW site help?", because their labels have been spent.
+  driams_c:
+    site: DRIAMS-C
+    reserved_for: "0.8"               # adaptive AI: the target domain it adapts to
+    used_in_v07: false                # no scoring, no threshold, no zone, no diagnostic
+    # Fixed now, before the contents of C are seen. Whole patient groups where C has a patient
+    # identifier, otherwise whole spectra.
+    adaptation_fraction: 0.70         # Version 0.8 may fit on this part
+    holdout_fraction: 0.30            # and must score this part once
+    seed: 42
+    # If C fails the pre-registered pair-selection rule, that is reported with its counts and Version 0.8
+    # falls back to a partition of DRIAMS-D declared in its own plan, stating that those spectra were
+    # already scored once in Version 0.7 under different models.
+    fallback_site: DRIAMS-D
+    # Adding C later must never rebuild the primary dataset (protocol amendment 3, point 4) and never
+    # re-date Version 0.7: it is reported as a dated addendum.
+    rebuilds_primary_dataset: false
