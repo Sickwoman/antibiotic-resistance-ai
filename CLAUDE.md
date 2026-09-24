@@ -80,3 +80,20 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   `docs/v0.7_generalisation_plan.md`): it is not built, not scored, and not in any split. Version 0.8 needs a
   site whose labels were never spent, and after Version 0.7 B and D no longer qualify. Its partition is fixed
   in advance (70 % adaptation / 30 % held-out, seed 42). A test refuses any config that spends a reserved site.
+- Version 0.7 is **recorded and immutable**: run from commit `8878bfd`, results committed as `64c6c75`, and
+  the append-only log now holds 84 data rows with SHA-256 `e97480ab…c6c8a048a`. Never rerun it, never edit a
+  historical row, never rewrite the log. Findings, stated as the data supports them: **no generalisation gap
+  was demonstrated** at any site (every interval includes 0 — which is *not* "no gap exists"; the intervals
+  are 0.13–0.18 wide and cannot resolve differences that would matter). DRIAMS-B scored higher (0.815 vs
+  0.751) but has 59 resistant isolates and the widest interval, so that is not evidence of better
+  performance. Adding B to training showed **no demonstrated benefit** at D (paired −0.016 [−0.034, 0.001]) —
+  and no demonstrated harm either. The Version 0.6 confidence zone reached its target at D (0.963, on 298
+  covered spectra), was uninformative at B (0.922 on only 51 covered spectra, interval 0.836–0.982), and did
+  **not** reach it in the later year (0.893 [0.844, 0.937]). That temporal result is confounded: the saved
+  model shares 848 of those 1,233 rows, so a refitted, recalibrated model had to be used, and it is **not a
+  clean independent saved-model test**. Do not describe it as one, and do not try to engineer around it.
+- Version 0.8 has a **draft** plan at `docs/v0.8_adaptive_plan.md`. It is not approved: three
+  **DECISION NEEDED** items (primary target metric, adaptation method, whether several adaptation-set sizes
+  are tried) require the owner's approval, and the plan plus a protocol amendment 4 must be committed before
+  DRIAMS-C is opened. Note the honest tension recorded there: Version 0.7 found no measurable gap to close,
+  so a null adaptation result is the expected outcome and must be reported as prominently as a positive one.
