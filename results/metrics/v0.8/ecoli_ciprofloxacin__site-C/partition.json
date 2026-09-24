@@ -1,0 +1,55 @@
+{
+  "stage": "v0.8-partition",
+  "status": "frozen",
+  "created": "2026-09-24 17:57:57",
+  "timezone": "India Standard Time+0530",
+  "git_commit": "284c0bd",
+  "cohort": "ecoli_ciprofloxacin__site-C",
+  "rows_fingerprint": "83d504f4d0f83ae8",
+  "x_sha256": "18329b134b4b52fbb3be2ed2abab53e51072f03dc6a7acfbd7251fbefec1320e",
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "archive_checksum": "77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867",
+  "seed": 42,
+  "adaptation_fraction": 0.7,
+  "holdout_fraction": 0.3,
+  "method": "grouped_subsample",
+  "unit": "patient_group",
+  "counts": {
+    "cohort": {
+      "n": 889,
+      "resistant": 191,
+      "susceptible": 698
+    },
+    "adaptation": {
+      "n": 622,
+      "resistant": 120,
+      "susceptible": 502
+    },
+    "evaluation": {
+      "n": 267,
+      "resistant": 71,
+      "susceptible": 196
+    }
+  },
+  "partition_fingerprint": {
+    "adaptation": "f872f41e20186198",
+    "evaluation": "6cc5e77552224208"
+  },
+  "reproducibility_check": {
+    "repeated": true,
+    "identical": true,
+    "fingerprints": {
+      "adaptation": "f872f41e20186198",
+      "evaluation": "6cc5e77552224208"
+    }
+  },
+  "group_limitation": "DRIAMS-C provides no patient identifier in the available metadata. Each spectrum is therefore treated as an independent group for partitioning. Consequently, uncertainty intervals for C are sample-level and may be narrower than appropriate if multiple spectra originate from the same unobserved patient.",
+  "evaluation_scored": false,
+  "evaluation_used_for": {
+    "training": false,
+    "calibration": false,
+    "tuning": false,
+    "model_selection": false,
+    "adaptation_size_selection": false
+  }
+}

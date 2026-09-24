@@ -507,6 +507,36 @@ adaptation:
     null_result: "brier interval includes 0"
     harm: "brier interval excludes 0 unfavourably OR the adapted zone falls below target where B1 held"
     mixed: "brier interval excludes 0 favourably AND the zone pair fails"
+
+  # --- FACTS ESTABLISHED IN PHASE 3 (2026-09-24). Records what is now known; changes no methodology. ---
+  established:
+    archive_sha256_verified: true          # independently recomputed over all 12,433,273,727 bytes
+    archive_sha256: 77c8097eeb09e9c07397d94b5d888684ca5421d76e4567e1d67fdd75685b7867
+    cohort_rows_fingerprint: 83d504f4d0f83ae8
+    cohort_x_sha256_prefix: 18329b134b4b52fb
+    cohort_total: 889                      # of 927 E. coli rows; 38 excluded, all no_ast_result
+    cohort_resistant: 191                  # 188 R + 3 I, with intermediate_as: resistant
+    cohort_susceptible: 698
+    excluded_total: 38
+    excluded_reasons: {no_ast_result: 38, ambiguous: 0, other: 0}
+    adaptation_rows: 622
+    adaptation_resistant: 120
+    adaptation_susceptible: 502
+    evaluation_rows: 267                   # PROTECTED; never scored
+    evaluation_resistant: 71               # clears the pre-registered floor of 30
+    evaluation_susceptible: 196
+    partition_fingerprint_adaptation: f872f41e20186198
+    partition_fingerprint_evaluation: 6cc5e77552224208
+    partition_reproduced_independently: true   # a 2nd and 3rd draw gave the identical partition
+    achieved_adaptation_fraction: 0.699663
+    driams_binned_max_relative_difference: 5.4786432816848436e-08   # 889/889 verified, 0 failures
+    # DRIAMS-C has no patient identifier, so each spectrum is its own group. Intervals for C are
+    # sample-level and may be narrower than appropriate if spectra share an unobserved patient. No
+    # statistical correction is applied: the approved protocol specifies none.
+    grouping_limitation: no_patient_identifier_each_spectrum_its_own_group
+    groups: 889
+    evaluation_scored: false
+
   report_dir: results/metrics/v0.8
   plot_dir: results/plots/v0.8
   model_dir: models/v0.8
