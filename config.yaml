@@ -562,4 +562,7 @@ api:
     max_batch_files: 20               # 20 real spectra is ~8.6 MB
     max_batch_bytes: 32000000
     allowed_suffixes: [".txt"]        # adding a format means a new parser, i.e. new attack surface
+  # Measured latency reported by /model-info: the Version 0.4 inference_timing.json for this
+  # dataset. Per-request timings are measured live and returned by /predict itself.
+  model_timing_dir: results/metrics/v0.4
   report_dir: results/metrics/v0.9

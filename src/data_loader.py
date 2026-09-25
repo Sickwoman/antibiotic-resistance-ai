@@ -239,11 +239,15 @@ def encode_labels(series: pd.Series, intermediate_as: str = "resistant",
 # Spectrum files
 # ----------------------------------------------------------------------------------------------
 
-def read_spectrum_table(path: str | Path, allowed_suffixes: Iterable[str] = (".txt",)) -> np.ndarray:
+def read_spectrum_table(path: str | Path, allowed_suffixes: Iterable[str] = (".txt",),
+                        max_bytes: int | None = None) -> np.ndarray:
     """Read a two-column whitespace-separated spectrum file into an (n, 2) float array.
 
     Handles the DRIAMS layout: '#' comment lines, then an optional header line of column names,
     then numeric rows. Raises SpectrumFormatError with a readable message on any problem.
+
+    `max_bytes` refuses an oversized file before it is opened, for untrusted input. It defaults to
+    None, meaning no limit, which is what every caller before Version 0.9 relies on.
     """
     path = Path(path)
     if path.suffix.lower() not in {s.lower() for s in allowed_suffixes}:
@@ -251,8 +255,12 @@ def read_spectrum_table(path: str | Path, allowed_suffixes: Iterable[str] = (".t
                                   f"expected {sorted(allowed_suffixes)}.")
     if not path.is_file():
         raise SpectrumFormatError(f"Spectrum file not found: {path}")
-    if path.stat().st_size == 0:
+    size = path.stat().st_size
+    if size == 0:
         raise SpectrumFormatError(f"Spectrum file is empty: {path.name}")
+    if max_bytes is not None and size > max_bytes:
+        raise SpectrumFormatError(f"Spectrum file is too large: {size} bytes; "
+                                  f"the limit is {max_bytes} bytes.")
     try:
         table = pd.read_csv(path, sep=r"\s+", comment="#", header=None, dtype=str, engine="c")
     except pd.errors.EmptyDataError as exc:
@@ -275,11 +283,20 @@ def read_spectrum_table(path: str | Path, allowed_suffixes: Iterable[str] = (".t
     return values
 
 
-def read_raw_spectrum(path: str | Path, min_points: int = 100) -> np.ndarray:
-    """Raw DRIAMS spectrum -> (n, 2) array of [m/z, intensity], validated."""
-    values = read_spectrum_table(path)
+def read_raw_spectrum(path: str | Path, min_points: int = 100, *, max_points: int | None = None,
+                      max_bytes: int | None = None) -> np.ndarray:
+    """Raw DRIAMS spectrum -> (n, 2) array of [m/z, intensity], validated.
+
+    `max_points` and `max_bytes` are optional upper limits for untrusted input; both default to None,
+    meaning no limit. A real DRIAMS spectrum is 403-467 KB and about 20,700 points, measured over 300
+    raw files from each of the four sites, so a limit set for safety never rejects a genuine spectrum.
+    """
+    values = read_spectrum_table(path, max_bytes=max_bytes)
     if len(values) < min_points:
         raise SpectrumFormatError(f"{Path(path).name}: only {len(values)} points; expected at least {min_points}.")
+    if max_points is not None and len(values) > max_points:
+        raise SpectrumFormatError(f"{Path(path).name}: {len(values)} points; "
+                                  f"the limit is {max_points} points.")
     mz, intensity = values[:, 0], values[:, 1]
     if np.any(np.diff(mz) <= 0):
         raise SpectrumFormatError(f"{Path(path).name}: m/z values are not strictly increasing.")

@@ -272,7 +272,16 @@ def preprocess_arrays(mz: np.ndarray, intensity: np.ndarray,
     return features, SpectrumInfo(raw_points, int(mz.size), nonzero, tic)
 
 
-def preprocess_file(path: str | Path, cfg: PreprocessingConfig) -> tuple[np.ndarray, SpectrumInfo]:
-    """Read a raw DRIAMS spectrum file and preprocess it."""
-    values = read_raw_spectrum(path, min_points=cfg.min_raw_points)
+def preprocess_file(path: str | Path, cfg: PreprocessingConfig, *, max_points: int | None = None,
+                    max_bytes: int | None = None) -> tuple[np.ndarray, SpectrumInfo]:
+    """Read a raw DRIAMS spectrum file and preprocess it.
+
+    `max_points` and `max_bytes` are optional input limits for untrusted input (the Version 0.9 API).
+    They are parameters rather than PreprocessingConfig fields on purpose: that dataclass's hash is the
+    feature fingerprint every saved bundle is checked against, so a new field there would change
+    347cbd6d5d956ff9 and invalidate every saved bundle and every cache. Both default to None, which is
+    the behaviour every caller before Version 0.9 relies on.
+    """
+    values = read_raw_spectrum(path, min_points=cfg.min_raw_points, max_points=max_points,
+                               max_bytes=max_bytes)
     return preprocess_arrays(values[:, 0], values[:, 1], cfg)

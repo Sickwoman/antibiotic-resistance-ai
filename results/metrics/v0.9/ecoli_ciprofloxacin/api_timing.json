@@ -1,0 +1,32 @@
+{
+  "samples": 200,
+  "model": "v0.4.0-tuned_lightgbm-random-seed42",
+  "rows": "validation",
+  "records": "durations only; no probability, label or identifier is stored",
+  "transport": "real uvicorn server on 127.0.0.1, driven with httpx",
+  "batch_size": 20,
+  "batch_succeeded": 20,
+  "batch_round_trip_ms": 1133.86,
+  "batch_round_trip_ms_per_sample": 56.693,
+  "round_trip_ms": {
+    "median": 49.66,
+    "p95": 61.96,
+    "max": 103.41
+  },
+  "preprocessing_ms": {
+    "median": 41.38,
+    "p95": 52.9,
+    "max": 92.02
+  },
+  "inference_ms": {
+    "median": 1.63,
+    "p95": 2.22,
+    "max": 3.21
+  },
+  "total_ms": {
+    "median": 43.0,
+    "p95": 54.59,
+    "max": 93.56
+  },
+  "http_overhead_ms_median": 6.66
+}
