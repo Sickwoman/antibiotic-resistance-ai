@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.7 – generalisation across hospitals and time.** Versions 0.1 (download +
+**Status: Version 0.8 – adapting to a new hospital.** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks) and 0.6 (explainability and confidence zones) are complete. Models are evaluated as
 fixed in [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was
@@ -26,8 +26,9 @@ susceptible side; see [Version 0.6](#version-06--evaluation-and-explainability).
 Version 0.7 spent the held-back hospital and time test parts once. **No generalisation gap was
 demonstrated at any site — which is not the same as showing there is none:** the intervals are too wide to
 resolve differences that would matter, and the confidence zone did not reach its target in the later year.
-See [Version 0.7](#version-07--generalisation-across-hospitals-and-time). DRIAMS-C is reserved, unused,
-for the Version 0.8 adaptation experiment.
+See [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
+Version 0.8 then spent DRIAMS-C's protected part once. **Local recalibration was not demonstrated to help** (paired Brier −0.0035 [−0.0161, +0.0085]); refitting on A + C did improve the probabilities but lost the confidence zone, so its pre-registered verdict is *mixed*, not success. See
+[Version 0.8](#version-08--adapting-to-a-new-hospital).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -1394,7 +1395,192 @@ The script refuses to start if a locked split is configured, if the saved model 
 groups with a part it is asked to score, or if the reused setting fails to reproduce the saved model. The
 append-only log is compared before and after, and its hash is recorded in `run_config.json`.
 
-## Project structure (Version 0.7)
+## Version 0.8 – adapting to a new hospital
+
+### Objective
+
+The specification asks for a simple adaptive system: new site data arrives, the model is adapted on
+approved labelled samples, and old and new are compared. Version 0.8 tests **one pre-specified adaptation
+strategy against one pre-specified baseline on a protected evaluation set**. It is not a search for a
+strategy that improves the result, and it was designed so that a positive, null or negative outcome would
+all have been reportable.
+
+The methodology was approved and hashed **before DRIAMS-C was downloaded**
+([`docs/v0.8_adaptive_plan.md`](docs/v0.8_adaptive_plan.md),
+[amendment 4](docs/evaluation_protocol.md#amendments)). That hash,
+`e0ceb1727e63d7e3f6c9c72ecbe47795a61ac98d6b7f0a8dced3d1456f91cf60`, is re-checked by the runner at start-up
+and is still the value locked at approval — which is the evidence that opening the new site changed nothing
+about the plan.
+
+### The new site, and how it was partitioned
+
+DRIAMS-C (Canton Hospital Aarau) was downloaded from Dryad and verified against the pre-registered SHA-256
+`77c8097e…85b7867`. Of 927 *E. coli* rows, 38 were excluded — every one for `no_ast_result`, with **zero**
+ambiguous and zero other exclusions — leaving **889** usable (191 resistant, 698 susceptible; 21.5 %
+resistant, comparable to A's 23.0 % and D's 19.1 %). All 889 reproduce the published DRIAMS `binned_6000`
+files to a maximum relative difference of **5.5e-08**, so C went through the same pipeline as A, B and D and
+shares the feature fingerprint `347cbd6d5d956ff9`.
+
+Two gates had to pass before anything was fitted, both on class counts alone: the existing site rule
+(≥ 30 per class) and a Version 0.8 power precondition (≥ 30 per class **in the held-out part**). Both passed.
+A failure of either would have stopped the experiment, not relaxed the rule.
+
+| Part | Rows | Resistant | Susceptible | Fingerprint |
+|---|---|---|---|---|
+| Cohort | 889 | 191 | 698 | rows `83d504f4d0f83ae8` |
+| Adaptation (70 %) | 622 | 120 | 502 | `f872f41e20186198` |
+| **Protected evaluation (30 %)** | **267** | **71** | **196** | `6cc5e77552224208` |
+
+Drawn once at seed 42 by whole groups, achieving 69.97 / 30.03 %. A second and a third independent draw
+produced the identical partition. The evaluation part was then frozen: never trained on, calibrated on,
+tuned against, or used to choose an adaptation size — and the runner verifies both fingerprints before it
+will start.
+
+### Why the primary endpoint is the Brier score and not AUROC
+
+Because **AUROC cannot respond to the intervention at all.** Recalibration is a monotone map of the
+probabilities, so it preserves every pairwise ordering and leaves AUROC exactly unchanged. Verified in
+advance on the recorded Version 0.7 probabilities, where five different recalibrations gave bit-identical
+AUROC, and confirmed by this run: **A1's AUROC is 0.765019 and B1's is 0.765019**, identical to twelve
+decimals. Had AUROC been the primary endpoint, the experiment would have been null by construction.
+
+The zone is a **pair**, not a single number, for a related reason: NPV alone can be raised arbitrarily by
+shrinking coverage. A "95 % safe" zone covering almost nobody is worthless, so the co-primary requires
+`NPV ≥ 0.95` **and** `coverage ≥ baseline − 0.05`.
+
+### The five arms
+
+Every arm was scored **once** on the same 267 protected spectra, at the saved model's deployed cut-off
+(0.1426). The plan enumerates the changeable parameters as the Platt pair and the zone edge, so the decision
+threshold is not among them and does not move between arms.
+
+| Arm | | Trained on | AUROC | PR-AUC | **Brier** | Sens | Spec |
+|---|---|---|---|---|---|---|---|
+| prevalence | B0 | — | 0.500 | 0.266 | 0.2005 | 1.00 | 0.00 |
+| saved project model, unchanged | **B1** | A, 2,977 | 0.765 | 0.658 | **0.1458** | 0.89 | 0.39 |
+| Version 0.7 `external` refit | B2 | A, 3,831 | 0.782 | 0.681 | 0.1398 | 0.92 | 0.40 |
+| **recalibration-only** | **A1** | C adapt, 622 | 0.765 | 0.658 | **0.1493** | 0.51 | 0.83 |
+| A + C refit | A2 | A + C, 4,453 | 0.820 | 0.728 | **0.1271** | 0.83 | 0.58 |
+
+A1 changed exactly two numbers — Platt `a = −4.936998`, `b = 2.392662`, fitted on the 622 adaptation rows —
+plus its zone edge. Every tree stayed frozen.
+
+### Observed results
+
+**Primary comparison (A1 against B1, Brier, paired):**
+
+| | Value |
+|---|---|
+| Baseline Brier | 0.1458 |
+| Recalibrated Brier | 0.1493 |
+| Paired difference (B1 − A1) | **−0.0035** |
+| 95 % interval | **[−0.0161, +0.0085]** |
+| Bootstrap p | 0.576 |
+| Holm | rank 2 of 2, threshold 0.050, **not rejected** |
+| **Pre-registered decision** | **NOT DEMONSTRATED** |
+
+**Confirmatory secondary (A2 against B1):**
+
+| | Value |
+|---|---|
+| A + C refit Brier | 0.1271 |
+| Paired difference | **+0.0187** |
+| 95 % interval | **[+0.0086, +0.0290]** |
+| Bootstrap p | 0.001 |
+| Holm | rank 1 of 2, threshold 0.025, **rejected** |
+| **Pre-registered decision** | **MIXED** (Brier improved; the zone pair failed) |
+
+**Confidence zone on the protected part** (target 0.95; coverage floor 0.1822 = B1's 0.2322 − 0.05):
+
+| Arm | Edge | Source | Covered | Coverage | NPV | 95 % interval | Pair holds |
+|---|---|---|---|---|---|---|---|
+| B1 | 0.1026 | carried from V0.6 | 62 | 0.232 | 0.9355 | [0.8689, 0.9853] | no |
+| B2 | 0.1026 | carried from V0.6 | 56 | 0.210 | 0.9286 | [0.8519, 0.9836] | no |
+| A1 | 0.0878 | refit on adaptation | 54 | 0.202 | 0.9259 | [0.8500, 0.9828] | **no** |
+| A2 | 0.1426 | refit on adaptation | 125 | 0.468 | 0.9040 | [0.8527, 0.9520] | **no** |
+
+**No arm reached the 0.95 target on its point estimate — including both baselines.**
+
+### Scientific interpretation
+
+**The primary hypothesis was not demonstrated.** The Brier interval includes zero, so recalibration-only was
+not shown to help — and was not shown to harm. The point estimate is slightly unfavourable. **This is not
+evidence of equivalence**: with 71 resistant isolates the interval spans roughly ±0.012 on a Brier of ~0.15,
+so effects that would matter clinically sit comfortably inside it. The experiment could not resolve them.
+
+**Adding local data to training did help the probabilities, but the result is mixed, not positive.** A2
+improved Brier by 0.0187 with an interval excluding zero that survives Holm correction, and lifted AUROC from
+0.765 to 0.820. Its locally-refitted zone, however, reached NPV 0.904 — *below* target, on a zone fitted on
+the very site where it was then measured. That is the pre-registered `MIXED` verdict and it is a caution, not
+a licence to deploy A2: better average probabilities bought with a confidence zone that can no longer be
+trusted at the stated level.
+
+**A1's sensitivity fell from 0.89 to 0.51** because the threshold was held frozen while recalibration shifted
+the probability scale. That is a direct consequence of the locked protocol, not a tuning choice, and it is
+another reason the recalibrated arm is not a drop-in replacement.
+
+**The carried-over Version 0.6 zone does not reach its target at DRIAMS-C either** (B1 0.9355, B2 0.9286).
+Because the baseline zone does not hold, A1 is classified `not demonstrated` rather than `harm` under the
+pre-registered rules. Note also that this version's co-primary is a **point-estimate** rule, stricter than
+Version 0.7's "transfers" rule which accepted an interval covering the target — the two are **not** directly
+comparable.
+
+### Limitations
+
+1. **71 resistant isolates in the protected part** — close to DRIAMS-B's 59, which Version 0.7 already showed
+   was too small to resolve modest effects. This was recorded before the run, not discovered after it.
+2. **DRIAMS-C carries no patient identifier.** Each spectrum is treated as an independent group, so every
+   interval here is **sample-level and may be narrower than appropriate** if several spectra come from the
+   same unobserved patient. **No statistical correction is applied**, because the approved protocol specifies
+   none and inventing one after seeing the cohort would be a methodology change.
+3. **A null primary result was the expected outcome**, and the plan said so in advance: Version 0.7 found no
+   measurable generalisation gap, so there was little headroom for adaptation to recover.
+4. **Only one adaptation size was scored.** The learning curve is answered by cross-validation inside the
+   adaptation part and never touches the protected set, so it cannot say how the held-out result would move
+   with less local data.
+5. **Recalibration-only cannot fix a ranking deficit**, so this null does not distinguish "no shift to fix"
+   from "the wrong intervention for the shift that exists".
+6. **Research prototype**, not a clinically validated diagnostic, and never a treatment recommendation.
+
+### Reproducibility
+
+| Item | Value |
+|---|---|
+| Code commit the run executed | **`4d82a22`** (clean tree) |
+| Commit holding the results | **`849cad7`** |
+| Methodology hash | `e0ceb172…6f91cf60`, unchanged since approval |
+| Append-only log | 84 → **89** data rows, SHA-256 `c395fcb34dcdd041ca6d953605b517d6992f95e4df718566ba4b2e59a076e0c7` |
+| Archive | `DRIAMS_C.tar.gz`, SHA-256 `77c8097e…85b7867`, independently re-verified |
+| Seeds | partition 42, bootstrap 42 (2,000 group resamples), CV 42, model 42 |
+| Runtime | 65.7 s |
+| Reports | `results/metrics/v0.8/ecoli_ciprofloxacin__site-C/` · Figures: `results/plots/v0.8/` |
+
+The run was rehearsed against a scratch log first; every reported metric came out identical to production. A
+ten-point integrity audit of the recorded run passed 10 / 10. One record-keeping caveat is documented in the
+plan's audit note: the pre-write log hash was recorded and verified, but the pre-write **row count** was not
+stored as its own field. The run was kept rather than repeated — a rerun would append a second scoring of the
+same protected spectra and could not repair metadata written in the past — and the append gate has since been
+strengthened so future production writes record both.
+
+![Paired change in Brier score](results/plots/v0.8/ecoli_ciprofloxacin__site-C_adaptation_brier.png)
+
+![The confidence zone at DRIAMS-C](results/plots/v0.8/ecoli_ciprofloxacin__site-C_adaptation_zone.png)
+
+### Commands
+
+```powershell
+python scripts/download_driams.py --site C --from-file <DRIAMS_C.tar.gz>   # verifies the SHA-256
+python scripts/extract_driams.py --site C --folders raw binned_6000 --species "Escherichia coli"
+python scripts/build_dataset.py --sites DRIAMS-C --name ecoli_ciprofloxacin__site-C --skip-splits
+python scripts/build_adaptation_partition.py    # draws, validates and freezes the partition
+python scripts/adapt_model.py                   # the experiment (spends the protected part once)
+```
+
+The runner refuses to start if the methodology hash has changed, if either partition fingerprint does not
+recompute, if the working tree is dirty, or if a search on C has been switched on. Before appending it
+verifies the log's hash and row count, that no historical row changed, and that every experiment key is new.
+
+## Project structure (Version 0.8)
 
 ```
 antibiotic-resistance-ai/
@@ -1414,6 +1600,8 @@ antibiotic-resistance-ai/
 │   ├── explain_tables.py       Version 0.6 result tables from the saved reports
 │   ├── measure_generalisation.py  Version 0.7 cross-site and cross-time experiments
 │   ├── generalisation_tables.py   Version 0.7 result tables from the saved reports
+│   ├── build_adaptation_partition.py  Version 0.8 partition: draw, validate, freeze
+│   ├── adapt_model.py          Version 0.8 adaptation run (spends the protected part once)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -1438,6 +1626,8 @@ antibiotic-resistance-ai/
 ├── docs/v0.6_explainability_plan.md  how the model is explained (fixed before anything was explained)
 ├── docs/v0.7_generalisation_plan.md  the generalisation experiments (fixed before the
 │                               locked test parts were scored; holds the DRIAMS-C reservation)
+├── docs/v0.8_adaptive_plan.md    the adaptation protocol (approved and hashed before DRIAMS-C
+│                               was opened); holds the audit note
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
