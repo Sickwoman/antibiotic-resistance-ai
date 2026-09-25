@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import random
@@ -72,6 +73,16 @@ def project_path(relative: str | Path) -> Path:
     """Resolve a path from config.yaml relative to the project root."""
     p = Path(relative)
     return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def file_hash(path: str | Path) -> str | None:
+    """SHA-256 of a file, or None if it does not exist.
+
+    Used to show that an append-only log was not rewritten behind a run's back, so a missing file has to
+    be distinguishable from an empty one rather than raising.
+    """
+    p = Path(path)
+    return hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
 
 
 def show_path(path: str | Path) -> str:

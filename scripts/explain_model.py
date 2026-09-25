@@ -25,7 +25,6 @@ Writes (paths from config.yaml -> explain):
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import platform
 import sys
@@ -69,7 +68,16 @@ from src.uncertainty import (  # noqa: E402
     fit_zones,
     zone_metrics,
 )
-from src.utils import ConfigError, get_logger, git_commit, keep_awake, load_config, project_path, set_seed  # noqa: E402
+from src.utils import (  # noqa: E402
+    ConfigError,
+    file_hash,
+    get_logger,
+    git_commit,
+    keep_awake,
+    load_config,
+    project_path,
+    set_seed,
+)
 
 STAGE = "v0.6-explain"
 EXACT = 1e-12          # a saved model re-scored on the same rows must reproduce its logged metric exactly
@@ -87,10 +95,6 @@ def versions() -> dict[str, str]:
 
 def write_csv(df: pd.DataFrame, path: Path) -> None:
     df.to_csv(path, index=False, lineterminator="\n")
-
-
-def file_hash(path: Path) -> str | None:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest() if Path(path).is_file() else None
 
 
 def roc_auc(y: np.ndarray, prob: np.ndarray) -> float:

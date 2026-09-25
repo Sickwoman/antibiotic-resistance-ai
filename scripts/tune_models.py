@@ -343,7 +343,8 @@ def preflight(ctx: Context, allow_rescore: bool) -> dict[str, Any]:
     for name in names:
         split = ctx.experiment(name)[0]
         if split in locked:
-            raise SplitError(f"Experiment {name!r} uses the {split} test part, which is locked until Version 0.7.")
+            raise SplitError(f"Experiment {name!r} uses the {split} test part, which is locked by the "
+                             "evaluation protocol (evaluation.locked_test_splits in config.yaml).")
     older = ctx.meta_section["reference_title"]
     v03_path = project_path(ctx.compare["model_dir"]) / ctx.dataset_name / f"best_{ctx.tc['split']}.joblib"
     v03 = load_bundle(v03_path)

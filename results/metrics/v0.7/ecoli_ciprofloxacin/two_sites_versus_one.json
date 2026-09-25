@@ -1,0 +1,28 @@
+{
+  "comparison": "external_ab minus external, on the same rows",
+  "kind": "paired (same rows)",
+  "part": "external__DRIAMS-D",
+  "fewer_sites": {
+    "experiment": "external",
+    "train_sites": [
+      "DRIAMS-A"
+    ],
+    "train_size": 3831
+  },
+  "more_sites": {
+    "experiment": "external_ab",
+    "train_sites": [
+      "DRIAMS-A",
+      "DRIAMS-B"
+    ],
+    "train_size": 4023
+  },
+  "n": 1938,
+  "n_resistant": 370,
+  "fewer_sites_roc_auc": 0.7283525234418092,
+  "more_sites_roc_auc": 0.7124931053502482,
+  "difference": -0.015859418091560995,
+  "low": -0.034112493874783614,
+  "high": 0.0014387734850802275,
+  "demonstrated": false
+}

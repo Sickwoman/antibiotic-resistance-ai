@@ -1,0 +1,77 @@
+{
+  "prevalence": {
+    "role": "B0",
+    "model": "prevalence",
+    "setting": "always predicts 0.1929 (the adaptation part's resistance rate)",
+    "rate": 0.19292604501607716
+  },
+  "baseline_saved": {
+    "role": "B1",
+    "model": "v0.4_tuned_lightgbm",
+    "setting": "saved model, unchanged; carried-over Version 0.6 zone edge",
+    "model_version": "v0.4.0-tuned_lightgbm-random-seed42"
+  },
+  "baseline_v07_external": {
+    "role": "B2",
+    "model": "v0.7_external_refit",
+    "setting": "Version 0.7 external refit (DRIAMS-A only); carried-over zone edge",
+    "source": "external_seed42.joblib"
+  },
+  "recalibrated": {
+    "role": "A1",
+    "model": "recalibrated_v0.4_tuned_lightgbm",
+    "setting": "recalibration-only: Platt (a, b) and the zone edge refitted on the C adaptation part; the LightGBM model is frozen",
+    "platt": {
+      "method": "platt_sigmoid",
+      "a": -4.936997744914323,
+      "b": 2.3926624817813127,
+      "n_fitted": 622,
+      "n_resistant": 120,
+      "fitted_on": "adaptation",
+      "changed": [
+        "calibrator_a",
+        "calibrator_b"
+      ],
+      "frozen": [
+        "model",
+        "preprocessing",
+        "features",
+        "threshold_rule"
+      ]
+    },
+    "zone": {
+      "edge": 0.0877970210579224,
+      "fitted_on": "C adaptation part",
+      "n_fitted": 622,
+      "achieved_npv_on_adaptation": 0.9504132231404959,
+      "coverage_on_adaptation": 0.1945337620578778,
+      "resistant_side_exists": false
+    },
+    "seconds": 0.27
+  },
+  "refit_a_plus_c": {
+    "role": "A2",
+    "model": "refit_a_plus_c_tuned_lightgbm",
+    "setting": {
+      "subsample": 1.0,
+      "reg_lambda": 10.0,
+      "num_leaves": 31,
+      "n_estimators": 300,
+      "min_child_samples": 10,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.3,
+      "class_weight": null
+    },
+    "a_rows": 3831,
+    "c_adaptation_rows": 622,
+    "zone": {
+      "edge": 0.14261540693905073,
+      "fitted_on": "C adaptation part",
+      "n_fitted": 622,
+      "achieved_npv_on_adaptation": 1.0,
+      "coverage_on_adaptation": 0.8054662379421221,
+      "resistant_side_exists": true
+    },
+    "fit_seconds": 106.1
+  }
+}

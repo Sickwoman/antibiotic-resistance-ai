@@ -7,19 +7,28 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.6 – evaluation and explainability.** Versions 0.1 (download + exploration), 0.2
-(preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration) and 0.5 (neural
-networks) are complete. Models are evaluated as fixed in
-[`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was trained; the
-Version 0.4 search was fixed in [`docs/v0.4_search_plan.md`](docs/v0.4_search_plan.md) before any model
-was tuned, the Version 0.5 networks in
-[`docs/v0.5_deep_learning_plan.md`](docs/v0.5_deep_learning_plan.md) before any network was trained, and
-the Version 0.6 explanations in
-[`docs/v0.6_explainability_plan.md`](docs/v0.6_explainability_plan.md) before anything was explained.
+**Status: Version 0.8 – adapting to a new hospital.** Versions 0.1 (download +
+exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
+0.5 (neural networks) and 0.6 (explainability and confidence zones) are complete. Models are evaluated as
+fixed in [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was
+trained; the Version 0.4 search was fixed in [`docs/v0.4_search_plan.md`](docs/v0.4_search_plan.md) before
+any model was tuned, the Version 0.5 networks in
+[`docs/v0.5_deep_learning_plan.md`](docs/v0.5_deep_learning_plan.md) before any network was trained, the
+Version 0.6 explanations in
+[`docs/v0.6_explainability_plan.md`](docs/v0.6_explainability_plan.md) before anything was explained, and
+the Version 0.7 experiments in
+[`docs/v0.7_generalisation_plan.md`](docs/v0.7_generalisation_plan.md) before the previously locked test
+parts were scored.
 **The networks did not beat the classical models**, so the tuned LightGBM of Version 0.4 remains the
-project's model — see [Version 0.5](#version-05--neural-networks-mlp-and-1-d-cnn). It can now say which
+project's model — see [Version 0.5](#version-05--neural-networks-mlp-and-1-d-cnn). It can say which
 m/z regions moved a prediction, and it can answer *uncertain* instead of forcing a call — but only on the
 susceptible side; see [Version 0.6](#version-06--evaluation-and-explainability).
+Version 0.7 spent the held-back hospital and time test parts once. **No generalisation gap was
+demonstrated at any site — which is not the same as showing there is none:** the intervals are too wide to
+resolve differences that would matter, and the confidence zone did not reach its target in the later year.
+See [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
+Version 0.8 then spent DRIAMS-C's protected part once. **Local recalibration was not demonstrated to help** (paired Brier −0.0035 [−0.0161, +0.0085]); refitting on A + C did improve the probabilities but lost the confidence zone, so its pre-registered verdict is *mixed*, not success. See
+[Version 0.8](#version-08--adapting-to-a-new-hospital).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -674,7 +683,8 @@ and the interval is too wide to rule out a moderate one.
 - **One search, one selection.** Settings were chosen on cross-validation inside one training part; a
   different split could pick different settings.
 - **Cut-off uncertainty**, unchanged from Version 0.3.
-- **In-hospital data only.** Temporal and external test parts stay locked until Version 0.7.
+- **In-hospital data only.** The `temporal` and `external` test parts were still locked at this
+  version; they were scored once in [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
 - **A measured time is misleading:** the size-matched search is recorded as 40,235 s because the laptop
   slept for about 11 hours during it; the actual computing was roughly 14 minutes. Other times are real.
 - **Research prototype**, not a clinically validated diagnostic and never a treatment recommendation.
@@ -842,7 +852,8 @@ so, and said it would be reported plainly if it happened. It happened.
   leak validation or test data.
 - **The patient-overlap check was not repeated**, as pre-registered, because no network became the saved
   model of the project.
-- **In-hospital data only.** The `temporal` and `external` test parts stay locked until Version 0.7.
+- **In-hospital data only.** The `temporal` and `external` test parts were still locked at this
+  version; they were scored once in [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
 - **Research prototype**, not a clinically validated diagnostic and never a treatment recommendation.
 
 ### Commands
@@ -1092,7 +1103,8 @@ exists. A three-way output that declines most calls is a weaker product and a mo
   the test-side numbers are a check on them, not an independent fit.
 - **Contributions are additive on the model's margin, not on the probability.** The calibration step is a
   monotone sigmoid, so the sign and the ordering carry over, but a contribution is not a share of risk.
-- **In-hospital data only.** The `temporal` and `external` test parts stay locked until Version 0.7.
+- **In-hospital data only.** The `temporal` and `external` test parts were still locked at this
+  version; they were scored once in [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
 - **Research prototype**, not a clinically validated diagnostic and never a treatment recommendation. An
   "uncertain" answer is not clinical advice either; it means this research model declines to guess.
 
@@ -1121,7 +1133,454 @@ that differ are the two provenance records and the control's `fit_seconds`, and 
 commit hash, the timestamp and the wall-clock times (204.9, 640.2 and 403.6 seconds for the same
 computation, depending on what else the laptop was doing).
 
-## Project structure (Version 0.6)
+## Version 0.7 – generalisation across hospitals and time
+
+### Objective
+
+The specification calls this the project's central experiment, and states the question it exists to answer:
+
+> "Can we create an antibiotic-resistance prediction model that remains reliable across different
+> hospitals, time periods, instruments, and bacterial populations?"
+
+Version 0.7 measures how much performance is lost when the test data comes from a different site or a later
+year. It does not attempt to *fix* any loss — adaptation is Version 0.8 — and nothing in it was changed
+because of what the numbers turned out to be. Which experiments would run, on which rows, with which
+settings, and which comparisons would be reported were fixed in
+[`docs/v0.7_generalisation_plan.md`](docs/v0.7_generalisation_plan.md) and
+[amendment 3](docs/evaluation_protocol.md#amendments), committed in `96d0425` **before the implementation
+existed**.
+
+This is the version that spent the two test parts protocol decision 7 had locked since Version 0.3. They
+were scored **once**, and `results/experiments/test_evaluations.csv` shows they had never been scored before.
+
+### Sites and data
+
+| Site | Institution | Role in Version 0.7 | Rows | Resistant |
+|---|---|---|---|---|
+| DRIAMS-A | University Hospital Basel | training, and the `temporal` test part (2018) | 4,259 | 971 |
+| DRIAMS-B | Canton Hospital Basel-Land | external test site; training site in `external_ab` | 213 | 59 |
+| DRIAMS-D | Viollier AG (diagnostic laboratory) | external test site | 1,938 | 370 |
+| DRIAMS-C | Canton Hospital Aarau | **reserved, not used** — see limitations | – | – |
+
+Dataset `ecoli_ciprofloxacin`, 6,410 × 6,000 float32, row fingerprint `151415a4d03dbcc5`, feature
+fingerprint `347cbd6d5d956ff9`.
+
+### Experimental design
+
+No setting was chosen here. The Version 0.4 winning LightGBM setting was read from its saved model card and
+**refitted unchanged** on each experiment's own training part, so that a difference between experiments can
+only come from the data and not from a search. The threshold rule is the approved one (highest cut-off with
+validation sensitivity ≥ 0.90), applied to each experiment's *own* validation part. Seeds 42–46
+(protocol decision 6); intervals are for seed 42.
+
+| # | Experiment | Train | Test | Validation AUROC (seed 42) |
+|---|---|---|---|---|
+| E1 | `random` | A, 2,977 | A, 856 | reused from the Version 0.4 log, not re-scored |
+| E2 | `within_year` | A 2017, 1,284 | A 2017, 366 | reused from the log, not re-scored |
+| E3 | `temporal` | A before 2017-10, 2,505 | A 2018, 1,233 | 0.733 |
+| E4 | `external` | A, 3,831 | B 213 and D 1,938, **reported separately** | 0.840 |
+| E5 | `external_ab` | A + B, 4,023 | D, 1,938 | 0.752 |
+| E6 | saved project model | *not refitted* | B 213 and D 1,938 | – |
+
+**The reused-setting refit was proved faithful before a single test row was scored.** Refitting it on the
+`random` training part reproduces the saved model's logged validation AUROC with a difference of **exactly
+0.0**, and the fresh fit is **bitwise identical** to Version 0.4's cached fit across all 426 validation rows
+(max |Δ probability| 0.000e+00, identical threshold and Brier). Had it not reproduced, the run would have
+stopped having scored nothing: a gap measured against a model that cannot be reproduced would mean nothing.
+
+**E6 needs no refit and is leakage-free**, which was checked on the real data rather than assumed: the saved
+model's training rows intersect the `external` test part in **0 rows and 0 patient groups**. It is *not*
+scored on the `temporal` test part, where the intersection is **848 of 1,233 rows**.
+
+### Results
+
+<!-- generated by scripts/generalisation_tables.py -->
+
+**Observed result** — one row per experiment and site, seed 42:
+
+| Experiment | Trained on | Tested on | n | Resistant | AUROC | PR-AUC | Brier | No-skill AUROC |
+|---|---|---|---|---|---|---|---|---|
+| `random` (reference, reused) | DRIAMS-A | DRIAMS-A | 856 | 197 | **0.751** | 0.556 | 0.144 | 0.500 |
+| `temporal` | DRIAMS-A | DRIAMS-A, 2018 | 1,233 | 271 | **0.728** | 0.562 | 0.141 | 0.500 |
+| `external` | DRIAMS-A | DRIAMS-B | 213 | 59 | **0.815** | 0.728 | 0.133 | 0.500 |
+| `external` | DRIAMS-A | DRIAMS-D | 1,938 | 370 | **0.728** | 0.510 | 0.131 | 0.500 |
+| `external_ab` | DRIAMS-A + B | DRIAMS-D | 1,938 | 370 | **0.712** | 0.495 | 0.134 | 0.500 |
+| saved model, no refit | DRIAMS-A | DRIAMS-B | 213 | 59 | **0.809** | 0.722 | 0.133 | 0.500 |
+| saved model, no refit | DRIAMS-A | DRIAMS-D | 1,938 | 370 | **0.704** | 0.490 | 0.134 | 0.500 |
+
+Across the five seeds: `temporal` 0.733 (0.727–0.740), B 0.817 (0.810–0.824), D 0.717 (0.712–0.728),
+`external_ab` at D 0.715 (0.709–0.721). Every model beats the no-skill reference at every site.
+
+**Uncertainty intervals — the generalisation gap.** These test sets share no rows, so the interval is the
+second-level unpaired bootstrap of protocol section 6, which is wider than a paired one and is meant to be:
+
+| Comparison | AUROC there | Gap | 95 % interval | Verdict |
+|---|---|---|---|---|
+| `random` − `temporal` (A 2018) | 0.728 | +0.022 | [−0.054, +0.094] | not demonstrated |
+| `random` − `external` (B) | 0.815 | −0.064 | [−0.152, +0.030] | not demonstrated |
+| `random` − `external` (D) | 0.728 | +0.023 | [−0.043, +0.085] | not demonstrated |
+| `random` − `external_ab` (D) | 0.712 | +0.038 | [−0.028, +0.103] | not demonstrated |
+
+### Scientific interpretation — generalisation
+
+**Every interval includes zero, so no generalisation gap was demonstrated.** That is not the same claim as
+"no gap exists", and the distinction matters here. The intervals are 0.13–0.18 wide, so this evaluation
+cannot resolve differences of the size one would care about *in either direction*. A drop of, say, 0.05
+AUROC at another hospital would be clinically relevant and is entirely compatible with every interval above.
+The honest summary is that **the experiment was not powered to settle the question it was designed to ask**,
+and the point estimates are reassuring rather than conclusive.
+
+**DRIAMS-B's higher score (0.815 against 0.751) is not evidence that the model works better there.** B is
+the smallest site in the study: 213 spectra with 59 resistant isolates, which gives it the widest interval
+of all (0.182 against 0.128 at D). Its gap interval [−0.152, +0.030] is consistent with B being anywhere
+from much better to slightly worse than the development split. Amendment 1 point 2 also fixed in advance
+that B and D carry no patient identifiers, so their intervals are **sample-level with unknown
+within-patient dependence** and are expected to be *too narrow* — the real uncertainty is larger than
+printed. A single small site scoring high is the most ordinary result in small-sample evaluation.
+
+**The `temporal` result is a date-separated evaluation with incomplete patient linkage**, never a
+patient-level generalisation result (amendment 1, point 1). DRIAMS-A re-hashes patient identifiers every
+year, so a patient who returns in a later year cannot be detected across the boundary.
+
+### A + B → D: does a second training site help at a third?
+
+This is the specification's "train two sites, test a third" experiment. Both models were scored on the
+**same 1,938 DRIAMS-D rows** (verified identical row sets), so the difference uses a paired bootstrap, which
+is tighter than the unpaired intervals above and was pre-specified for this comparison.
+
+**Observed result:**
+
+| Trained on | Train size | AUROC at DRIAMS-D | Paired difference | 95 % interval | Verdict |
+|---|---|---|---|---|---|
+| DRIAMS-A | 3,831 | 0.728 | – | – | – |
+| DRIAMS-A + DRIAMS-B | 4,023 | 0.712 | **−0.016** | [−0.034, +0.001] | not demonstrated |
+
+**Scientific interpretation: adding DRIAMS-B to the training data showed no demonstrated benefit at
+DRIAMS-D.** The interval includes zero, so harm is *not* demonstrated either — this is not evidence that
+adding B is harmful. What the result does say is that nothing here supports the intuition that a second site
+helps: the point estimate is slightly negative, and B contributed only 188 training rows, about 4.7 % of the
+combined training part. A second site this small is a weak test of the idea; a larger second site might
+behave differently, and this experiment cannot speak to that.
+
+### Confidence-zone transfer
+
+Version 0.6 fitted a high-confidence *susceptible* zone on the `random` validation part — probability below
+**0.1026**, covering 25.8 % of those rows at 95.5 % correctness against a pre-registered 95 % target. There
+was no high-confidence resistant zone. Version 0.7 applies **that same edge, unchanged**, to each new test
+part. It is never refitted: refitting would need the new site's labels, which is exactly what an external
+site does not give you (amendment 3, point 5).
+
+The pre-registered reading, fixed in advance, is deliberately permissive: the zone *transfers* if its NPV is
+≥ 0.95 **or its interval covers 0.95**, and *does not transfer* if the interval lies wholly below 0.95.
+
+**Observed result:**
+
+| Tested on | Model | Clean site test | Covered | NPV | 95 % interval | Point ≥ 0.95 | Pre-registered verdict |
+|---|---|---|---|---|---|---|---|
+| DRIAMS-B | saved model | yes | 51 of 213 | 0.922 | [0.836, 0.982] | no | transfers |
+| DRIAMS-D | saved model | yes | 298 of 1,938 | 0.963 | [0.939, 0.983] | yes | transfers |
+| DRIAMS-B | refit | no | 61 of 213 | 0.918 | [0.842, 0.983] | no | transfers |
+| DRIAMS-D | refit | no | 313 of 1,938 | 0.965 | [0.943, 0.984] | yes | transfers |
+| DRIAMS-D | refit (A+B) | no | 297 of 1,938 | 0.943 | [0.915, 0.968] | no | transfers |
+| **A 2018 (temporal)** | refit | **no** | 253 of 1,233 | **0.893** | **[0.844, 0.937]** | **no** | **does not transfer** |
+
+**Scientific interpretation, and the three cases are not equivalent:**
+
+- **DRIAMS-D is the only informative positive.** 298 covered spectra, NPV 0.963, and the interval's lower
+  bound is 0.939 — so the result *meets* the target and is consistent with it, but does not establish that
+  the true value is above 0.95.
+- **DRIAMS-B establishes almost nothing.** The zone covered **51 spectra**. Its point estimate (0.922) is
+  *below* the target and the interval spans 0.836 to 0.982. It counts as "transfers" only because the
+  pre-registered rule accepts an interval covering 0.95. Read as "not refuted at B", not as "holds at B".
+- **The later year is the clearest failure**: the interval lies wholly below the target, on 253 covered
+  spectra. A zone fitted at one point in time should not be assumed to hold later.
+
+**The temporal zone result is confounded, and cannot be fixed.** The saved model overlaps 848 of the 1,233
+temporal samples, so it cannot be scored there; the number above therefore comes from a *refitted* model,
+which carries its own calibration step. The result mixes the change of year with recalibration, and **is not
+a clean independent saved-model test**. No code change can produce one, because the overlap is a property of
+how the `random` split was drawn. It is reported as a limitation rather than engineered around.
+
+### Why performance changes: a feature-only diagnostic
+
+Computed after every scoring was logged, using test-set *inputs* and **no AST label**, so it cannot have
+influenced any model or threshold. It describes the shift; it does not correct for it.
+
+| Tested on | Median abs. SMD, all bins | Share of bins > 0.5 | Median abs. SMD, lowest 20 bins | Empty there (train → site) |
+|---|---|---|---|---|
+| A 2018 | 0.249 | 26.2 % | 0.176 | 0.002 → 0.005 |
+| DRIAMS-B | 0.147 | 10.6 % | 0.253 | 0.002 → 0.001 |
+| DRIAMS-D | 0.190 | 11.6 % | 0.166 | 0.002 → 0.016 |
+
+The measured input shift is real but modest, and — interestingly — the *later year at the same hospital*
+shifts more than either other site (0.249 against 0.147 and 0.190). This is a description, not an
+attribution: nothing here identifies whether a shift is instrumental, population or protocol, and
+`region_shift.csv` reports the same measure restricted to the 20 m/z regions Version 0.6 found the model
+relies on.
+
+### Limitations
+
+These are the constraints on what may be concluded. None of them is presentational.
+
+1. **Every generalisation interval includes zero**, so no gap was demonstrated — and equally, no gap was
+   ruled out. Intervals 0.13–0.18 wide cannot resolve clinically relevant differences either way.
+2. **DRIAMS-B has 59 resistant isolates and 213 spectra.** Its results are indicative only, its intervals
+   are the widest in the study, and its higher AUROC must not be read as better performance.
+3. **The A + B → D comparison shows no demonstrated benefit from adding DRIAMS-B**, and does not show that
+   adding it is harmful. B supplied 188 training rows (4.7 % of that training part), so this is a weak test
+   of whether a second site helps.
+4. **The temporal confidence-zone evaluation is confounded** by the 848-row overlap between the saved model's
+   training part and the temporal test part, which forces the use of a refitted, recalibrated model.
+5. **It therefore must not be read as a clean independent prospective validation** of the confidence zone
+   over time. The external-site zone results are clean in that sense; the temporal one is not.
+6. **DRIAMS-C is reserved for Version 0.8** and was not used here: not downloaded, not extracted, absent
+   from every split, 0 rows in the dataset. Version 0.8 needs a site whose labels were never spent, and
+   after this run B and D no longer qualify. Its partition is fixed in advance at 70 % adaptation / 30 %
+   held-out, seed 42.
+7. **External-site intervals are sample-level with unknown within-patient dependence** (amendment 1,
+   point 2) and are expected to be too narrow, because B and D carry no patient identifiers.
+8. **The gaps are upper bounds on the loss under a fixed recipe**, not the best achievable in each regime.
+   A setting chosen on `random` may suit the other regimes less well; no per-regime search was run, by
+   design, so that a gap would isolate the data rather than the search.
+9. **In-hospital and in-laboratory retrospective data only.** This is a research prototype, not a
+   clinically validated diagnostic, and never a treatment recommendation.
+
+### The patient-overlap question, from the existing log
+
+Read from the append-only log rather than scored again. The size-matched run is included because protocol
+section 3 makes it part of this comparison: without it, a difference between the first two rows could be
+less training data rather than patient overlap.
+
+| Experiment | Train size | n | AUROC | First scored |
+|---|---|---|---|---|
+| `random` | 2,977 | 856 | 0.751 | 2026-09-18 (v0.4-tuned) |
+| `random_size_matched` | 1,284 | 856 | 0.722 | 2026-09-18 (v0.4-tuned) |
+| `within_year` (patient groups complete) | 1,284 | 366 | 0.728 | 2026-09-18 (v0.4-tuned) |
+
+At equal training size the two are 0.722 and 0.728, so the `random` split's advantage over `within_year`
+looks like training-set size rather than cross-year patient overlap.
+
+### Reproducibility
+
+| Item | Value |
+|---|---|
+| Code commit the run executed | **`8878bfd`** (recorded in `run_config.json`) |
+| Commit holding the results | **`64c6c75`** |
+| Append-only log after the run | 84 data rows, SHA-256 `e97480ab72acaaa54ad71d65860fc61026616a08a35525a7184cabc26c8a048a` |
+| Rows appended by this version | 26 (5 seeds + prevalence per experiment and site, plus 2 saved-model rows) |
+| Dataset | `ecoli_ciprofloxacin`, rows `151415a4d03dbcc5`, features `347cbd6d5d956ff9` |
+| Seeds | 42–46 for the refits; bootstrap seed 42, 2,000 patient-group resamples; CV seed 42, 5 folds |
+| Model whose setting was reused | `v0.4.0-tuned_lightgbm-random-seed42` |
+| Reports | `results/metrics/v0.7/ecoli_ciprofloxacin/` (11 files, including `tables.md`) |
+| Figures | `results/plots/v0.7/` (3 files) |
+
+The run was rehearsed three times against a scratch log before the permanent one was touched; every
+reported metric came out identical, and only paths, the commit hash and wall-clock timings differed.
+
+![AUROC where the model was not trained](results/plots/v0.7/ecoli_ciprofloxacin_generalisation_auroc.png)
+
+![Confidence-zone transfer](results/plots/v0.7/ecoli_ciprofloxacin_generalisation_zone_transfer.png)
+
+![Region shift between sites](results/plots/v0.7/ecoli_ciprofloxacin_generalisation_region_shift.png)
+
+### Commands
+
+```powershell
+python scripts/build_dataset.py --splits-only      # adds the external_ab split; never rewrites X.npy
+python scripts/measure_generalisation.py           # the experiments (spends the released test parts once)
+python scripts/generalisation_tables.py            # the tables above, from the saved reports
+```
+
+The script refuses to start if a locked split is configured, if the saved model shares rows or patient
+groups with a part it is asked to score, or if the reused setting fails to reproduce the saved model. The
+append-only log is compared before and after, and its hash is recorded in `run_config.json`.
+
+## Version 0.8 – adapting to a new hospital
+
+### Objective
+
+The specification asks for a simple adaptive system: new site data arrives, the model is adapted on
+approved labelled samples, and old and new are compared. Version 0.8 tests **one pre-specified adaptation
+strategy against one pre-specified baseline on a protected evaluation set**. It is not a search for a
+strategy that improves the result, and it was designed so that a positive, null or negative outcome would
+all have been reportable.
+
+The methodology was approved and hashed **before DRIAMS-C was downloaded**
+([`docs/v0.8_adaptive_plan.md`](docs/v0.8_adaptive_plan.md),
+[amendment 4](docs/evaluation_protocol.md#amendments)). That hash,
+`e0ceb1727e63d7e3f6c9c72ecbe47795a61ac98d6b7f0a8dced3d1456f91cf60`, is re-checked by the runner at start-up
+and is still the value locked at approval — which is the evidence that opening the new site changed nothing
+about the plan.
+
+### The new site, and how it was partitioned
+
+DRIAMS-C (Canton Hospital Aarau) was downloaded from Dryad and verified against the pre-registered SHA-256
+`77c8097e…85b7867`. Of 927 *E. coli* rows, 38 were excluded — every one for `no_ast_result`, with **zero**
+ambiguous and zero other exclusions — leaving **889** usable (191 resistant, 698 susceptible; 21.5 %
+resistant, comparable to A's 23.0 % and D's 19.1 %). All 889 reproduce the published DRIAMS `binned_6000`
+files to a maximum relative difference of **5.5e-08**, so C went through the same pipeline as A, B and D and
+shares the feature fingerprint `347cbd6d5d956ff9`.
+
+Two gates had to pass before anything was fitted, both on class counts alone: the existing site rule
+(≥ 30 per class) and a Version 0.8 power precondition (≥ 30 per class **in the held-out part**). Both passed.
+A failure of either would have stopped the experiment, not relaxed the rule.
+
+| Part | Rows | Resistant | Susceptible | Fingerprint |
+|---|---|---|---|---|
+| Cohort | 889 | 191 | 698 | rows `83d504f4d0f83ae8` |
+| Adaptation (70 %) | 622 | 120 | 502 | `f872f41e20186198` |
+| **Protected evaluation (30 %)** | **267** | **71** | **196** | `6cc5e77552224208` |
+
+Drawn once at seed 42 by whole groups, achieving 69.97 / 30.03 %. A second and a third independent draw
+produced the identical partition. The evaluation part was then frozen: never trained on, calibrated on,
+tuned against, or used to choose an adaptation size — and the runner verifies both fingerprints before it
+will start.
+
+### Why the primary endpoint is the Brier score and not AUROC
+
+Because **AUROC cannot respond to the intervention at all.** Recalibration is a monotone map of the
+probabilities, so it preserves every pairwise ordering and leaves AUROC exactly unchanged. Verified in
+advance on the recorded Version 0.7 probabilities, where five different recalibrations gave bit-identical
+AUROC, and confirmed by this run: **A1's AUROC is 0.765019 and B1's is 0.765019**, identical to twelve
+decimals. Had AUROC been the primary endpoint, the experiment would have been null by construction.
+
+The zone is a **pair**, not a single number, for a related reason: NPV alone can be raised arbitrarily by
+shrinking coverage. A "95 % safe" zone covering almost nobody is worthless, so the co-primary requires
+`NPV ≥ 0.95` **and** `coverage ≥ baseline − 0.05`.
+
+### The five arms
+
+Every arm was scored **once** on the same 267 protected spectra, at the saved model's deployed cut-off
+(0.1426). The plan enumerates the changeable parameters as the Platt pair and the zone edge, so the decision
+threshold is not among them and does not move between arms.
+
+| Arm | | Trained on | AUROC | PR-AUC | **Brier** | Sens | Spec |
+|---|---|---|---|---|---|---|---|
+| prevalence | B0 | — | 0.500 | 0.266 | 0.2005 | 1.00 | 0.00 |
+| saved project model, unchanged | **B1** | A, 2,977 | 0.765 | 0.658 | **0.1458** | 0.89 | 0.39 |
+| Version 0.7 `external` refit | B2 | A, 3,831 | 0.782 | 0.681 | 0.1398 | 0.92 | 0.40 |
+| **recalibration-only** | **A1** | C adapt, 622 | 0.765 | 0.658 | **0.1493** | 0.51 | 0.83 |
+| A + C refit | A2 | A + C, 4,453 | 0.820 | 0.728 | **0.1271** | 0.83 | 0.58 |
+
+A1 changed exactly two numbers — Platt `a = −4.936998`, `b = 2.392662`, fitted on the 622 adaptation rows —
+plus its zone edge. Every tree stayed frozen.
+
+### Observed results
+
+**Primary comparison (A1 against B1, Brier, paired):**
+
+| | Value |
+|---|---|
+| Baseline Brier | 0.1458 |
+| Recalibrated Brier | 0.1493 |
+| Paired difference (B1 − A1) | **−0.0035** |
+| 95 % interval | **[−0.0161, +0.0085]** |
+| Bootstrap p | 0.576 |
+| Holm | rank 2 of 2, threshold 0.050, **not rejected** |
+| **Pre-registered decision** | **NOT DEMONSTRATED** |
+
+**Confirmatory secondary (A2 against B1):**
+
+| | Value |
+|---|---|
+| A + C refit Brier | 0.1271 |
+| Paired difference | **+0.0187** |
+| 95 % interval | **[+0.0086, +0.0290]** |
+| Bootstrap p | 0.001 |
+| Holm | rank 1 of 2, threshold 0.025, **rejected** |
+| **Pre-registered decision** | **MIXED** (Brier improved; the zone pair failed) |
+
+**Confidence zone on the protected part** (target 0.95; coverage floor 0.1822 = B1's 0.2322 − 0.05):
+
+| Arm | Edge | Source | Covered | Coverage | NPV | 95 % interval | Pair holds |
+|---|---|---|---|---|---|---|---|
+| B1 | 0.1026 | carried from V0.6 | 62 | 0.232 | 0.9355 | [0.8689, 0.9853] | no |
+| B2 | 0.1026 | carried from V0.6 | 56 | 0.210 | 0.9286 | [0.8519, 0.9836] | no |
+| A1 | 0.0878 | refit on adaptation | 54 | 0.202 | 0.9259 | [0.8500, 0.9828] | **no** |
+| A2 | 0.1426 | refit on adaptation | 125 | 0.468 | 0.9040 | [0.8527, 0.9520] | **no** |
+
+**No arm reached the 0.95 target on its point estimate — including both baselines.**
+
+### Scientific interpretation
+
+**The primary hypothesis was not demonstrated.** The Brier interval includes zero, so recalibration-only was
+not shown to help — and was not shown to harm. The point estimate is slightly unfavourable. **This is not
+evidence of equivalence**: with 71 resistant isolates the interval spans roughly ±0.012 on a Brier of ~0.15,
+so effects that would matter clinically sit comfortably inside it. The experiment could not resolve them.
+
+**Adding local data to training did help the probabilities, but the result is mixed, not positive.** A2
+improved Brier by 0.0187 with an interval excluding zero that survives Holm correction, and lifted AUROC from
+0.765 to 0.820. Its locally-refitted zone, however, reached NPV 0.904 — *below* target, on a zone fitted on
+the very site where it was then measured. That is the pre-registered `MIXED` verdict and it is a caution, not
+a licence to deploy A2: better average probabilities bought with a confidence zone that can no longer be
+trusted at the stated level.
+
+**A1's sensitivity fell from 0.89 to 0.51** because the threshold was held frozen while recalibration shifted
+the probability scale. That is a direct consequence of the locked protocol, not a tuning choice, and it is
+another reason the recalibrated arm is not a drop-in replacement.
+
+**The carried-over Version 0.6 zone does not reach its target at DRIAMS-C either** (B1 0.9355, B2 0.9286).
+Because the baseline zone does not hold, A1 is classified `not demonstrated` rather than `harm` under the
+pre-registered rules. Note also that this version's co-primary is a **point-estimate** rule, stricter than
+Version 0.7's "transfers" rule which accepted an interval covering the target — the two are **not** directly
+comparable.
+
+### Limitations
+
+1. **71 resistant isolates in the protected part** — close to DRIAMS-B's 59, which Version 0.7 already showed
+   was too small to resolve modest effects. This was recorded before the run, not discovered after it.
+2. **DRIAMS-C carries no patient identifier.** Each spectrum is treated as an independent group, so every
+   interval here is **sample-level and may be narrower than appropriate** if several spectra come from the
+   same unobserved patient. **No statistical correction is applied**, because the approved protocol specifies
+   none and inventing one after seeing the cohort would be a methodology change.
+3. **A null primary result was the expected outcome**, and the plan said so in advance: Version 0.7 found no
+   measurable generalisation gap, so there was little headroom for adaptation to recover.
+4. **Only one adaptation size was scored.** The learning curve is answered by cross-validation inside the
+   adaptation part and never touches the protected set, so it cannot say how the held-out result would move
+   with less local data.
+5. **Recalibration-only cannot fix a ranking deficit**, so this null does not distinguish "no shift to fix"
+   from "the wrong intervention for the shift that exists".
+6. **Research prototype**, not a clinically validated diagnostic, and never a treatment recommendation.
+
+### Reproducibility
+
+| Item | Value |
+|---|---|
+| Code commit the run executed | **`4d82a22`** (clean tree) |
+| Commit holding the results | **`849cad7`** |
+| Methodology hash | `e0ceb172…6f91cf60`, unchanged since approval |
+| Append-only log | 84 → **89** data rows, SHA-256 `c395fcb34dcdd041ca6d953605b517d6992f95e4df718566ba4b2e59a076e0c7` |
+| Archive | `DRIAMS_C.tar.gz`, SHA-256 `77c8097e…85b7867`, independently re-verified |
+| Seeds | partition 42, bootstrap 42 (2,000 group resamples), CV 42, model 42 |
+| Runtime | 65.7 s |
+| Reports | `results/metrics/v0.8/ecoli_ciprofloxacin__site-C/` · Figures: `results/plots/v0.8/` |
+
+The run was rehearsed against a scratch log first; every reported metric came out identical to production. A
+ten-point integrity audit of the recorded run passed 10 / 10. One record-keeping caveat is documented in the
+plan's audit note: the pre-write log hash was recorded and verified, but the pre-write **row count** was not
+stored as its own field. The run was kept rather than repeated — a rerun would append a second scoring of the
+same protected spectra and could not repair metadata written in the past — and the append gate has since been
+strengthened so future production writes record both.
+
+![Paired change in Brier score](results/plots/v0.8/ecoli_ciprofloxacin__site-C_adaptation_brier.png)
+
+![The confidence zone at DRIAMS-C](results/plots/v0.8/ecoli_ciprofloxacin__site-C_adaptation_zone.png)
+
+### Commands
+
+```powershell
+python scripts/download_driams.py --site C --from-file <DRIAMS_C.tar.gz>   # verifies the SHA-256
+python scripts/extract_driams.py --site C --folders raw binned_6000 --species "Escherichia coli"
+python scripts/build_dataset.py --sites DRIAMS-C --name ecoli_ciprofloxacin__site-C --skip-splits
+python scripts/build_adaptation_partition.py    # draws, validates and freezes the partition
+python scripts/adapt_model.py                   # the experiment (spends the protected part once)
+```
+
+The runner refuses to start if the methodology hash has changed, if either partition fingerprint does not
+recompute, if the working tree is dirty, or if a search on C has been switched on. Before appending it
+verifies the log's hash and row count, that no historical row changed, and that every experiment key is new.
+
+## Project structure (Version 0.8)
 
 ```
 antibiotic-resistance-ai/
@@ -1139,6 +1598,10 @@ antibiotic-resistance-ai/
 │   ├── tuned_tables.py         Version 0.4 / 0.5 result tables and the model comparison
 │   ├── explain_model.py        Version 0.6 explanations and confidence zones (no test row is scored)
 │   ├── explain_tables.py       Version 0.6 result tables from the saved reports
+│   ├── measure_generalisation.py  Version 0.7 cross-site and cross-time experiments
+│   ├── generalisation_tables.py   Version 0.7 result tables from the saved reports
+│   ├── build_adaptation_partition.py  Version 0.8 partition: draw, validate, freeze
+│   ├── adapt_model.py          Version 0.8 adaptation run (spends the protected part once)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -1161,6 +1624,10 @@ antibiotic-resistance-ai/
 ├── docs/v0.4_search_plan.md    what Version 0.4 searched (fixed before any tuning)
 ├── docs/v0.5_deep_learning_plan.md  which networks and why (fixed before any network was trained)
 ├── docs/v0.6_explainability_plan.md  how the model is explained (fixed before anything was explained)
+├── docs/v0.7_generalisation_plan.md  the generalisation experiments (fixed before the
+│                               locked test parts were scored; holds the DRIAMS-C reservation)
+├── docs/v0.8_adaptive_plan.md    the adaptation protocol (approved and hashed before DRIAMS-C
+│                               was opened); holds the audit note
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)

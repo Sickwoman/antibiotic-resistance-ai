@@ -168,5 +168,49 @@
       "date_min": null,
       "date_max": null
     }
+  },
+  "external_ab": {
+    "name": "external_ab",
+    "description": "Train/validation on ['DRIAMS-A', 'DRIAMS-B'], external test on ['DRIAMS-D'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
+    "notes": [
+      "Patients cannot be linked across hospitals, so cross-site patient overlap is not checked."
+    ],
+    "dataset_fingerprint": "151415a4d03dbcc5",
+    "derived_from": null,
+    "train": {
+      "samples": 4023,
+      "resistant": 926,
+      "susceptible": 3097,
+      "sites": {
+        "DRIAMS-A": 3835,
+        "DRIAMS-B": 188
+      },
+      "groups": 2116,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 449,
+      "resistant": 104,
+      "susceptible": 345,
+      "sites": {
+        "DRIAMS-A": 424,
+        "DRIAMS-B": 25
+      },
+      "groups": 234,
+      "date_min": "2015-11-25",
+      "date_max": "2018-08-23"
+    },
+    "test": {
+      "samples": 1938,
+      "resistant": 370,
+      "susceptible": 1568,
+      "sites": {
+        "DRIAMS-D": 1938
+      },
+      "groups": 1938,
+      "date_min": null,
+      "date_max": null
+    }
   }
 }

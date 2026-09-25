@@ -8,6 +8,8 @@ commonly asked for. PR-AUC is estimated as average precision.
 
 from __future__ import annotations
 
+import hashlib
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -268,8 +270,62 @@ def unpaired_difference(a: np.ndarray, b: np.ndarray, level: float, seed: int = 
 def assert_split_allowed(split: str, locked: Iterable[str]) -> None:
     """Refuse a test part that the evaluation protocol locks (docs/evaluation_protocol.md)."""
     if split in set(locked):
-        raise EvaluationError(f"The {split} test part is locked until Version 0.7 "
-                              "(evaluation.locked_test_splits).")
+        raise EvaluationError(f"The {split} test part is locked by the evaluation protocol "
+                              "(evaluation.locked_test_splits in config.yaml).")
+
+
+def assert_log_ready_for_append(path: Path, rows: list[dict[str, Any]], *, expected_sha256: str,
+                                expected_rows: int, committed: pd.DataFrame | None = None) -> dict[str, Any]:
+    """The seven pre-write checks, run immediately before a production append. Raises, or returns the state.
+
+    This exists because a production append is the one irreversible act in the project: the log may only
+    grow, so a wrong write cannot be taken back. Every check is therefore made *before* the write rather
+    than verified after it, and the returned dict is meant to be embedded in the run's own metadata, so the
+    pre-write hash **and** row count are part of the immutable record rather than reconstructed later.
+
+    `expected_sha256` and `expected_rows` are what the caller believes the log was before this run. Passing
+    them in is deliberate: a check that derives its own expectation from the file it is checking would pass
+    no matter what the file contained.
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise EvaluationError(f"{path} does not exist, so a production append cannot be verified.")
+
+    got_sha = hashlib.sha256(path.read_bytes()).hexdigest()          # 1. recompute
+    if got_sha != expected_sha256:                                   # 2. must equal the expectation
+        raise EvaluationError(f"The log's SHA-256 is {got_sha} but {expected_sha256} was expected. It "
+                              "changed since this run started; refusing to append.")
+    current = pd.read_csv(path)
+    if len(current) != expected_rows:                                # 3. exact row count
+        raise EvaluationError(f"The log holds {len(current)} data rows but {expected_rows} were expected; "
+                              "refusing to append.")
+    if committed is not None:                                        # 4. no existing row changed
+        if len(committed) > len(current):
+            raise EvaluationError("The log has fewer rows than the committed version; rows were removed.")
+        try:
+            pd.testing.assert_frame_equal(current.iloc[:len(committed)].reset_index(drop=True),
+                                          committed.reset_index(drop=True))
+        except AssertionError as exc:
+            raise EvaluationError(f"An existing log row differs from the committed version: {exc}") from exc
+    if not rows:
+        raise EvaluationError("No rows to append; refusing a no-op production write.")
+    frame = pd.DataFrame(rows)
+    for column in ("experiment", "model", "seed"):                   # 6. new and unique keys
+        if column not in frame.columns:
+            raise EvaluationError(f"Rows to append lack the key column {column!r}.")
+    incoming = list(zip(frame["experiment"], frame["model"], frame["seed"], strict=True))
+    if len(set(incoming)) != len(incoming):
+        raise EvaluationError("The rows to append contain a duplicate (experiment, model, seed) key.")
+    existing = set(zip(current["experiment"], current["model"], current["seed"], strict=True))
+    clash = sorted(str(k) for k in set(incoming) & existing)
+    if clash:
+        raise EvaluationError(f"{len(clash)} experiment key(s) already exist in the log, so this would score "
+                              f"them twice: {clash[:3]}. Refusing to append.")
+    return {"pre_write_sha256": got_sha, "pre_write_rows": int(len(current)),   # 7. for the run metadata
+            "rows_to_append": int(len(frame)),
+            "expected_rows_after": int(len(current) + len(frame)),
+            "checked_against_committed": committed is not None,
+            "checked_at": time.strftime("%Y-%m-%d %H:%M:%S")}
 
 
 def append_test_log(path: Path, rows: list[dict[str, Any]], locked: Iterable[str] = ()) -> None:

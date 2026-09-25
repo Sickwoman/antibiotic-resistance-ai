@@ -199,3 +199,78 @@ uncertain call — fits the existing rules. Nothing here was prompted by a test 
    change, that change belongs to a later version, is pre-registered there, and is evaluated as a new model.
 5. **No m/z region is given a protein or peptide identity.** This project has no MS/MS confirmation and no
    independent panel, so regions are named by their m/z interval only, in every report and every figure.
+
+### Amendment 3 — 2026-09-23: the generalisation experiments
+
+Added before any locked test part was scored, together with
+[the Version 0.7 plan](v0.7_generalisation_plan.md). Decision 7 releases the `temporal` and `external` test
+parts at Version 0.7, which is what this amendment prepares. It changes no metric, no threshold rule and no
+existing split, and it adds no model choice: the hyperparameters are the ones Version 0.4 already selected.
+Nothing here was prompted by a test result — none had been seen.
+
+1. **One new split, `external_ab`: train on DRIAMS-A + DRIAMS-B, test on DRIAMS-D.** The specification asks
+   for a "train two sites, test a third" experiment, which the four approved splits do not contain: in
+   `external`, B is a test site. Validation is 10 % of the combined training sites, patient-grouped, with
+   the project seed. It answers whether adding a second, small site to the training data helps at a third
+   site. It is listed alongside the section 3 splits from now on, and the same rules apply to it.
+2. **The DRIAMS-D test rows are therefore scored under two training regimes** (trained on A, and trained on
+   A + B). Both are reported whichever way the difference falls, and because they are the *same* rows the
+   difference is compared with a paired bootstrap, pre-specified in the Version 0.7 plan. Neither result may
+   be selected afterwards as "the" external result.
+3. **The saved project model is scored on the external test part without a refit.**
+   `v0.4.0-tuned_lightgbm-random-seed42` was trained on the `random` training part (DRIAMS-A only), whose
+   intersection with the `external` test part is 0 rows and 0 patient groups. It keeps the threshold chosen
+   on the `random` validation part, which is stated wherever that row appears, because the threshold was not
+   chosen on the site it is being applied to. The same model is **not** scored on the `temporal` test part:
+   848 of those 1,233 rows are in its training data.
+4. **A further external site is added as a separate cohort, never by rebuilding the primary dataset.** A new
+   site is built with the same preprocessing settings, so it shares the `feature_fingerprint` and has its own
+   `row_fingerprint`. The primary dataset's rows, its saved splits, the saved models and every logged test
+   result are left untouched. Rebuilding the primary dataset would change its row fingerprint and invalidate
+   the provenance of results that were scored once and may not be scored again. The pre-registered
+   pair-selection rule is checked on the new site before it is used, as section 3 already requires.
+5. **A Version 0.6 confidence zone may be applied to a new test part, but never refitted there.** Carrying
+   the fitted edge across unchanged is a test of the zone; refitting it per site would need that site's
+   labels and is a different experiment. The pre-registered reading of the outcome is fixed in the Version
+   0.7 plan, including what it means if the zone does not transfer.
+
+### Amendment 4 — 2026-09-24: the Version 0.8 adaptation experiment
+
+Added when the Version 0.8 methodology was approved, **before DRIAMS-C was downloaded, extracted,
+partitioned or inspected**, and before any Version 0.8 code existed. It changes no Version 0.7 result and
+rewrites no earlier methodology: Versions 0.1–0.7 stand exactly as recorded. It fixes how a new site may be
+adapted to and how the outcome is judged. Nothing here was prompted by a result, because none exists.
+
+1. **A locally refitted confidence zone is a different fitted object from the carried-over one, and the two
+   may never be compared as though they were the same.** The Version 0.6 edge (probability below 0.1026) was
+   fitted once, on the `random` validation part, and *carried* to new data unchanged; its number answers
+   "does a zone fitted elsewhere still hold here?". A zone refitted on a new site's adaptation part answers
+   a different question — "can a zone be found here, given local labels?" — and will almost always look
+   better, because it was fitted where it is measured. Every report must name which of the two a number
+   belongs to, and a difference between them is never presented as transfer, improvement or degradation of
+   the same object.
+2. **The adaptation arms may change only what is listed.** Recalibration-only changes the two Platt
+   parameters and the zone edge, and nothing else; the trees, the preprocessing, the feature space and the
+   threshold rule stay frozen. The confirmatory A + C refit re-fits the model with the Version 0.4 winning
+   setting unchanged. **No hyperparameter search may be run on the new site**, because a search would let
+   the adaptation part choose the setting, and a difference could no longer be attributed to adaptation.
+3. **The new site's held-out part is protected exactly as a locked test part.** It is listed in
+   `evaluation.locked_test_splits` from the moment it is created until the single Version 0.8 scoring, so
+   every script refuses it, and it may never influence the adaptation size, the method, the edge, the
+   threshold or any hyperparameter. The partition is drawn once, deterministically, by whole patient groups
+   with the project seed, before any label distribution in the parts is examined.
+4. **The primary endpoint is the Brier score, not AUROC, and the reason is mathematical rather than
+   practical.** Recalibration is a monotone map of the probabilities, so it preserves every pairwise
+   ordering and leaves AUROC exactly unchanged — verified on the recorded Version 0.7 DRIAMS-D
+   probabilities, where five different recalibrations gave bit-identical AUROC. Pairing AUROC with a
+   recalibration arm would guarantee a null result by construction. AUROC remains a reported guardrail.
+5. **The confidence-zone endpoint is a pair, with a coverage floor.** Negative predictive value on its own
+   can be raised arbitrarily by shrinking the zone, so the zone counts as improved only if its NPV reaches
+   the pre-registered 0.95 *and* its coverage is within 0.05 of the baseline's. The number of covered
+   spectra is reported beside every zone number, because Version 0.7 showed how little a zone number on 51
+   spectra establishes.
+6. **Eligibility is checked before anything is fitted, on class counts only.** The existing rule
+   (`pair_selection.min_per_class_external`) decides whether the site may be used at all; a Version 0.8
+   power precondition additionally requires at least that many of each class in the held-out part. A
+   failure of either **stops the experiment and is reported with its counts**. Another site is never
+   silently substituted, and neither rule may be changed after the counts are seen.

@@ -41,6 +41,7 @@ from src.utils import (  # noqa: E402
     load_config,
     project_path,
     set_seed,
+    show_path,
 )
 
 log = get_logger("build")
@@ -105,6 +106,9 @@ def main() -> int:
     parser.add_argument("--name", default=None, help="output dataset name")
     parser.add_argument("--skip-splits", action="store_true",
                         help="do not create splits (a dataset without splits cannot be used for training)")
+    parser.add_argument("--splits-only", action="store_true",
+                        help="rewrite the splits of an already built dataset; X.npy and metadata.csv are "
+                             "read and never rewritten, so the row fingerprint cannot change")
     parser.add_argument("--compare", type=int, default=300,
                         help="number of samples compared with DRIAMS binned_6000 files (0 = skip)")
     parser.add_argument("--config", type=Path, default=None)
@@ -115,10 +119,18 @@ def main() -> int:
         seed = int(config["project"]["random_seed"])
         set_seed(seed)
         spec = CohortSpec.from_config(config, intermediate_as=args.intermediate_as, sites=args.sites, name=args.name)
+        if args.splits_only and args.skip_splits:
+            raise ConfigError("--splits-only and --skip-splits ask for opposite things.")
         with keep_awake():
-            build_dataset(config, spec)
             output_root = project_path(config["dataset"]["output_dir"])
             out_dir = output_root / spec.name
+            if args.splits_only:
+                if not (out_dir / "X.npy").is_file():
+                    raise DataError(f"{show_path(out_dir)} has no built dataset to add splits to; run this "
+                                    "command without --splits-only first.")
+                log.info("--splits-only: reading %s and rewriting only its splits", show_path(out_dir))
+            else:
+                build_dataset(config, spec)
             X, meta, summary = load_dataset(out_dir, verify_x=True)
             report_dir = project_path("results/metrics/v0.2") / spec.name
             report_dir.mkdir(parents=True, exist_ok=True)
@@ -150,7 +162,7 @@ def main() -> int:
             excl.to_csv(report_dir / "exclusion_summary.csv", index=False)
             (report_dir / "dataset_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-            if args.compare:
+            if args.compare and not args.splits_only:
                 section(f"Check against published DRIAMS binned_6000 files ({args.compare} random samples)")
                 comparison = compare_with_driams(config, X, meta, args.compare, seed)
                 print(json.dumps(comparison, indent=2))
@@ -187,6 +199,11 @@ def main() -> int:
                 table.to_csv(report_dir / "split_summary.csv", index=False)
                 (report_dir / "split_summary.json").write_text(json.dumps(split_json, indent=2), encoding="utf-8")
                 print("All splits passed the fingerprint and the sample / patient-group overlap checks.")
+
+            if args.splits_only:                 # the raw spectra are not needed to write splits
+                print(f"\nReports: {report_dir}")
+                print("Only the splits were rewritten; X.npy and metadata.csv were not touched.")
+                return 0
 
             section("Example preprocessing (privacy-safe)")
             row = 0

@@ -316,7 +316,9 @@ def test_sensitivity_dataset_reuses_the_primary_splits(driams):
 
     skipped: list[str] = []
     primary_splits = build_splits(meta, config, "ecoli_ciprofloxacin", out, skipped)
-    assert set(primary_splits) == {"temporal", "external"} and len(skipped) == 2
+    # external_ab needs all three of its sites, so this two-site fixture skips it along with the two
+    # DRIAMS-A splits.
+    assert set(primary_splits) == {"temporal", "external"} and len(skipped) == 3
     for name, split in primary_splits.items():
         split.save(out / "ecoli_ciprofloxacin" / "splits" / f"{name}.json", meta)
 
