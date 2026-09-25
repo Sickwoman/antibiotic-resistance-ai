@@ -26,7 +26,7 @@ import numpy as np
 
 from src.preprocessing import PreprocessingConfig, preprocess_file
 from src.tuning import set_threads
-from src.uncertainty import UncertaintyError, Zones
+from src.uncertainty import ADVICE, UNCERTAIN, UncertaintyError, Zones
 
 BUNDLE_FORMAT = "amr-model-bundle/1"
 DISCLAIMER = ("AI research prediction from a research prototype. It is not a clinically validated diagnostic, "
@@ -196,6 +196,18 @@ def explain_regions(bundle: dict[str, Any], features: np.ndarray, pcfg: Preproce
              "towards": str(row.towards)} for row in frame.itertuples(index=False)]
 
 
+def prediction_payload(result: Prediction) -> dict[str, Any]:
+    """The full JSON payload for one prediction: the dataclass, plus `advice` when the zone declines to call.
+
+    Both the command-line tool and the Version 0.9 API build their output here, so the two cannot drift
+    apart. `advice` is added only for the uncertain label, because a confident call has nothing to advise.
+    """
+    out = result.to_dict()
+    if result.confidence == UNCERTAIN:
+        out["advice"] = ADVICE
+    return out
+
+
 @dataclass
 class Prediction:
     species: str
@@ -216,7 +228,8 @@ class Prediction:
 
 
 def predict_spectrum_file(bundle: dict[str, Any], path: str | Path, *, zones: Zones | None = None,
-                          explain: bool = False) -> Prediction:
+                          explain: bool = False, max_points: int | None = None,
+                          max_bytes: int | None = None) -> Prediction:
     """Read and preprocess a raw spectrum file exactly as in training, then predict (timed).
 
     `zones` adds the three-way confidence label of a fitted zone file; it does not move the model's
@@ -225,12 +238,16 @@ def predict_spectrum_file(bundle: dict[str, Any], path: str | Path, *, zones: Zo
     contributions. The three reported times cover reading, preprocessing and inference only: labelling
     and explaining happen after the clock has stopped, so the numbers mean the same thing whatever the
     two options are set to.
+
+    `max_points` and `max_bytes` are optional input limits for untrusted input (the Version 0.9 API);
+    both default to None, meaning no limit, so the CLI path is unchanged. An invalid or oversized file
+    raises SpectrumFormatError before anything is preprocessed.
     """
     pcfg = PreprocessingConfig.from_dict(bundle["preprocessing"])
     if pcfg.fingerprint() != bundle["feature_fingerprint"]:
         raise ModelError("The preprocessing settings stored in the model do not match its feature fingerprint.")
     started = time.perf_counter()
-    features, _ = preprocess_file(Path(path), pcfg)          # raises SpectrumFormatError for invalid files
+    features, _ = preprocess_file(Path(path), pcfg, max_points=max_points, max_bytes=max_bytes)
     preprocessed = time.perf_counter()
     prob, label = predict_features(bundle, features)
     finished = time.perf_counter()

@@ -1,5 +1,5 @@
 # Dependencies up to Version 0.3 (data acquisition, exploration, preprocessing, splits, baseline models).
-# Later versions add torch, shap, fastapi, uvicorn only when needed.
+# Later versions add torch (V0.5) and the FastAPI serving stack (V0.9) only when needed.
 # Exact versions of the tested environment are recorded in requirements-lock.txt.
 numpy>=1.26
 pandas>=2.2
@@ -16,3 +16,11 @@ ruff==0.16.8         # linter (python -m ruff check .); pinned so new rules neve
 notebook>=7.0
 nbformat>=5.9        # notebook validation in tests
 ipykernel>=6.29
+
+# V0.9 backend API. python-multipart is REQUIRED for file uploads: without it the multipart
+# endpoints fail. httpx is what starlette's TestClient runs on, and it was previously present only
+# transitively (via jupyter), so it is declared here rather than relied on by accident.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+httpx>=0.27

@@ -29,8 +29,13 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data_loader import DataError  # noqa: E402
-from src.predict import ModelError, load_bundle, load_zones, predict_spectrum_file  # noqa: E402
-from src.uncertainty import ADVICE, UNCERTAIN  # noqa: E402
+from src.predict import (  # noqa: E402
+    ModelError,
+    load_bundle,
+    load_zones,
+    predict_spectrum_file,
+    prediction_payload,
+)
 from src.utils import ConfigError, load_config, project_path  # noqa: E402
 
 ZONES_FILENAME = "uncertainty.json"
@@ -85,10 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     except (ModelError, DataError, ConfigError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
-    out = result.to_dict()
-    if result.confidence == UNCERTAIN:
-        out["advice"] = ADVICE                 # a zone that declines to call the isolate says what to do next
-    print(json.dumps(out, indent=2))
+    # Built by src.predict.prediction_payload, which the API uses too, so the two cannot drift apart.
+    print(json.dumps(prediction_payload(result), indent=2))
     return 0
 
 

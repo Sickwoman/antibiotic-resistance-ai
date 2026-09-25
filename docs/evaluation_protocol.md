@@ -274,3 +274,44 @@ adapted to and how the outcome is judged. Nothing here was prompted by a result,
    power precondition additionally requires at least that many of each class in the held-out part. A
    failure of either **stops the experiment and is reported with its counts**. Another site is never
    silently substituted, and neither rule may be changed after the counts are seen.
+
+### Amendment 5 — 2026-09-25: serving the model over HTTP
+
+Added before any Version 0.9 API code existed, together with [the Version 0.9 plan](v0.9_api_plan.md). It
+changes no model, no threshold, no split, no metric and no recorded result. It states how a transport layer
+fits the existing rules, and what that layer is forbidden from doing.
+
+1. **The API is a read-only consumer of frozen artifacts.** It loads a saved bundle and the Version 0.6
+   confidence zones and serves predictions from them. It may not fit, calibrate, tune, score a dataset part,
+   write to `results/experiments/test_evaluations.csv`, or add a row to any log. The Version 0.9 test suite
+   asserts the append-only log is unchanged.
+2. **No protected split is reachable through the API.** The service takes spectra from the request body
+   only. It accepts no dataset name, no split name and no filesystem path from a client, so a locked test
+   part or the Version 0.8 protected evaluation part cannot be scored through it, deliberately or by
+   accident. Serving a prediction for a spectrum that happens to belong to a test part is not an evaluation:
+   no label is read, no metric is computed and nothing is recorded.
+3. **A latency benchmark is not an evaluation.** Version 0.9 measures request timing on validation-part
+   spectra and records **durations only** — no probability, no label, no identifier — so it cannot become a
+   covert scoring run. This is the same treatment `inference_timing.json` received in Versions 0.3 and 0.4.
+4. **The response contract is an allow-list, and fingerprints are not on it.** Responses are built from
+   explicitly declared fields, never by serialising a bundle or a saved report. Feature, row and dataset
+   fingerprints, `x_sha256`, git commits, code fingerprints, absolute paths, archive checksums and the
+   Version 0.8 Platt coefficients are never served. Neither is any patient, case or order number, any DRIAMS
+   spectrum UUID, or any uploaded filename — raw DRIAMS files are named after the spectrum UUID and repeat
+   it in their comment lines, so the filename is used for its suffix and then discarded, and comment lines
+   are never echoed or logged.
+5. **No response may contain a non-finite float.** Several committed reports hold a bare `NaN`, which is not
+   valid JSON. Numbers taken from a saved report are converted so that non-finite values become `null`, and
+   the tests assert every response body survives strict JSON encoding.
+6. **Input limits are function parameters, never feature-definition fields.** A maximum upload size and a
+   maximum point count are added as keyword parameters defaulting to today's behaviour. They may not be
+   added to `PreprocessingConfig`, whose hash defines the feature fingerprint `347cbd6d5d956ff9` that every
+   saved bundle is checked against.
+7. **Uploaded bytes are data, never code.** Nothing from a request is deserialised, imported or executed,
+   and nothing from a request reaches `joblib.load`.
+8. **The clinical framing of section 1 applies unchanged to every response.** Each prediction carries the
+   research-prototype disclaimer; an uncertain call carries the recommendation to perform conventional
+   antimicrobial susceptibility testing; and no endpoint names, ranks or suggests an antibiotic for a
+   patient. `/model-info` reports the external Version 0.7 and Version 0.8 results beside the internal test
+   metrics, including the null and mixed outcomes, because serving the internal number alone would overstate
+   the model.

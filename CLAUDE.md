@@ -76,10 +76,14 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   0.4 after checking rows, AUROC and Brier. New split `external_ab` (train A+B, test D) is the
   specification's "train two sites, test a third"; add a split with
   `scripts\build_dataset.py --splits-only`, which never rewrites X.npy.
-- DRIAMS-C is **reserved for Version 0.8** (`config.yaml` → `reservation`, and the 2026-09-24 addendum in
-  `docs/v0.7_generalisation_plan.md`): it is not built, not scored, and not in any split. Version 0.8 needs a
-  site whose labels were never spent, and after Version 0.7 B and D no longer qualify. Its partition is fixed
-  in advance (70 % adaptation / 30 % held-out, seed 42). A test refuses any config that spends a reserved site.
+- DRIAMS-C **was reserved for Version 0.8 and has now been spent** (`config.yaml` → `reservation`, and the
+  2026-09-24 addendum in `docs/v0.7_generalisation_plan.md`). It was reserved because Version 0.8 needed a
+  site whose labels were never spent, and after Version 0.7 B and D no longer qualified; its 70 / 30
+  partition and seed 42 were fixed before the data was seen. The 30 % protected part has been scored once
+  and **must never be scored again**. Note that `adaptation.established.evaluation_scored` still reads
+  `false`: it records the state at Phase 3 and is pinned by the published full-section hash
+  `fb4c1d49…dcd7bc097`, so it is deliberately not updated. Read it as history, not as current state. A test
+  still refuses any config that spends a reserved site.
 - Version 0.7 is **recorded and immutable**: run from commit `8878bfd`, results committed as `64c6c75`, and
   the append-only log now holds 84 data rows with SHA-256 `e97480ab…c6c8a048a`. Never rerun it, never edit a
   historical row, never rewrite the log. Findings, stated as the data supports them: **no generalisation gap
@@ -92,8 +96,32 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   **not** reach it in the later year (0.893 [0.844, 0.937]). That temporal result is confounded: the saved
   model shares 848 of those 1,233 rows, so a refitted, recalibrated model had to be used, and it is **not a
   clean independent saved-model test**. Do not describe it as one, and do not try to engineer around it.
-- Version 0.8 has a **draft** plan at `docs/v0.8_adaptive_plan.md`. It is not approved: three
-  **DECISION NEEDED** items (primary target metric, adaptation method, whether several adaptation-set sizes
-  are tried) require the owner's approval, and the plan plus a protocol amendment 4 must be committed before
-  DRIAMS-C is opened. Note the honest tension recorded there: Version 0.7 found no measurable gap to close,
-  so a null adaptation result is the expected outcome and must be reported as prominently as a positive one.
+- Version 0.8 is **recorded and immutable**: methodology approved and hashed
+  (`e0ceb172…6f91cf60`, `config.yaml` → `adaptation` minus `established`) before DRIAMS-C was downloaded;
+  run from commit `4d82a22`, results committed as `849cad7`, log now 89 data rows at `c395fcb3…76e0c7`.
+  DRIAMS-C's 30 % protected part has been spent, once. Findings as the data supports them: local
+  recalibration was **not demonstrated** to help (paired Brier −0.0035 [−0.0161, +0.0085], p 0.576) and was
+  not shown to harm; refitting on A + C did improve Brier (+0.0187 [+0.0086, +0.0290]) but its locally
+  refitted zone reached NPV 0.904, below target, so its verdict is **mixed**, not success. **No arm reached
+  the 0.95 zone target, including both baselines.** The primary endpoint is the Brier score because AUROC is
+  invariant under the monotone map recalibration applies — A1 and B1 give AUROC 0.765019 to twelve decimals.
+  Never rerun it, never edit a historical row, never rewrite the log.
+- Version 0.9 backend API: `.\.venv\Scripts\python.exe scripts\serve_api.py` (config section `api`,
+  binds `127.0.0.1`), latency from `scripts\benchmark_api.py` → `results/metrics/v0.9`. Four endpoints:
+  `/health`, `/predict`, `/batch-predict`, `/model-info`. The API is a **read-only consumer of frozen
+  artifacts** (`docs/v0.9_api_plan.md`, protocol amendment 5): it may not fit, calibrate, score a dataset
+  part or append to any log, and it takes no dataset name, split name or path from a client, so no protected
+  split is reachable through it. Four rules to keep:
+  - **Input limits are keyword parameters, never `PreprocessingConfig` fields.** That dataclass's hash is
+    the feature fingerprint `347cbd6d5d956ff9` every saved bundle is checked against, so a field there
+    breaks every bundle and every cache. A test pins the fingerprint.
+  - **An uploaded filename never reaches a response or a log.** Raw DRIAMS files are named after their
+    spectrum UUID and repeat it in their `#` comments, and the library quotes `path.name` in messages, so
+    uploads are saved under a generated name (`upload.txt`).
+  - **No response may carry a non-finite float or a fingerprint.** `uncertainty.json` holds a bare `NaN` and
+    starlette renders with `allow_nan=False`, so numbers from saved reports go through `finite_or_none`;
+    `/model-info` is an explicit allow-list checked against `FORBIDDEN_IN_RESPONSES`.
+  - **Uploaded bytes are data, never code.** Nothing from a request reaches `joblib.load`; `.txt` only.
+  Honest results to keep stating: there is **no high-confidence-resistant zone** (`upper` is `null`), so a
+  spectrum at p = 0.945 is still reported `Uncertain`; and `/batch-predict` is **not faster per sample**
+  (56.69 ms vs 49.66 ms) because preprocessing dominates — it saves round trips, not time.

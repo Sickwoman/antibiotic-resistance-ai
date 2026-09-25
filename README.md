@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.8 – adapting to a new hospital.** Versions 0.1 (download +
+**Status: Version 0.9 – the backend API.** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks) and 0.6 (explainability and confidence zones) are complete. Models are evaluated as
 fixed in [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was
@@ -29,6 +29,9 @@ resolve differences that would matter, and the confidence zone did not reach its
 See [Version 0.7](#version-07--generalisation-across-hospitals-and-time).
 Version 0.8 then spent DRIAMS-C's protected part once. **Local recalibration was not demonstrated to help** (paired Brier −0.0035 [−0.0161, +0.0085]); refitting on A + C did improve the probabilities but lost the confidence zone, so its pre-registered verdict is *mixed*, not success. See
 [Version 0.8](#version-08--adapting-to-a-new-hospital).
+Version 0.9 puts that same frozen model behind a FastAPI service: four endpoints, measured
+latency, and input limits that did not exist before. It changes no model, no threshold and no
+recorded result. See [Version 0.9](#version-09--the-backend-api).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
 
@@ -899,9 +902,9 @@ with the reason given, rather than left silently open.
 
 - **A reusable evaluation-controller object.** The lock is now enforced at the two places that matter
   (before computing, and before writing to the log). A separate controller object would be a larger
-  refactor of working, tested code; it is worth revisiting when Version 0.9 adds the backend API. (This
-  sentence originally said Version 0.6; the project plan puts the serving path at Version 0.9, and
-  Version 0.6 is evaluation and explainability.)
+  refactor of working, tested code. Version 0.9 has since added the backend API without needing it: the
+  service is a read-only consumer of frozen artifacts, so it has no evaluation to control. The point
+  stands for any future version that evaluates.
 - **Immutable real-data fixtures for regression tests.** This would catch real metadata quirks that
   synthetic tests cannot. DRIAMS is CC0, so it would be legal, but committing real spectra contradicts
   this project's own rule to keep raw data out of Git. It needs a deliberate decision about what a
@@ -1580,7 +1583,174 @@ The runner refuses to start if the methodology hash has changed, if either parti
 recompute, if the working tree is dirty, or if a search on C has been switched on. Before appending it
 verifies the log's hash and row count, that no historical row changed, and that every experiment key is new.
 
-## Project structure (Version 0.8)
+## Version 0.9 – the backend API
+
+### Objective
+
+The specification asks for a FastAPI backend with four endpoints, and attaches one rule: *"Validate inputs
+carefully. Do not execute arbitrary uploaded code."* This is the first version that is engineering rather
+than an experiment — it states no hypothesis, fits nothing and produces no new metric — so what was fixed
+in advance is a **safety contract** rather than a statistical one:
+[`docs/v0.9_api_plan.md`](docs/v0.9_api_plan.md), recorded as
+[amendment 5](docs/evaluation_protocol.md#amendments) and committed before any endpoint was written.
+
+The prediction itself is not new. `src/predict.py::predict_spectrum_file` already did the whole job for
+the command line at Version 0.6, so this version adds transport, input validation and an explicit
+response contract around frozen artifacts. The API may not fit, calibrate, score a dataset part or append
+to any log, and it accepts no dataset name, split name or filesystem path from a client — so a locked test
+part cannot be reached through it, deliberately or by accident.
+
+### What was built
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | whether the service can serve; 503 and `degraded` when the model did not load |
+| `POST /predict` | one uploaded spectrum → a research prediction |
+| `POST /batch-predict` | up to 20 spectra in one request; one bad file does not fail the batch |
+| `GET /model-info` | algorithm, target, threshold, training data, metrics, zones, limits, disclaimer |
+
+A real request and its real response:
+
+```powershell
+curl.exe -F "file=@C:\DRIAMS\DRIAMS-A\raw\2018\<spectrum>.txt" http://127.0.0.1:8000/predict
+```
+
+```json
+{
+  "species": "Escherichia coli",
+  "antibiotic": "Ciprofloxacin",
+  "prediction": "Resistant",
+  "resistance_probability": 0.9453,
+  "threshold": 0.1426,
+  "model_version": "v0.4.0-tuned_lightgbm-random-seed42",
+  "preprocessing_ms": 41.31,
+  "inference_ms": 1.62,
+  "total_ms": 42.93,
+  "confidence": "Uncertain",
+  "explanation": null,
+  "disclaimer": "AI research prediction from a research prototype. It is not a clinically validated diagnostic, does not replace laboratory antimicrobial susceptibility testing and is not a treatment recommendation.",
+  "advice": "Uncertain - conventional antimicrobial susceptibility testing recommended."
+}
+```
+
+That response is worth reading twice. The model puts this isolate at **0.9453** and calls it resistant,
+and the service still answers **`Uncertain`**. That is not a bug: the Version 0.6 confidence zones reached
+their 0.95 target on the susceptible side only, so `upper` is `null` and **no high-confidence-resistant
+zone exists**. Sweeping the probability across [0, 1] returns only two labels ever — *High-confidence
+susceptible* and *Uncertain*. `/model-info` states this in words rather than leaving it to be inferred
+from an absence, and a test asserts both the impossibility and the statement.
+
+The command line and the API now build their output with one shared function
+(`src.predict.prediction_payload`), so the two cannot drift apart; a test compares them field for field.
+
+### Input validation and limits
+
+No maximum file size or point count existed anywhere in the codebase before this version — only a
+`min_raw_points = 100` floor and a zero-byte check — so this was a real gap against the specification.
+The limits are set from measurement rather than taste. Across 300 raw spectrum files from **each** of
+DRIAMS-A, B, C and D, a real spectrum is **403–467 KB** and about **20,700 points** (a sampled file:
+433,310 bytes, 20,748 lines). The caps sit at roughly **ten times** the largest legitimate input: they
+bound abuse, and no genuine spectrum can reach them.
+
+| Limit | Value | Enforced |
+|---|---|---|
+| File suffix | `.txt` | before the file is opened; the filename is then discarded |
+| Bytes per upload | 4,000,000 | on the declared `Content-Length`, then by a streaming counter |
+| Points per spectrum | 200,000 | after reading, beside the existing 100-point floor |
+| Files per batch | 20 | before any file is read |
+| Bytes per batch | 32,000,000 | by a budget shared across the files, so splitting does not evade it |
+
+A 5.4 MB upload is refused with **413** and **0.00 MB** of measured process-memory growth: the request is
+rejected on its declared length before the application reads the body.
+
+The limits are **keyword parameters**, not configuration fields, and that detail matters.
+`PreprocessingConfig.fingerprint()` hashes every field except `spectrum_folder`, so adding a limit to it
+would change the feature fingerprint `347cbd6d5d956ff9` that `predict_spectrum_file` checks every saved
+bundle against — breaking every bundle and invalidating every cached fit. Each new parameter therefore
+defaults to `None`, meaning exactly today's behaviour, and a test pins the fingerprint.
+
+### What the API never returns
+
+Responses are built from declared fields, never by serialising a bundle or a saved report.
+
+- **No fingerprints, git commit, code fingerprint, absolute path or archive checksum.** A test checks
+  every string in `FORBIDDEN_IN_RESPONSES` against all three endpoints.
+- **No identifier, and no uploaded filename.** Raw DRIAMS files are *named* after their spectrum UUID and
+  repeat it in their `#` comment lines, and the library quotes `path.name` in its error messages — so
+  uploads are written under a **generated** name. Submit `<uuid>.txt` with that UUID in its comments and
+  the message reads `upload.txt: ...`; the UUID appears in neither the body nor the log. This extends the
+  `UUID_LIKE` scan of `tests/test_privacy.py` to the serving path.
+- **No non-finite float.** The committed `uncertainty.json` holds a bare `NaN`, which is not valid JSON.
+  starlette renders with `allow_nan=False`, so an un-sanitised number would have become a 500 at render
+  time; every number taken from a saved report passes through a converter, and a test asserts each body
+  survives strict encoding.
+- **No traceback.** Errors return `{"error": {"type", "message"}}`; the traceback goes to the log only.
+
+Uploaded bytes are data, never code. A `.joblib` upload is refused at the suffix gate, and a test patches
+`joblib.load` to prove nothing from a request ever reaches it.
+
+| Condition | Status |
+|---|---|
+| invalid spectrum — empty, corrupted, non-numeric, too few points | 422 |
+| upload or batch over the byte limit, or too many files | 413 |
+| unsupported suffix | 415 |
+| model unavailable, or a bundle whose feature count does not match | 503 |
+| anything unexpected | 500, generic message, traceback logged |
+
+### Measured latency
+
+Measured, not claimed: `scripts/benchmark_api.py` starts a **real uvicorn server** and drives it over
+HTTP with 200 validation spectra, recording **durations only** — no probability, no label and no
+identifier is stored, so it cannot become a covert scoring run
+([`results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json`](results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json)).
+
+| | median | p95 | max |
+|---|---|---|---|
+| `/predict` round trip | **49.66 ms** | 61.96 ms | 103.41 ms |
+| of which server-side total | 43.00 ms | 54.59 ms | 93.56 ms |
+| of which preprocessing | 41.38 ms | 52.90 ms | 92.02 ms |
+| of which inference | 1.63 ms | 2.22 ms | 3.21 ms |
+| HTTP overhead | 6.66 ms | | |
+
+**Batching is not faster per sample.** A 20-file batch took 1,133.86 ms, or **56.69 ms per spectrum** —
+slightly *worse* than sending them one at a time. Preprocessing dominates by about 25× and runs
+sequentially, and the 8.6 MB multipart upload costs more than the round trips it saves. `/batch-predict`
+is therefore a convenience — one request instead of twenty — not a throughput optimisation, and it is
+described that way rather than sold as one.
+
+### Limitations
+
+1. **No authentication, no rate limiting, no TLS.** The service binds to `127.0.0.1` and must not be
+   exposed to a network. This is a research prototype, and the specification puts deployment after local
+   verification, so deployment belongs to Version 1.0.
+2. **Single process.** One uvicorn worker, one LightGBM thread per request. Concurrency was not measured.
+3. **`.txt` only.** Another format means another parser, which means more attack surface for no
+   scientific gain.
+4. **No high-confidence-resistant answer is possible**, as above — a property of the Version 0.6 fit, not
+   of the API.
+5. **The saved bundle's digest is not verified**, because the shipped bundles have no `.sha256` sidecar;
+   `save_bundle` writes one, but the existing files predate it and `models/` is deliberately left frozen.
+6. **The model is unchanged and so are its limits.** Everything Versions 0.7 and 0.8 found still holds:
+   no generalisation gap was demonstrated, and local recalibration was not shown to help.
+   `/model-info` reports the external results beside the internal one for exactly that reason.
+7. **Research prototype**, not a clinically validated diagnostic, and never a treatment recommendation.
+
+### Commands
+
+```powershell
+python scripts/serve_api.py                     # http://127.0.0.1:8000 (docs at /docs)
+python scripts/benchmark_api.py                 # measured latency -> results/metrics/v0.9/
+curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
+curl.exe http://127.0.0.1:8000/model-info
+```
+
+520 tests pass (483 from earlier versions, none modified, plus 37 new). The API tests fit a small
+synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
+DRIAMS and no bundle, and no test can accidentally depend on a protected split. `models/` and
+`results/experiments/` are byte-unchanged and the append-only log is still 89 rows at
+`c395fcb3…76e0c7`.
+
+## Project structure (Version 0.9)
 
 ```
 antibiotic-resistance-ai/
@@ -1602,6 +1772,8 @@ antibiotic-resistance-ai/
 │   ├── generalisation_tables.py   Version 0.7 result tables from the saved reports
 │   ├── build_adaptation_partition.py  Version 0.8 partition: draw, validate, freeze
 │   ├── adapt_model.py          Version 0.8 adaptation run (spends the protected part once)
+│   ├── serve_api.py            Version 0.9 backend API (localhost; no authentication)
+│   ├── benchmark_api.py        Version 0.9 measured request latency (durations only)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -1618,6 +1790,8 @@ antibiotic-resistance-ai/
 │   ├── explain.py              Version 0.6 contributions, permutation importance, m/z regions
 │   ├── uncertainty.py          Version 0.6 confident / uncertain zones and their intervals
 │   ├── predict.py              saving/loading models, prediction with timing and confidence
+│   ├── api.py                  Version 0.9 endpoints, upload limits, response allow-list
+│   ├── api_schemas.py          Version 0.9 declared response models; what may never be served
 │   ├── model_plots.py          figures shared by the model scripts
 │   └── tables.py               Markdown helpers for result tables
 ├── docs/evaluation_protocol.md how models are evaluated (approved before any training)
@@ -1628,6 +1802,7 @@ antibiotic-resistance-ai/
 │                               locked test parts were scored; holds the DRIAMS-C reservation)
 ├── docs/v0.8_adaptive_plan.md    the adaptation protocol (approved and hashed before DRIAMS-C
 │                               was opened); holds the audit note
+├── docs/v0.9_api_plan.md       the API safety contract (fixed before any endpoint was written)
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)

@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "0.7.0"
+  version: "0.9.0"
   random_seed: 42
 
 paths:
@@ -540,3 +540,29 @@ adaptation:
   report_dir: results/metrics/v0.8
   plot_dir: results/plots/v0.8
   model_dir: models/v0.8
+
+api:
+  # Version 0.9, fixed before any endpoint was written (docs/v0.9_api_plan.md, protocol amendment 5).
+  # The API is a read-only consumer of frozen artifacts: it may not fit, score, or append to any log.
+  host: "127.0.0.1"                   # localhost only: there is no authentication (see the plan)
+  port: 8000
+  # Which saved artifacts to serve. Reuses the Version 0.6 selection so the API, the CLI and the
+  # Version 0.6 report all describe the same bundle; nothing here may point at a different model.
+  model_dir: models/v0.4
+  split: random                       # best_<split>.joblib
+  zones_dir: results/metrics/v0.6     # uncertainty.json fitted on validation
+  request_threads: 1                  # one LightGBM thread per request: no oversubscription
+  limits:
+    # Measured over 300 raw files from each of DRIAMS-A/B/C/D: a real spectrum is 403-467 KB and
+    # ~20,700 points. These caps are ~10x the largest legitimate input, so they bound abuse only.
+    # They are passed as function keyword arguments, NEVER added to PreprocessingConfig, whose hash
+    # defines the feature fingerprint 347cbd6d5d956ff9 that every saved bundle is checked against.
+    max_upload_bytes: 4000000         # ~8.6x the largest observed spectrum (467 KB)
+    max_raw_points: 200000            # ~10x the observed ~20,700 points
+    max_batch_files: 20               # 20 real spectra is ~8.6 MB
+    max_batch_bytes: 32000000
+    allowed_suffixes: [".txt"]        # adding a format means a new parser, i.e. new attack surface
+  # Measured latency reported by /model-info: the Version 0.4 inference_timing.json for this
+  # dataset. Per-request timings are measured live and returned by /predict itself.
+  model_timing_dir: results/metrics/v0.4
+  report_dir: results/metrics/v0.9
