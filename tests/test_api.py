@@ -26,6 +26,7 @@ from src.api import (
     API_VERSION,
     DETAIL_MODEL_UNAVAILABLE,
     DETAIL_ZONES_UNUSABLE,
+    ERROR_MAP,
     PROJECT_MODEL_VERSION,
     Limits,
     check_zone_bounds,
@@ -33,7 +34,17 @@ from src.api import (
     default_model_path,
     default_zones_path,
 )
-from src.api_schemas import FORBIDDEN_IN_RESPONSES, finite_or_none
+from src.api_schemas import (
+    CODE_INTERNAL_ERROR,
+    CODE_INVALID_REQUEST,
+    CODE_INVALID_SPECTRUM,
+    CODE_PAYLOAD_TOO_LARGE,
+    CODE_SERVICE_NOT_READY,
+    CODE_UNSUPPORTED_MEDIA_TYPE,
+    ERROR_CODES,
+    FORBIDDEN_IN_RESPONSES,
+    finite_or_none,
+)
 from src.predict import BUNDLE_FORMAT, DISCLAIMER, save_bundle
 from src.preprocessing import PreprocessingConfig
 from src.train import ModelSpec, build_pipeline
@@ -123,14 +134,36 @@ def error_of(response) -> tuple[str, str]:
 # Happy paths
 # ------------------------------------------------------------------------------------------------
 
-def test_health_reports_ok_when_the_model_loaded(tmp_path, zones_file):
+def test_readiness_reports_ready_when_the_model_loaded(tmp_path, zones_file):
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        r = client.get("/ready")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ready" and body["model_loaded"] is True and body["zones_loaded"] is True
+    assert body["model_version"] == "test-lr" and body["detail"] is None
+    assert body["uptime_s"] >= 0
+
+
+def test_liveness_is_only_liveness(tmp_path, zones_file):
+    """/health answers for the process, not for the artifacts, and carries no internals."""
     with TestClient(build_app(tmp_path, zones=zones_file)) as client:
         r = client.get("/health")
     assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "ok" and body["model_loaded"] is True and body["zones_loaded"] is True
-    assert body["model_version"] == "test-lr" and body["detail"] is None
-    assert body["uptime_s"] >= 0
+    assert r.json() == {"status": "ok"}
+
+
+def test_liveness_stays_ok_when_the_model_is_missing(tmp_path):
+    """The point of the split: a missing model must not look like a dead process.
+
+    A liveness probe reads a failure as "restart me", and restarting cannot make a missing model appear, so
+    /health answering 503 would have produced a restart loop where the right behaviour is to stop routing
+    traffic. Readiness carries that state instead.
+    """
+    app = build_app(tmp_path, model_path=tmp_path / "absent.joblib")
+    with TestClient(app) as client:
+        live, ready = client.get("/health"), client.get("/ready")
+    assert live.status_code == 200 and live.json() == {"status": "ok"}
+    assert ready.status_code == 503 and ready.json()["status"] == "not_ready"
 
 
 def test_predict_returns_every_documented_field(tmp_path, spectrum, zones_file):
@@ -153,7 +186,7 @@ def test_predict_without_zones_reports_no_confidence(tmp_path, spectrum):
     """A missing zone file is not an error: the prediction stands, it carries no three-way label."""
     with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
         r = post_spectrum(client, spectrum)
-        assert client.get("/health").json()["zones_loaded"] is False
+        assert client.get("/ready").json()["zones_loaded"] is False
     assert r.status_code == 200 and r.json()["confidence"] == "not available"
 
 
@@ -321,11 +354,11 @@ def test_a_batch_over_the_total_byte_budget_is_refused(tmp_path, spectrum):
 def test_a_missing_model_degrades_rather_than_crashes(tmp_path, spectrum):
     app = build_app(tmp_path, model_path=tmp_path / "absent.joblib")
     with TestClient(app) as client:
-        health = client.get("/health")
+        health = client.get("/ready")
         predicted = post_spectrum(client, spectrum)
         info = client.get("/model-info")
     assert health.status_code == 503
-    assert health.json()["status"] == "degraded" and health.json()["model_loaded"] is False
+    assert health.json()["status"] == "not_ready" and health.json()["model_loaded"] is False
     # The load error names the file, i.e. an absolute path. The public detail must be the fixed string.
     assert health.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
     assert not PATH_LIKE.search(health.text), "a filesystem path reached /health"
@@ -446,8 +479,8 @@ def test_error_messages_name_the_generated_file_not_the_uploaded_one(tmp_path):
 
 def test_no_response_contains_a_forbidden_string(tmp_path, spectrum, zones_file):
     with TestClient(build_app(tmp_path, zones=zones_file)) as client:
-        bodies = [client.get("/health").text, client.get("/model-info").text,
-                  post_spectrum(client, spectrum).text]
+        bodies = [client.get("/health").text, client.get("/ready").text,
+                  client.get("/model-info").text, post_spectrum(client, spectrum).text]
     for text in bodies:
         for forbidden in FORBIDDEN_IN_RESPONSES:
             assert forbidden not in text, f"{forbidden!r} was served"
@@ -528,6 +561,7 @@ def test_no_exact_internal_value_reaches_any_response(tmp_path, spectrum, zones_
     with TestClient(build_app(tmp_path, zones=zones_file)) as client:
         bodies = {
             "/health": client.get("/health").text,
+            "/ready": client.get("/ready").text,
             "/model-info": client.get("/model-info").text,
             "/predict": post_spectrum(client, spectrum).text,
             "/predict?explain=true": client.post(
@@ -555,7 +589,8 @@ def test_the_forbidden_list_would_notice_a_leak():
 def test_every_response_survives_strict_json(tmp_path, spectrum, zones_file):
     """starlette renders with allow_nan=False, so a NaN would become a 500 rather than bad JSON."""
     with TestClient(build_app(tmp_path, zones=zones_file)) as client:
-        responses = [client.get("/health"), client.get("/model-info"), post_spectrum(client, spectrum),
+        responses = [client.get("/health"), client.get("/ready"), client.get("/model-info"),
+                     post_spectrum(client, spectrum),
                      client.post("/predict", files={"file": ("x.txt", b"", "text/plain")})]
     for r in responses:
         json.dumps(r.json(), allow_nan=False)      # raises ValueError on a non-finite float
@@ -750,12 +785,13 @@ def test_no_response_ever_carries_a_filesystem_path(tmp_path, spectrum, zones_fi
     """The general form of the leak the audit found: no endpoint, success or failure, may show a path."""
     responses = []
     with TestClient(build_app(tmp_path, zones=zones_file)) as client:
-        responses += [client.get("/health"), client.get("/model-info"), post_spectrum(client, spectrum),
+        responses += [client.get("/health"), client.get("/ready"), client.get("/model-info"),
+                      post_spectrum(client, spectrum),
                       client.post("/predict", files={"file": ("x.txt", b"", "text/plain")}),
                       client.post("/predict", files={"file": ("x.zip", b"PK", "application/zip")})]
     broken = build_app(tmp_path, model_path=tmp_path / "gone.joblib")
     with TestClient(broken) as client:
-        responses += [client.get("/health"), client.get("/model-info"),
+        responses += [client.get("/health"), client.get("/ready"), client.get("/model-info"),
                       post_spectrum(client, spectrum)]
     for r in responses:
         found = PATH_LIKE.search(r.text)
@@ -820,9 +856,9 @@ def test_a_corrupt_bundle_degrades_rather_than_crashes(tmp_path, spectrum):
     path.write_bytes(b"this is not a joblib file at all")
     app = create_app(copy.deepcopy(load_config()), model_path=path, zones_path=tmp_path / "absent.json")
     with TestClient(app) as client:
-        health = client.get("/health")
+        health = client.get("/ready")
         predicted = post_spectrum(client, spectrum)
-    assert health.status_code == 503 and health.json()["status"] == "degraded"
+    assert health.status_code == 503 and health.json()["status"] == "not_ready"
     assert health.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
     assert predicted.status_code == 503
     assert not PATH_LIKE.search(health.text) and not PATH_LIKE.search(predicted.text)
@@ -835,8 +871,8 @@ def test_a_file_that_is_not_a_bundle_degrades(tmp_path, spectrum):
     joblib.dump({"hello": "world"}, path)
     app = create_app(copy.deepcopy(load_config()), model_path=path, zones_path=tmp_path / "absent.json")
     with TestClient(app) as client:
-        assert client.get("/health").status_code == 503
-        assert client.get("/health").json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+        assert client.get("/ready").status_code == 503
+        assert client.get("/ready").json()["detail"] == DETAIL_MODEL_UNAVAILABLE
 
 
 def test_a_malformed_zone_file_degrades_instead_of_being_ignored(tmp_path, spectrum):
@@ -847,10 +883,10 @@ def test_a_malformed_zone_file_degrades_instead_of_being_ignored(tmp_path, spect
     bad = tmp_path / "bad_zones.json"
     bad.write_text(json.dumps({"nonsense": 1}), encoding="utf-8")
     with TestClient(build_app(tmp_path, zones=bad)) as client:
-        health = client.get("/health")
+        health = client.get("/ready")
         predicted = post_spectrum(client, spectrum)
     assert health.status_code == 503
-    assert health.json()["status"] == "degraded" and health.json()["zones_loaded"] is False
+    assert health.json()["status"] == "not_ready" and health.json()["zones_loaded"] is False
     assert health.json()["detail"] == DETAIL_ZONES_UNUSABLE
     assert predicted.status_code == 503
     assert not PATH_LIKE.search(health.text)
@@ -859,9 +895,9 @@ def test_a_malformed_zone_file_degrades_instead_of_being_ignored(tmp_path, spect
 def test_an_absent_zone_file_is_not_a_failure(tmp_path, spectrum):
     """Absent is fine and must stay fine: a prediction without a label is still a prediction."""
     with TestClient(build_app(tmp_path, zones=tmp_path / "nothing_here.json")) as client:
-        health = client.get("/health")
+        health = client.get("/ready")
         predicted = post_spectrum(client, spectrum)
-    assert health.status_code == 200 and health.json()["status"] == "ok"
+    assert health.status_code == 200 and health.json()["status"] == "ready"
     assert health.json()["zones_loaded"] is False
     assert predicted.status_code == 200 and predicted.json()["confidence"] == "not available"
 
@@ -882,7 +918,7 @@ def test_the_api_version_is_its_own_constant(tmp_path):
     model_path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
     app = create_app(config, model_path=model_path, zones_path=tmp_path / "absent.json")
     with TestClient(app) as client:
-        assert client.get("/health").json()["api_version"] == API_VERSION
+        assert client.get("/ready").json()["api_version"] == API_VERSION
         assert client.get("/model-info").json()["api_version"] == API_VERSION
 
 
@@ -903,6 +939,7 @@ def test_serving_leaves_every_historical_artifact_untouched(tmp_path, spectrum, 
         client.post("/batch-predict", files=[("files", ("s.txt", spectrum.read_bytes(), "text/plain"))])
         client.get("/model-info")
         client.get("/health")
+        client.get("/ready")
 
     for path, content in before.items():
         assert path.read_bytes() == content, f"{path.name} changed while serving"
@@ -937,10 +974,10 @@ def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, c
     zones = tmp_path / f"zones_{case}.json"
     zones.write_text(content, encoding="utf-8")
     with TestClient(build_app(tmp_path, zones=zones)) as client:
-        health = client.get("/health")
+        health = client.get("/ready")
         predicted = post_spectrum(client, spectrum)
     assert health.status_code == 503, f"{case} was served as healthy"
-    assert health.json()["status"] == "degraded" and health.json()["zones_loaded"] is False
+    assert health.json()["status"] == "not_ready" and health.json()["zones_loaded"] is False
     assert health.json()["detail"] == DETAIL_ZONES_UNUSABLE
     assert predicted.status_code == 503, f"{case} still produced a prediction"
     assert not PATH_LIKE.search(health.text) and not PATH_LIKE.search(predicted.text)
@@ -1013,6 +1050,10 @@ def test_no_route_serves_a_success_while_the_service_is_degraded(tmp_path, spect
             methods = getattr(route, "methods", set()) or set()
             if not path or path.startswith("/openapi") or path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
                 continue
+            if path == "/health":
+                # Liveness is exempt by design: it reports the process, not the artifacts.
+                assert client.get(path).status_code == 200
+                continue
             for method in sorted(methods & {"GET", "POST"}):
                 if method == "GET":
                     response = client.get(path)
@@ -1032,4 +1073,122 @@ def test_predict_rejects_a_request_with_no_file(tmp_path):
     with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
         assert client.post("/predict").status_code == 422
         assert client.post("/predict", data={"unrelated": "1"}).status_code == 422
+
+
+# ------------------------------------------------------------------------------------------------
+# The public error-code vocabulary (issue #15)
+# ------------------------------------------------------------------------------------------------
+
+def test_the_mapped_codes_are_exactly_the_documented_vocabulary():
+    """The closed set must stay closed: every code the API can emit is documented, and vice versa.
+
+    ERROR_MAP covers the mapped exceptions; the only code reachable outside it is the internal-error
+    fallback. If someone adds a handler with a new code and forgets to document it, this fails.
+    """
+    mapped = {code for _kind, _status, code in ERROR_MAP}
+    assert mapped | {CODE_INTERNAL_ERROR} == set(ERROR_CODES)
+    assert len(ERROR_CODES) == len(set(ERROR_CODES)), "the vocabulary has a duplicate"
+
+
+def test_the_error_map_is_ordered_most_specific_first():
+    """DataError is the base of SpectrumFormatError and PreprocessingError, so order decides the answer."""
+    kinds = [kind for kind, _status, _code in ERROR_MAP]
+    for i, kind in enumerate(kinds):
+        for later in kinds[i + 1:]:
+            assert not issubclass(kind, later) or kind is later, (
+                f"{later.__name__} precedes its subclass {kind.__name__} and would shadow it")
+
+
+@pytest.mark.parametrize(("case", "expected_status", "expected_code"), [
+    ("bad_suffix", 415, CODE_UNSUPPORTED_MEDIA_TYPE),
+    ("empty", 422, CODE_INVALID_SPECTRUM),
+    ("non_numeric", 422, CODE_INVALID_SPECTRUM),
+    ("two_files", 400, CODE_INVALID_REQUEST),
+])
+def test_each_error_path_carries_its_documented_code(tmp_path, spectrum, case, expected_status, expected_code):
+    payload = spectrum.read_bytes()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        if case == "bad_suffix":
+            r = client.post("/predict", files={"file": ("x.csv", payload, "text/csv")})
+        elif case == "empty":
+            r = client.post("/predict", files={"file": ("x.txt", b"", "text/plain")})
+        elif case == "non_numeric":
+            r = client.post("/predict", files={"file": ("x.txt", b"aa bb\ncc dd\nee ff\n", "text/plain")})
+        else:
+            r = client.post("/predict", files=[("file", ("a.txt", payload)), ("file", ("b.txt", payload))])
+    assert r.status_code == expected_status
+    body = r.json()["error"]
+    assert body["code"] == expected_code
+    assert body["code"] in ERROR_CODES
+    assert body["message"] and "Traceback" not in body["message"]
+
+
+def test_an_oversized_upload_carries_the_payload_code(tmp_path, spectrum):
+    app = build_app(tmp_path, limits={"max_upload_bytes": 2000}, zones=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        r = post_spectrum(client, spectrum)
+    assert r.status_code == 413 and r.json()["error"]["code"] == CODE_PAYLOAD_TOO_LARGE
+
+
+def test_a_not_ready_service_carries_the_readiness_code(tmp_path, spectrum):
+    app = build_app(tmp_path, model_path=tmp_path / "absent.joblib")
+    with TestClient(app) as client:
+        for r in (client.get("/model-info"), post_spectrum(client, spectrum)):
+            assert r.status_code == 503
+            assert r.json()["error"]["code"] == CODE_SERVICE_NOT_READY
+
+
+def test_an_unexpected_fault_carries_the_internal_code(tmp_path, spectrum, monkeypatch):
+    import src.api as api_module
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(api_module, "predict_spectrum_file", explode)
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json"),
+                    raise_server_exceptions=False) as client:
+        r = post_spectrum(client, spectrum)
+    assert r.status_code == 500 and r.json()["error"]["code"] == CODE_INTERNAL_ERROR
+
+
+def test_batch_per_file_errors_carry_codes(tmp_path, spectrum):
+    payload = spectrum.read_bytes()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        r = client.post("/batch-predict", files=[
+            ("files", ("good.txt", payload, "text/plain")),
+            ("files", ("wrong.csv", payload, "text/csv")),
+            ("files", ("broken.txt", b"not a spectrum\n", "text/plain")),
+        ])
+    assert r.status_code == 200
+    errors = [item["error"] for item in r.json()["results"] if "error" in item]
+    assert len(errors) == 2
+    assert {e["code"] for e in errors} == {CODE_UNSUPPORTED_MEDIA_TYPE, CODE_INVALID_SPECTRUM}
+    for e in errors:
+        assert e["code"] in ERROR_CODES
+
+
+def test_the_deprecated_type_field_is_still_present(tmp_path):
+    """Retained for one release so existing callers keep working; `code` is what the contract promises."""
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        body = client.post("/predict", files={"file": ("x.csv", b"1 2", "text/csv")}).json()["error"]
+    assert body["type"] == "UnsupportedUpload"
+    assert body["code"] == CODE_UNSUPPORTED_MEDIA_TYPE
+
+
+def test_every_error_body_has_code_and_message(tmp_path, spectrum):
+    """No error response may omit the two fields a client is promised."""
+    payload = spectrum.read_bytes()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        responses = [
+            client.post("/predict", files={"file": ("x.csv", payload, "text/csv")}),
+            client.post("/predict", files={"file": ("x.txt", b"", "text/plain")}),
+            client.post("/predict", files=[("file", ("a.txt", payload)), ("file", ("b.txt", payload))]),
+            client.post("/batch-predict",
+                        files=[("files", (f"s{i}.txt", payload)) for i in range(25)]),
+        ]
+    for r in responses:
+        assert r.status_code >= 400
+        body = r.json()["error"]
+        assert set(body) >= {"code", "message"}
+        assert body["code"] in ERROR_CODES, f"{body['code']!r} is outside the documented vocabulary"
 

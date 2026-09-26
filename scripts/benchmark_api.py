@@ -122,10 +122,12 @@ def main(argv: list[str] | None = None) -> int:
             startup_ms = (time.perf_counter() - startup_started) * 1000
             base = f"http://127.0.0.1:{port}"
             with httpx.Client(base_url=base, timeout=120.0) as client:
-                health = client.get("/health")
-                if health.status_code != 200:
-                    raise ModelError(f"the API reported {health.status_code} at /health; nothing was measured.")
-                model_version = str(health.json()["model_version"])
+                # Readiness, not liveness: /health only says the process is up, and the model version
+                # lives on /ready. Measuring against a not-ready service would time refusals.
+                ready = client.get("/ready")
+                if ready.status_code != 200:
+                    raise ModelError(f"the API reported {ready.status_code} at /ready; nothing was measured.")
+                model_version = str(ready.json()["model_version"])
 
                 cold_started = time.perf_counter()
                 client.post("/predict", files={"file": ("warmup.txt", paths[0].read_bytes())})
