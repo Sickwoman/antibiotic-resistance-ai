@@ -4,38 +4,38 @@
   "rows": "validation",
   "records": "durations only; no probability, label or identifier is stored",
   "transport": "real uvicorn server on 127.0.0.1, driven with httpx",
-  "server_startup_ms": 122.11,
-  "cold_first_request_ms": 88.7,
+  "server_startup_ms": 129.48,
+  "cold_first_request_ms": 86.33,
   "explanation_returned": true,
   "batch_size": 20,
   "batch_succeeded": 20,
-  "batch_round_trip_ms": 1026.88,
-  "batch_round_trip_ms_per_sample": 51.344,
+  "batch_round_trip_ms": 976.6,
+  "batch_round_trip_ms_per_sample": 48.83,
   "round_trip_ms": {
-    "median": 40.71,
-    "p95": 51.81,
-    "max": 81.33
+    "median": 39.05,
+    "p95": 47.19,
+    "max": 76.92
   },
   "preprocessing_ms": {
-    "median": 33.2,
-    "p95": 43.96,
-    "max": 74.5
+    "median": 31.89,
+    "p95": 40.3,
+    "max": 70.07
   },
   "inference_ms": {
-    "median": 1.4,
-    "p95": 1.77,
-    "max": 2.11
+    "median": 1.29,
+    "p95": 1.64,
+    "max": 2.33
   },
   "total_ms": {
-    "median": 34.7,
-    "p95": 45.25,
-    "max": 75.75
+    "median": 33.32,
+    "p95": 41.51,
+    "max": 71.28
   },
   "explain_round_trip_ms": {
-    "median": 79.49,
-    "p95": 89.05,
-    "max": 109.81
+    "median": 77.35,
+    "p95": 81.37,
+    "max": 89.72
   },
-  "explanation_cost_ms_median": 38.78,
-  "http_overhead_ms_median": 6.01
+  "explanation_cost_ms_median": 38.3,
+  "http_overhead_ms_median": 5.73
 }

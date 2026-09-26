@@ -28,6 +28,7 @@ from src.api import (
     DETAIL_ZONES_UNUSABLE,
     PROJECT_MODEL_VERSION,
     Limits,
+    check_zone_bounds,
     create_app,
     default_model_path,
     default_zones_path,
@@ -256,6 +257,39 @@ def test_an_oversized_upload_is_refused(tmp_path, spectrum):
     assert r.status_code == 413
     kind, message = error_of(r)
     assert kind == "UploadTooLarge" and "limit" in message
+
+
+def test_the_streaming_counter_refuses_an_upload_with_no_content_length(tmp_path):
+    """The second layer of the size guard, exercised on its own.
+
+    The middleware refuses on a declared Content-Length, but a chunked request declares none, so the
+    per-chunk counter inside stream_to_file is the only thing between the service and an unbounded body.
+    A mutation audit showed that deleting that counter left the entire suite green, because every other
+    oversize test is satisfied by the middleware alone. This test fails if the counter is removed.
+    """
+    crlf = chr(13) + chr(10)
+    boundary = "----teststreamboundary"
+    head = (f"--{boundary}{crlf}"
+            f'Content-Disposition: form-data; name="file"; filename="big.txt"{crlf}'
+            f"Content-Type: text/plain{crlf}{crlf}").encode()
+    tail = f"{crlf}--{boundary}--{crlf}".encode()
+    line, n_lines = b"2000.0 1" + chr(10).encode(), 30_000      # ~270 KB against a 50 KB limit
+
+    def chunked():
+        yield head
+        for _ in range(n_lines):
+            yield line
+        yield tail
+
+    app = build_app(tmp_path, limits={"max_upload_bytes": 50_000}, zones=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        r = client.post("/predict", content=chunked(),
+                        headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                                 "Transfer-Encoding": "chunked"})
+    assert "content-length" not in {k.lower() for k in r.request.headers}, (
+        "the request declared a length, so this exercised the middleware rather than the counter")
+    assert r.status_code == 413
+    assert error_of(r)[0] == "UploadTooLarge"
 
 
 def test_a_batch_over_the_file_count_is_refused(tmp_path, spectrum):
@@ -784,4 +818,127 @@ def test_serving_leaves_every_historical_artifact_untouched(tmp_path, spectrum, 
     models_after = sorted((f, f.stat().st_mtime_ns, f.stat().st_size)
                           for f in models_dir.rglob("*") if f.is_file()) if models_dir.is_dir() else []
     assert models_after == models_before, "a file under models/ changed while serving"
+
+
+# ------------------------------------------------------------------------------------------------
+# Post-merge audit: zone edges that are syntactically fine but not usable probabilities
+# ------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("case", "content"), [
+    ("lower_nan", '{"threshold": 0.5, "lower": NaN, "upper": null, "rule": {}}'),
+    ("lower_inf", '{"threshold": 0.5, "lower": Infinity, "upper": null, "rule": {}}'),
+    ("upper_neg_inf", '{"threshold": 0.5, "lower": null, "upper": -Infinity, "rule": {}}'),
+    ("lower_below_zero", '{"threshold": 0.5, "lower": -3.0, "upper": 5.0, "rule": {}}'),
+    ("upper_above_one", '{"threshold": 0.5, "lower": 0.2, "upper": 1.5, "rule": {}}'),
+    ("not_json", "{{{ this is not json"),
+    ("wrong_keys", '{"nonsense": 1}'),
+    ("edges_out_of_order", '{"threshold": 0.5, "lower": 0.9, "upper": 0.1, "rule": {}}'),
+])
+def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, case, content):
+    """A zone file that parses but cannot be compared against must not be served.
+
+    Zones.from_dict checks that two edges are ordered; nothing checked that an edge was finite or inside
+    [0, 1]. A NaN edge makes every comparison false, so the zone silently disappears and every spectrum
+    returns "Uncertain" from a model that has a zone. An infinite edge makes every comparison true, so
+    every spectrum is labelled high-confidence. Both are silent, which is exactly the class of failure the
+    malformed-zones fix exists to stop.
+    """
+    zones = tmp_path / f"zones_{case}.json"
+    zones.write_text(content, encoding="utf-8")
+    with TestClient(build_app(tmp_path, zones=zones)) as client:
+        health = client.get("/health")
+        predicted = post_spectrum(client, spectrum)
+    assert health.status_code == 503, f"{case} was served as healthy"
+    assert health.json()["status"] == "degraded" and health.json()["zones_loaded"] is False
+    assert health.json()["detail"] == DETAIL_ZONES_UNUSABLE
+    assert predicted.status_code == 503, f"{case} still produced a prediction"
+    assert not PATH_LIKE.search(health.text) and not PATH_LIKE.search(predicted.text)
+
+
+@pytest.mark.parametrize(("lower", "upper"), [(0.2, None), (None, 0.8), (0.2, 0.8), (None, None), (0.0, 1.0)])
+def test_usable_zone_bounds_are_accepted(lower, upper):
+    """The guard must not reject a fitted outcome: a side that does not exist is None, which is fine."""
+    check_zone_bounds(Zones(0.5, lower, upper, ZoneRule(), "validation", 10))
+
+
+def test_the_committed_zone_file_passes_the_bound_guard():
+    """The real Version 0.6 artifact must remain servable; the guard may only reject genuine nonsense."""
+    path = project_path("results/metrics/v0.6") / "ecoli_ciprofloxacin" / "uncertainty.json"
+    if not path.is_file():
+        pytest.skip("the Version 0.6 zone file is not in this checkout")
+    from src.predict import load_zones as _load_zones
+
+    zones = _load_zones(path)
+    assert zones is not None
+    check_zone_bounds(zones)
+
+
+# ------------------------------------------------------------------------------------------------
+# Post-merge audit: an unexpected exception must not leak whatever it happens to carry
+# ------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("secret_path", [
+    r"C:\Projects\antibiotic-resistance-ai\models\secret.joblib",
+    "/home/someone/driams/DRIAMS-A/raw/2018/secret.txt",
+    "/Users/someone/models/private.joblib",
+    r"\\server\share\models\secret.joblib",
+])
+def test_an_unexpected_exception_never_leaks_its_message(tmp_path, spectrum, monkeypatch, secret_path):
+    """The 500 path is the one place an arbitrary internal message could reach a client.
+
+    Tested by making the inference call raise something carrying a filesystem path, rather than by
+    trusting that no such exception exists.
+    """
+    import src.api as api_module
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise RuntimeError(f"internal failure while reading {secret_path}")
+
+    monkeypatch.setattr(api_module, "predict_spectrum_file", explode)
+    app = build_app(tmp_path, zones=tmp_path / "absent.json")
+    with TestClient(app, raise_server_exceptions=False) as client:
+        r = post_spectrum(client, spectrum)
+    assert r.status_code == 500
+    body = r.json()
+    assert body["error"]["type"] == "InternalError"
+    assert secret_path not in r.text
+    assert "secret" not in r.text and "private" not in r.text
+    assert not PATH_LIKE.search(r.text)
+    assert "Traceback" not in r.text and "RuntimeError" not in r.text
+
+
+# ------------------------------------------------------------------------------------------------
+# Post-merge audit: degradation is an invariant over every route, not a per-endpoint accident
+# ------------------------------------------------------------------------------------------------
+
+def test_no_route_serves_a_success_while_the_service_is_degraded(tmp_path, spectrum):
+    """Checked by enumerating the application's own routes, so a new endpoint cannot quietly opt out."""
+    payload = spectrum.read_bytes()
+    app = build_app(tmp_path, model_path=tmp_path / "absent.joblib")
+    checked = 0
+    with TestClient(app) as client:
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", set()) or set()
+            if not path or path.startswith("/openapi") or path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
+                continue
+            for method in sorted(methods & {"GET", "POST"}):
+                if method == "GET":
+                    response = client.get(path)
+                elif path == "/batch-predict":
+                    response = client.post(path, files=[("files", ("s.txt", payload, "text/plain"))])
+                else:
+                    response = client.post(path, files={"file": ("s.txt", payload, "text/plain")})
+                checked += 1
+                assert not 200 <= response.status_code < 300, (
+                    f"{method} {path} returned {response.status_code} while the service was degraded")
+                assert not PATH_LIKE.search(response.text), f"{method} {path} leaked a path when degraded"
+    assert checked >= 4, f"only {checked} routes were exercised; the enumeration is not covering the API"
+
+
+def test_predict_rejects_a_request_with_no_file(tmp_path):
+    """Zero files must be a deterministic client error, not a guess."""
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        assert client.post("/predict").status_code == 422
+        assert client.post("/predict", data={"unrelated": "1"}).status_code == 422
 

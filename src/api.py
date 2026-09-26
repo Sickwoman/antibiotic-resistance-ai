@@ -27,6 +27,7 @@ against, so a field there would invalidate every bundle and every cache.
 from __future__ import annotations
 
 import json
+import math
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -272,6 +273,31 @@ def read_timing(path: Path) -> dict[str, Any]:
         return {}
 
 
+def check_zone_bounds(zones: Zones) -> None:
+    """Refuse a zones record whose edges are not usable probabilities.
+
+    `Zones.from_dict` checks that two edges are ordered, but neither it nor `Zones.label` checks that an
+    edge is finite or inside [0, 1] — `label` only validates the probability it is given. The two failures
+    that follow are silent, which is why they are refused here rather than served:
+
+    - an edge of NaN makes every comparison false, so that zone quietly disappears and every spectrum comes
+      back "Uncertain" from a model that does have a zone;
+    - an edge of +inf makes every comparison true, so every spectrum is labelled high-confidence.
+
+    An out-of-range edge behaves like the first. All of them are treated exactly like an unparseable zones
+    file: the service reports itself not ready rather than serving a label it cannot stand behind.
+    """
+    for name, edge in (("lower", zones.lower), ("upper", zones.upper)):
+        if edge is None:
+            continue                                  # a side that does not exist is a fitted outcome
+        if not math.isfinite(float(edge)):
+            raise ModelError(f"The {name} confidence-zone edge is {edge!r}, which is not a finite "
+                             "probability, so every comparison against it would be meaningless.")
+        if not 0.0 <= float(edge) <= 1.0:
+            raise ModelError(f"The {name} confidence-zone edge is {edge!r}, outside the probability "
+                             "range [0, 1].")
+
+
 def zone_info(zones: Zones | None, bundle: dict[str, Any]) -> ZoneInfo:
     """Describe the confidence zones, including the side that does not exist.
 
@@ -434,7 +460,10 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
         zp = zones_path if zones_path is not None else default_zones_path(config)
         if service.bundle is not None and zp is not None:
             try:
-                service.zones = load_zones(zp)
+                loaded = load_zones(zp)
+                if loaded is not None:
+                    check_zone_bounds(loaded)         # finite, in range: from_dict checks neither
+                service.zones = loaded
             except (ModelError, DataError) as exc:
                 # The message names the file, so only the fixed public string reaches a response.
                 service.zones_failed = True
@@ -582,5 +611,6 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
 
 
 __all__ = ["ADVICE", "API_VERSION", "DETAIL_MODEL_UNAVAILABLE", "DETAIL_ZONES_UNUSABLE", "UNCERTAIN",
-           "BadRequest", "Limits", "Service", "create_app", "default_model_path", "default_zones_path",
+           "BadRequest", "Limits", "Service", "check_zone_bounds", "create_app", "default_model_path",
+           "default_zones_path",
            "model_info"]
