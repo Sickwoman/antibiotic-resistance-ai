@@ -453,6 +453,97 @@ def test_no_response_contains_a_forbidden_string(tmp_path, spectrum, zones_file)
             assert forbidden not in text, f"{forbidden!r} was served"
 
 
+# ------------------------------------------------------------------------------------------------
+# Release gate: exact internal values, harvested from real artifacts, must not reach any response
+# ------------------------------------------------------------------------------------------------
+
+def _scalars(node, path="$"):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from _scalars(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _scalars(value, f"{path}[{index}]")
+    else:
+        yield path, node
+
+
+def _harvest_internal_values() -> dict[str, str]:
+    """{where: exact value} for internal values that must never be served.
+
+    Read out of the real artifacts on disk rather than written down here, so the assertion is that a
+    specific string is absent, not that nothing resembling a hash is present. Token length and the presence
+    of hex letters are deliberately not used: the threshold and several metrics are long digit runs that a
+    heuristic flags, and a heuristic would equally miss a short value such as an abbreviated git commit.
+    """
+    import yaml
+
+    found: dict[str, str] = {}
+
+    def add(where: str, value: object) -> None:
+        if value is None:
+            return
+        text = str(value)
+        if len(text) >= 6:                      # shorter than this is not a usable leak signature
+            found[where] = text
+
+    config = yaml.safe_load((project_path("config.yaml")).read_text(encoding="utf-8"))
+    add("paths.driams_root", config["paths"]["driams_root"])
+    for site, archive in (config.get("driams", {}).get("archives") or {}).items():
+        add(f"driams.archives.{site}.checksum", archive.get("checksum"))
+
+    card = project_path("models/v0.4") / "ecoli_ciprofloxacin" / "best_random.json"
+    if card.is_file():                          # absent in CI: models/ is gitignored
+        data = json.loads(card.read_text(encoding="utf-8"))
+        add("card.git_commit", data.get("git_commit"))
+        add("card.code_fingerprint", data.get("code_fingerprint"))
+        add("card.feature_fingerprint", data.get("feature_fingerprint"))
+        add("card.dataset.row_fingerprint", (data.get("dataset") or {}).get("row_fingerprint"))
+        add("card.dataset.x_sha256", (data.get("dataset") or {}).get("x_sha256"))
+        add("card.split.dataset_fingerprint", (data.get("split") or {}).get("dataset_fingerprint"))
+        for package, version in (data.get("versions") or {}).items():
+            add(f"card.versions.{package}", f"{package}=={version}")
+
+    v08 = project_path("results/metrics/v0.8") / "ecoli_ciprofloxacin__site-C"
+    arms = v08 / "arms.json"
+    if arms.is_file():                           # committed, so this class is covered in CI too
+        for where, value in _scalars(json.loads(arms.read_text(encoding="utf-8")), "arms"):
+            if where.endswith((".a", ".b")) and isinstance(value, (int, float)):
+                add(where, repr(float(value)))
+    partition = v08 / "partition.json"
+    if partition.is_file():
+        for where, value in _scalars(json.loads(partition.read_text(encoding="utf-8")), "partition"):
+            if "fingerprint" in where and isinstance(value, str):
+                add(where, value)
+    return found
+
+
+def test_no_exact_internal_value_reaches_any_response(tmp_path, spectrum, zones_file):
+    """The allow-list check with no heuristics: specific strings from real files must simply be absent."""
+    internal = _harvest_internal_values()
+    assert len(internal) >= 5, f"the harvest found only {len(internal)} values; it is not covering anything"
+    assert any("checksum" in k for k in internal), "archive checksums were not harvested"
+    assert any("fingerprint" in k for k in internal), "no fingerprint was harvested"
+
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        bodies = {
+            "/health": client.get("/health").text,
+            "/model-info": client.get("/model-info").text,
+            "/predict": post_spectrum(client, spectrum).text,
+            "/predict?explain=true": client.post(
+                "/predict?explain=true",
+                files={"file": ("s.txt", spectrum.read_bytes(), "text/plain")}).text,
+            "/predict 422": client.post("/predict", files={"file": ("x.txt", b"", "text/plain")}).text,
+            "/batch-predict": client.post(
+                "/batch-predict",
+                files=[("files", ("s.txt", spectrum.read_bytes(), "text/plain"))]).text,
+        }
+    leaks = [f"{endpoint} leaked {where} ({value!r})"
+             for endpoint, body in bodies.items()
+             for where, value in internal.items() if value in body]
+    assert not leaks, "internal values reached a public response:\n  " + "\n  ".join(leaks)
+
+
 def test_the_forbidden_list_would_notice_a_leak():
     """A guard on the guard: the list must contain the fingerprints it is meant to catch."""
     assert "347cbd6d5d956ff9" in FORBIDDEN_IN_RESPONSES        # feature_fingerprint
