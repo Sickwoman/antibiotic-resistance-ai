@@ -17,10 +17,13 @@ notebook>=7.0
 nbformat>=5.9        # notebook validation in tests
 ipykernel>=6.29
 
-# V0.9 backend API. python-multipart is REQUIRED for file uploads: without it the multipart
-# endpoints fail. httpx is what starlette's TestClient runs on, and it was previously present only
-# transitively (via jupyter), so it is declared here rather than relied on by accident.
+# V0.9 backend API, kept to the minimum. python-multipart is REQUIRED for file uploads: without it the
+# multipart endpoints fail. httpx is what starlette's TestClient runs on, and it was previously present
+# only transitively (via jupyter), so it is declared rather than relied on by accident.
+# Plain uvicorn, NOT uvicorn[standard]: the extra pulls uvloop, httptools, websockets, watchfiles and
+# python-dotenv, none of which this service needs. Dropping watchfiles also drops --reload, which was a
+# development convenience rather than a requirement.
 fastapi>=0.115
-uvicorn[standard]>=0.30
+uvicorn>=0.30
 python-multipart>=0.0.9
 httpx>=0.27

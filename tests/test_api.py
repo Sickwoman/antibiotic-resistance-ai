@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -21,7 +22,16 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api import PROJECT_MODEL_VERSION, Limits, create_app, default_model_path, default_zones_path
+from src.api import (
+    API_VERSION,
+    DETAIL_MODEL_UNAVAILABLE,
+    DETAIL_ZONES_UNUSABLE,
+    PROJECT_MODEL_VERSION,
+    Limits,
+    create_app,
+    default_model_path,
+    default_zones_path,
+)
 from src.api_schemas import FORBIDDEN_IN_RESPONSES, finite_or_none
 from src.predict import BUNDLE_FORMAT, DISCLAIMER, save_bundle
 from src.preprocessing import PreprocessingConfig
@@ -37,6 +47,15 @@ import predict_spectrum  # noqa: E402
 # A DRIAMS-shaped identifier, invented here. Raw DRIAMS files are named after their spectrum UUID and
 # repeat it in their '#' comment lines, so this is exactly the string the API must never echo or log.
 FAKE_UUID = "1f2e3d4c-5b6a-7908-1234-abcdef012345"
+
+# A Windows drive letter, a UNC prefix, or a POSIX absolute path inside a JSON string. Used to assert that
+# no response ever carries a filesystem path, which the audit found a degraded /health was doing.
+PATH_LIKE = re.compile(r"[A-Za-z]:[\\/]|\\\\\\\\|(?<![\w.])/(?:home|etc|usr|var|tmp|Users)/")
+
+
+def spectrum_text(n: int = 200, start: float = 2000.0, step: float = 1.0) -> str:
+    """A minimal valid two-column spectrum: strictly increasing positive m/z, non-negative intensities."""
+    return "".join(f"{start + i * step:.4f} {100 + i}\n" for i in range(n))
 
 
 # ------------------------------------------------------------------------------------------------
@@ -273,7 +292,9 @@ def test_a_missing_model_degrades_rather_than_crashes(tmp_path, spectrum):
         info = client.get("/model-info")
     assert health.status_code == 503
     assert health.json()["status"] == "degraded" and health.json()["model_loaded"] is False
-    assert "not found" in health.json()["detail"]
+    # The load error names the file, i.e. an absolute path. The public detail must be the fixed string.
+    assert health.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+    assert not PATH_LIKE.search(health.text), "a filesystem path reached /health"
     for response in (predicted, info):
         assert response.status_code == 503
         assert "Traceback" not in error_of(response)[1]
@@ -506,3 +527,261 @@ def test_the_default_paths_come_from_the_configuration(tmp_path):
     assert "v0.4" in str(default_model_path(config))
     zones = default_zones_path(config)
     assert zones is not None and zones.name == "uncertainty.json" and "v0.6" in str(zones)
+
+
+# ------------------------------------------------------------------------------------------------
+# Spectrum content validation, through the API (the rules live in the existing reader)
+# ------------------------------------------------------------------------------------------------
+
+def _mutate(lines: list[str], index: int, text: str) -> bytes:
+    lines = list(lines)
+    lines[index] = text
+    return "".join(lines).encode()
+
+
+@pytest.mark.parametrize(("case", "expected"), [
+    ("duplicate_mz", "not strictly increasing"),
+    ("unsorted_mz", "not strictly increasing"),
+    ("non_positive_mz", "must be positive"),
+    ("negative_intensity", "must not be negative"),
+    ("not_a_number", "non-numeric"),
+    ("infinite", "infinite"),
+    ("one_column", "expected 2 columns"),
+    ("three_columns", "expected 2 columns"),
+])
+def test_every_spectrum_rule_is_enforced_through_the_api(tmp_path, case, expected):
+    lines = spectrum_text().splitlines(keepends=True)
+    if case == "duplicate_mz":
+        payload = _mutate(lines, 50, lines[49])
+    elif case == "unsorted_mz":
+        swapped = list(lines)
+        swapped[50], swapped[51] = swapped[51], swapped[50]
+        payload = "".join(swapped).encode()
+    elif case == "non_positive_mz":
+        payload = spectrum_text(start=-50.0).encode()
+    elif case == "negative_intensity":
+        payload = _mutate(lines, 50, "2050.0000 -7\n")
+    elif case == "not_a_number":
+        payload = _mutate(lines, 50, "2050.0000 nan\n")
+    elif case == "infinite":
+        payload = _mutate(lines, 50, "2050.0000 inf\n")
+    elif case == "one_column":
+        payload = "".join(f"{2000.0 + i:.4f}\n" for i in range(200)).encode()
+    else:
+        payload = "".join(f"{2000.0 + i:.4f} 1 2\n" for i in range(200)).encode()
+
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        r = client.post("/predict", files={"file": ("s.txt", payload, "text/plain")})
+    assert r.status_code == 422, f"{case} was not refused: {r.status_code} {r.text[:120]}"
+    message = error_of(r)[1]
+    assert expected in message, f"{case}: unexpected message {message!r}"
+    assert "Traceback" not in message
+
+
+def test_a_spectrum_with_too_many_points_is_refused(tmp_path):
+    """The maximum point count is enforced, not merely configured."""
+    payload = spectrum_text(n=400).encode()
+    app = build_app(tmp_path, limits={"max_raw_points": 150}, zones=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        r = client.post("/predict", files={"file": ("s.txt", payload, "text/plain")})
+    assert r.status_code == 422
+    message = error_of(r)[1]
+    assert "400 points" in message and "limit is 150" in message
+
+
+def test_predict_requires_exactly_one_file(tmp_path):
+    """Two files under one field previously returned 200 having silently used only one of them."""
+    payload = spectrum_text().encode()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        r = client.post("/predict", files=[("file", ("a.txt", payload)), ("file", ("b.txt", payload))])
+        assert r.status_code == 400
+        kind, message = error_of(r)
+        assert kind == "BadRequest" and "exactly one" in message
+        assert client.post("/predict", files={"file": ("a.txt", payload)}).status_code == 200
+
+
+# ------------------------------------------------------------------------------------------------
+# Filenames are never used as paths
+# ------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("filename", [
+    "../../../etc/passwd.txt",
+    "..\\..\\..\\Windows\\System32\\config.txt",
+    "C:\\Windows\\System32\\drivers\\etc\\hosts.txt",
+    "/etc/shadow.txt",
+    "....//....//secret.txt",
+])
+def test_a_hostile_filename_is_ignored_not_resolved(tmp_path, filename):
+    """The client's filename supplies a suffix and nothing else, so traversal has nothing to traverse."""
+    payload = spectrum_text().encode()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        r = client.post("/predict", files={"file": (filename, payload, "text/plain")})
+    assert r.status_code == 200, r.text[:200]
+    assert "passwd" not in r.text and "System32" not in r.text and "shadow" not in r.text
+    assert not PATH_LIKE.search(r.text)
+
+
+def test_no_response_ever_carries_a_filesystem_path(tmp_path, spectrum, zones_file):
+    """The general form of the leak the audit found: no endpoint, success or failure, may show a path."""
+    responses = []
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        responses += [client.get("/health"), client.get("/model-info"), post_spectrum(client, spectrum),
+                      client.post("/predict", files={"file": ("x.txt", b"", "text/plain")}),
+                      client.post("/predict", files={"file": ("x.zip", b"PK", "application/zip")})]
+    broken = build_app(tmp_path, model_path=tmp_path / "gone.joblib")
+    with TestClient(broken) as client:
+        responses += [client.get("/health"), client.get("/model-info"),
+                      post_spectrum(client, spectrum)]
+    for r in responses:
+        found = PATH_LIKE.search(r.text)
+        assert not found, f"{r.request.url.path} leaked {found.group(0)!r}: {r.text[:160]}"
+
+
+# ------------------------------------------------------------------------------------------------
+# Temporary-file lifecycle
+# ------------------------------------------------------------------------------------------------
+
+def _recording_tempdir(monkeypatch) -> list[Path]:
+    """Patch the module's TemporaryDirectory so a test can see where an upload was written."""
+    import src.api as api_module
+
+    created: list[Path] = []
+    real = api_module.TemporaryDirectory
+
+    class Recording(real):                                    # type: ignore[misc, valid-type]
+        def __enter__(self) -> str:
+            name = super().__enter__()
+            created.append(Path(name))
+            return name
+
+    monkeypatch.setattr(api_module, "TemporaryDirectory", Recording)
+    return created
+
+
+def test_the_temporary_upload_is_removed_after_success(tmp_path, spectrum, monkeypatch):
+    created = _recording_tempdir(monkeypatch)
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        assert post_spectrum(client, spectrum).status_code == 200
+    assert created, "the upload was not written through the recorded temporary directory"
+    for directory in created:
+        assert not directory.exists(), f"{directory} survived the request"
+
+
+def test_the_temporary_upload_is_removed_after_failure(tmp_path, monkeypatch):
+    created = _recording_tempdir(monkeypatch)
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        r = client.post("/predict", files={"file": ("s.txt", b"nonsense\n", "text/plain")})
+    assert r.status_code == 422
+    assert created, "the upload was not written through the recorded temporary directory"
+    for directory in created:
+        assert not directory.exists(), f"{directory} survived a failed request"
+
+
+def test_uploads_are_never_written_inside_the_repository(tmp_path, spectrum, monkeypatch):
+    created = _recording_tempdir(monkeypatch)
+    root = project_path(".").resolve()
+    with TestClient(build_app(tmp_path, zones=tmp_path / "absent.json")) as client:
+        post_spectrum(client, spectrum)
+    for directory in created:
+        assert root not in directory.resolve().parents and directory.resolve() != root
+
+
+# ------------------------------------------------------------------------------------------------
+# Start-up failure modes
+# ------------------------------------------------------------------------------------------------
+
+def test_a_corrupt_bundle_degrades_rather_than_crashes(tmp_path, spectrum):
+    path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    path.write_bytes(b"this is not a joblib file at all")
+    app = create_app(copy.deepcopy(load_config()), model_path=path, zones_path=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        health = client.get("/health")
+        predicted = post_spectrum(client, spectrum)
+    assert health.status_code == 503 and health.json()["status"] == "degraded"
+    assert health.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+    assert predicted.status_code == 503
+    assert not PATH_LIKE.search(health.text) and not PATH_LIKE.search(predicted.text)
+
+
+def test_a_file_that_is_not_a_bundle_degrades(tmp_path, spectrum):
+    import joblib
+
+    path = tmp_path / "notabundle.joblib"
+    joblib.dump({"hello": "world"}, path)
+    app = create_app(copy.deepcopy(load_config()), model_path=path, zones_path=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 503
+        assert client.get("/health").json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+
+
+def test_a_malformed_zone_file_degrades_instead_of_being_ignored(tmp_path, spectrum):
+    """load_zones distinguishes absent from unparseable precisely so this cannot pass silently.
+
+    Serving on would report confidence "not available" for a model that does have zones.
+    """
+    bad = tmp_path / "bad_zones.json"
+    bad.write_text(json.dumps({"nonsense": 1}), encoding="utf-8")
+    with TestClient(build_app(tmp_path, zones=bad)) as client:
+        health = client.get("/health")
+        predicted = post_spectrum(client, spectrum)
+    assert health.status_code == 503
+    assert health.json()["status"] == "degraded" and health.json()["zones_loaded"] is False
+    assert health.json()["detail"] == DETAIL_ZONES_UNUSABLE
+    assert predicted.status_code == 503
+    assert not PATH_LIKE.search(health.text)
+
+
+def test_an_absent_zone_file_is_not_a_failure(tmp_path, spectrum):
+    """Absent is fine and must stay fine: a prediction without a label is still a prediction."""
+    with TestClient(build_app(tmp_path, zones=tmp_path / "nothing_here.json")) as client:
+        health = client.get("/health")
+        predicted = post_spectrum(client, spectrum)
+    assert health.status_code == 200 and health.json()["status"] == "ok"
+    assert health.json()["zones_loaded"] is False
+    assert predicted.status_code == 200 and predicted.json()["confidence"] == "not available"
+
+
+# ------------------------------------------------------------------------------------------------
+# Versioning and historical immutability
+# ------------------------------------------------------------------------------------------------
+
+def test_the_api_version_is_its_own_constant(tmp_path):
+    """It must not be read from config.yaml -> project.version, which tracks the experiment state.
+
+    That field was stale at "0.7.0" for the whole of Version 0.8, so sourcing a public contract version
+    from it would let an unrelated edit change the API's identity.
+    """
+    assert API_VERSION == "0.9.0"
+    config = copy.deepcopy(load_config())
+    config["project"]["version"] = "99.99.99-nonsense"
+    model_path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    app = create_app(config, model_path=model_path, zones_path=tmp_path / "absent.json")
+    with TestClient(app) as client:
+        assert client.get("/health").json()["api_version"] == API_VERSION
+        assert client.get("/model-info").json()["api_version"] == API_VERSION
+
+
+def test_serving_leaves_every_historical_artifact_untouched(tmp_path, spectrum, zones_file):
+    """Protocol amendment 5, point 1: the API is a read-only consumer."""
+    watched = [project_path("results/experiments/test_evaluations.csv"),
+               project_path("results/metrics/v0.6") / "ecoli_ciprofloxacin" / "uncertainty.json",
+               project_path("results/metrics/v0.4") / "ecoli_ciprofloxacin" / "inference_timing.json"]
+    before = {path: path.read_bytes() for path in watched if path.is_file()}
+    assert before, "no historical artifact was found to watch"
+
+    models_dir = project_path("models")
+    models_before = sorted((f, f.stat().st_mtime_ns, f.stat().st_size)
+                           for f in models_dir.rglob("*") if f.is_file()) if models_dir.is_dir() else []
+
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        post_spectrum(client, spectrum)
+        client.post("/batch-predict", files=[("files", ("s.txt", spectrum.read_bytes(), "text/plain"))])
+        client.get("/model-info")
+        client.get("/health")
+
+    for path, content in before.items():
+        assert path.read_bytes() == content, f"{path.name} changed while serving"
+    models_after = sorted((f, f.stat().st_mtime_ns, f.stat().st_size)
+                          for f in models_dir.rglob("*") if f.is_file()) if models_dir.is_dir() else []
+    assert models_after == models_before, "a file under models/ changed while serving"
+

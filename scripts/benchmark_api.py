@@ -117,7 +117,9 @@ def main(argv: list[str] | None = None) -> int:
 
         port = free_port()
         records: list[dict[str, float]] = []
+        startup_started = time.perf_counter()
         with BackgroundServer(app, port) as _server:
+            startup_ms = (time.perf_counter() - startup_started) * 1000
             base = f"http://127.0.0.1:{port}"
             with httpx.Client(base_url=base, timeout=120.0) as client:
                 health = client.get("/health")
@@ -125,7 +127,9 @@ def main(argv: list[str] | None = None) -> int:
                     raise ModelError(f"the API reported {health.status_code} at /health; nothing was measured.")
                 model_version = str(health.json()["model_version"])
 
-                client.post("/predict", files={"file": ("warmup.txt", paths[0].read_bytes())})   # warm up
+                cold_started = time.perf_counter()
+                client.post("/predict", files={"file": ("warmup.txt", paths[0].read_bytes())})
+                cold_ms = (time.perf_counter() - cold_started) * 1000      # first request, nothing warm
 
                 log.info("timing %d single-spectrum requests", len(paths))
                 for path in paths:
@@ -141,6 +145,18 @@ def main(argv: list[str] | None = None) -> int:
                                     "inference_ms": float(body["inference_ms"]),
                                     "total_ms": float(body["total_ms"])})
 
+                # The explanation path, timed separately: it runs after the prediction clock stops, so
+                # its cost is invisible in the per-response timings.
+                explain_ms: list[float] = []
+                for path in paths[:min(20, len(paths))]:
+                    payload = path.read_bytes()
+                    started = time.perf_counter()
+                    response = client.post("/predict?explain=true",
+                                           files={"file": ("spectrum.txt", payload)})
+                    explain_ms.append((time.perf_counter() - started) * 1000)
+                    response.raise_for_status()
+                    explained = response.json()["explanation"] is not None
+
                 batch_size = min(int((api_cfg.get("limits") or {}).get("max_batch_files", 20)), len(paths))
                 files = [("files", ("spectrum.txt", p.read_bytes())) for p in paths[:batch_size]]
                 started = time.perf_counter()
@@ -154,12 +170,18 @@ def main(argv: list[str] | None = None) -> int:
             "samples": len(frame), "model": model_version, "rows": "validation",
             "records": "durations only; no probability, label or identifier is stored",
             "transport": "real uvicorn server on 127.0.0.1, driven with httpx",
+            "server_startup_ms": round(startup_ms, 2),
+            "cold_first_request_ms": round(cold_ms, 2),
+            "explanation_returned": explained,
             "batch_size": batch_size, "batch_succeeded": batch_ok,
             "batch_round_trip_ms": round(batch_ms, 2),
             "batch_round_trip_ms_per_sample": round(batch_ms / max(batch_size, 1), 3),
         }
         for column in ("round_trip_ms", "preprocessing_ms", "inference_ms", "total_ms"):
             timing[column] = summarise(frame[column].tolist())
+        timing["explain_round_trip_ms"] = summarise(explain_ms)
+        timing["explanation_cost_ms_median"] = round(timing["explain_round_trip_ms"]["median"]
+                                                    - timing["round_trip_ms"]["median"], 2)
         timing["http_overhead_ms_median"] = round(timing["round_trip_ms"]["median"]
                                                   - timing["total_ms"]["median"], 2)
 
