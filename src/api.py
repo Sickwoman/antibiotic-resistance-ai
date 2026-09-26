@@ -27,6 +27,7 @@ against, so a field there would invalidate every bundle and every cache.
 from __future__ import annotations
 
 import json
+import math
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -61,6 +62,19 @@ from src.uncertainty import ADVICE, RESISTANT, SUSCEPTIBLE, UNCERTAIN, Zones
 from src.utils import ConfigError, get_logger, project_path
 
 log = get_logger("api")
+
+# The serving contract's own version, deliberately a constant here rather than config.yaml ->
+# project.version. That field tracks the project/experiment state (it was stale at "0.7.0" through the
+# whole of Version 0.8), so sourcing a public API version from it would let an unrelated edit change the
+# contract's identity. The model carries its own separate version and the two are never conflated.
+API_VERSION = "0.9.0"
+
+# What a degraded /health may say. Load failures carry a filesystem path in their message, so the public
+# text is one of these fixed strings and the real exception goes to the log only.
+DETAIL_MODEL_UNAVAILABLE = "The configured model could not be loaded, so predictions are unavailable."
+DETAIL_ZONES_UNUSABLE = ("The confidence-zone file exists but is not a usable zones record, so the "
+                         "service will not serve predictions whose confidence label would silently "
+                         "read 'not available'.")
 
 CHUNK_BYTES = 64 * 1024                 # how much of an upload is read at a time
 UPLOAD_STEM = "upload"                  # generated name for a saved upload: the client's is discarded
@@ -101,6 +115,10 @@ class UnsupportedUpload(ValueError):
     """The uploaded file does not have an accepted suffix."""
 
 
+class BadRequest(ValueError):
+    """The request itself is malformed, independently of any spectrum's content."""
+
+
 class TooManyFiles(ValueError):
     """More files were submitted in one batch than the configured limit."""
 
@@ -134,6 +152,7 @@ class Service:
     bundle: dict[str, Any] | None = None
     zones: Zones | None = None
     detail: str | None = None
+    zones_failed: bool = False           # the file exists but is not a zones record: not the same as absent
     started_at: float = field(default_factory=time.perf_counter)
     external: list[ExternalResult] = field(default_factory=list)
     internal: list[MetricSet] = field(default_factory=list)
@@ -141,11 +160,24 @@ class Service:
 
     @property
     def ready(self) -> bool:
-        return self.bundle is not None
+        """Ready means every artifact the service needs loaded, not merely that a model is present.
+
+        A *missing* zones file is fine — a prediction without a three-way label is still a prediction. A
+        file that exists but cannot be parsed is not fine, because serving on would report "not available"
+        for a model that does have zones, which is the silent failure load_zones exists to prevent.
+        """
+        return self.bundle is not None and not self.zones_failed
 
     def require_model(self) -> dict[str, Any]:
-        if self.bundle is None:
-            raise ModelError(self.detail or "No model is loaded, so predictions are unavailable.")
+        """The loaded bundle, or a refusal whose message is safe to send to a client.
+
+        It gates on `ready`, not merely on a bundle being present: an unusable zones file must stop
+        predictions too, because serving on would report confidence "not available" for a model that does
+        have zones. `self.detail` is already one of the fixed public strings, never a raw load error, so
+        this message cannot carry a filesystem path.
+        """
+        if not self.ready:
+            raise ModelError(self.detail or DETAIL_MODEL_UNAVAILABLE)
         return self.bundle
 
 
@@ -239,6 +271,31 @@ def read_timing(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def check_zone_bounds(zones: Zones) -> None:
+    """Refuse a zones record whose edges are not usable probabilities.
+
+    `Zones.from_dict` checks that two edges are ordered, but neither it nor `Zones.label` checks that an
+    edge is finite or inside [0, 1] — `label` only validates the probability it is given. The two failures
+    that follow are silent, which is why they are refused here rather than served:
+
+    - an edge of NaN makes every comparison false, so that zone quietly disappears and every spectrum comes
+      back "Uncertain" from a model that does have a zone;
+    - an edge of +inf makes every comparison true, so every spectrum is labelled high-confidence.
+
+    An out-of-range edge behaves like the first. All of them are treated exactly like an unparseable zones
+    file: the service reports itself not ready rather than serving a label it cannot stand behind.
+    """
+    for name, edge in (("lower", zones.lower), ("upper", zones.upper)):
+        if edge is None:
+            continue                                  # a side that does not exist is a fitted outcome
+        if not math.isfinite(float(edge)):
+            raise ModelError(f"The {name} confidence-zone edge is {edge!r}, which is not a finite "
+                             "probability, so every comparison against it would be meaningless.")
+        if not 0.0 <= float(edge) <= 1.0:
+            raise ModelError(f"The {name} confidence-zone edge is {edge!r}, outside the probability "
+                             "range [0, 1].")
 
 
 def zone_info(zones: Zones | None, bundle: dict[str, Any]) -> ZoneInfo:
@@ -387,8 +444,7 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
     """Build the application. A factory, so tests can serve a synthetic bundle with no global state."""
     limits = Limits.from_config(config)
     api_cfg = config.get("api") or {}
-    version = str((config.get("project") or {}).get("version", "unknown"))
-    service = Service(limits=limits, api_version=version)
+    service = Service(limits=limits, api_version=API_VERSION)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -397,14 +453,22 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
             service.bundle = load_bundle(path, n_jobs=int(api_cfg.get("request_threads", 1)))
             log.info("serving model %s", service.bundle["model_version"])
         except (ModelError, DataError, ConfigError) as exc:
-            service.detail = str(exc)
+            # str(exc) names the file that was missing or unreadable, i.e. an absolute path. It must not
+            # reach a response, so the public detail is a fixed string and the real reason is logged.
+            service.detail = DETAIL_MODEL_UNAVAILABLE
             log.error("no model loaded, the service will report degraded: %s", exc)
         zp = zones_path if zones_path is not None else default_zones_path(config)
         if service.bundle is not None and zp is not None:
             try:
-                service.zones = load_zones(zp)
+                loaded = load_zones(zp)
+                if loaded is not None:
+                    check_zone_bounds(loaded)         # finite, in range: from_dict checks neither
+                service.zones = loaded
             except (ModelError, DataError) as exc:
-                log.error("confidence zones could not be loaded: %s", exc)
+                # The message names the file, so only the fixed public string reaches a response.
+                service.zones_failed = True
+                service.detail = DETAIL_ZONES_UNUSABLE
+                log.error("confidence zones could not be loaded, the service will report degraded: %s", exc)
         if service.bundle is not None:
             model_version = str(service.bundle["model_version"])
             log_path = project_path((config.get("evaluation") or {}).get("test_log")
@@ -419,7 +483,7 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
 
     app = FastAPI(
         title="Antibiotic resistance research API",
-        version=version,
+        version=API_VERSION,
         summary="Research predictions of ciprofloxacin resistance in Escherichia coli from MALDI-TOF "
                 "spectra. Not a clinical diagnostic.",
         lifespan=lifespan,
@@ -430,6 +494,10 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
     @app.exception_handler(UnsupportedUpload)
     async def _unsupported(request: Request, exc: UnsupportedUpload) -> JSONResponse:
         return error_response(415, exc)
+
+    @app.exception_handler(BadRequest)
+    async def _bad_request(request: Request, exc: BadRequest) -> JSONResponse:
+        return error_response(400, exc)
 
     @app.exception_handler(UploadTooLarge)
     async def _too_large(request: Request, exc: UploadTooLarge) -> JSONResponse:
@@ -488,8 +556,15 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
         return JSONResponse(content=model_info(service).model_dump())
 
     @app.post("/predict", responses={200: {"model": PredictionResponse}})
-    async def predict(file: Annotated[UploadFile, File()], explain: bool = False) -> JSONResponse:
+    async def predict(request: Request, file: Annotated[UploadFile, File()],
+                      explain: bool = False) -> JSONResponse:
         bundle = service.require_model()
+        # Exactly one spectrum. FastAPI binds a single UploadFile even when several were sent, so without
+        # this the caller would get a 200 for a request only one part of which was used.
+        submitted = len((await request.form()).getlist("file"))
+        if submitted != 1:
+            raise BadRequest(f"Send exactly one spectrum file in the 'file' field; {submitted} were sent. "
+                             "Use /batch-predict for several.")
         check_suffix(file.filename, limits.allowed_suffixes)
         with TemporaryDirectory() as tmp:
             # A generated name: the client's filename is a DRIAMS UUID and must not reach a message or a log.
@@ -535,5 +610,7 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
     return app
 
 
-__all__ = ["ADVICE", "UNCERTAIN", "Limits", "Service", "create_app", "default_model_path",
-           "default_zones_path", "model_info"]
+__all__ = ["ADVICE", "API_VERSION", "DETAIL_MODEL_UNAVAILABLE", "DETAIL_ZONES_UNUSABLE", "UNCERTAIN",
+           "BadRequest", "Limits", "Service", "check_zone_bounds", "create_app", "default_model_path",
+           "default_zones_path",
+           "model_info"]

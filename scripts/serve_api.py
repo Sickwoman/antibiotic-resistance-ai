@@ -45,7 +45,6 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="bundle to serve (default: the project's model, from api.model_dir)")
     parser.add_argument("--uncertainty", type=Path, default=None,
                         help="confidence zones JSON (default: the Version 0.6 report for this dataset)")
-    parser.add_argument("--reload", action="store_true", help="restart on source changes (development only)")
     parser.add_argument("--config", type=Path, default=None)
     return parser.parse_args(argv)
 
@@ -73,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         app = create_app(config, model_path=model, zones_path=zones)
         log.info("serving %s on http://%s:%d (no authentication: localhost only)", model.name, host, port)
         log.info("interactive documentation: http://%s:%d/docs", host, port)
-        uvicorn.run(app, host=host, port=port, reload=args.reload, log_level="info")
+        uvicorn.run(app, host=host, port=port, log_level="info")
     except (ModelError, DataError, ConfigError) as exc:
         log.error("%s", exc)
         return 1

@@ -1706,17 +1706,26 @@ identifier is stored, so it cannot become a covert scoring run
 
 | | median | p95 | max |
 |---|---|---|---|
-| `/predict` round trip | **49.66 ms** | 61.96 ms | 103.41 ms |
-| of which server-side total | 43.00 ms | 54.59 ms | 93.56 ms |
-| of which preprocessing | 41.38 ms | 52.90 ms | 92.02 ms |
-| of which inference | 1.63 ms | 2.22 ms | 3.21 ms |
-| HTTP overhead | 6.66 ms | | |
+| server startup, including the model load | **122.11 ms** | | |
+| cold first request | **88.70 ms** | | |
+| warm `/predict` round trip | **40.71 ms** | 51.81 ms | 81.33 ms |
+| of which server-side total | 34.70 ms | 45.25 ms | 75.75 ms |
+| of which preprocessing | 33.20 ms | 43.96 ms | 74.50 ms |
+| of which inference | 1.40 ms | 1.77 ms | 2.11 ms |
+| HTTP overhead | 6.01 ms | | |
+| `/predict?explain=true` round trip | 79.49 ms | 89.05 ms | 109.81 ms |
 
-**Batching is not faster per sample.** A 20-file batch took 1,133.86 ms, or **56.69 ms per spectrum** —
-slightly *worse* than sending them one at a time. Preprocessing dominates by about 25× and runs
-sequentially, and the 8.6 MB multipart upload costs more than the round trips it saves. `/batch-predict`
-is therefore a convenience — one request instead of twenty — not a throughput optimisation, and it is
-described that way rather than sold as one.
+Three things that table is worth reading for. The **cold first request costs about 2.2×** a warm one, so a
+single timing taken at start-up would misrepresent the service. An **explanation adds
+38.78 ms**, roughly doubling a request, which is why `explain` is off by default. And
+**batching is not faster per sample**: a 20-file batch took 1,026.88 ms, or
+**51.34 ms per spectrum**, slightly *worse* than sending them one at a time.
+Preprocessing dominates by roughly 24× and runs sequentially, and the 8.6 MB multipart upload
+costs more than the round trips it saves. `/batch-predict` is therefore a convenience — one request instead
+of twenty — not a throughput optimisation, and it is described that way rather than sold as one.
+
+**No service-level objective is declared**, and no numerical prediction may be changed in pursuit of
+latency.
 
 ### Limitations
 
@@ -1735,6 +1744,37 @@ described that way rather than sold as one.
    `/model-info` reports the external results beside the internal one for exactly that reason.
 7. **Research prototype**, not a clinically validated diagnostic, and never a treatment recommendation.
 
+### The hardening review (2026-09-26)
+
+The service was reviewed against a fuller engineering checklist after it was merged. The review is recorded
+as an addendum to [`docs/v0.9_api_plan.md`](docs/v0.9_api_plan.md) — the pre-registration itself is
+unaltered — and it found **three defects**, all now fixed and covered by tests:
+
+1. **A degraded `/health` returned an absolute filesystem path.** The public `detail` field carried the
+   load error verbatim, which names the missing file. The privacy test missed it because its
+   forbidden-string list covered `C:/DRIAMS` but not the project directory — and a test actively asserted
+   `"not found" in detail`, so a passing test was holding the leak in place. `detail` is now one of two
+   fixed strings, and a regex asserts no response from any endpoint, on success or failure, contains a
+   drive letter, a UNC prefix or a POSIX system path.
+2. **A malformed confidence-zone file was logged and ignored**, so the service quietly answered
+   `"not available"` for a model that does have zones — the exact silent failure `load_zones` was written
+   to prevent. An unparseable zones file now makes the service not ready. An **absent** file still serves
+   normally, without a label. While testing this, a second layer showed up: `/health` said degraded while
+   `/predict` still answered 200, because the prediction guard only checked for a missing bundle. It now
+   gates on readiness.
+3. **`/predict` accepted more than one file**, returning 200 having silently scored one of them. It now
+   requires exactly one and answers 400 otherwise.
+
+Two further changes came out of the review: the API version is now its own constant (`API_VERSION`) instead
+of being read from `config.yaml → project.version`, which tracks the experiment state and was stale at
+`"0.7.0"` for the whole of Version 0.8; and the serving dependency is plain `uvicorn` rather than
+`uvicorn[standard]`, dropping four packages this service does not need — which also drops `--reload`.
+
+Three divergences were reviewed and **deliberately kept**, and are recorded in the addendum rather than
+quietly left: `/health` still carries liveness and readiness together rather than splitting into
+`/health` + `/ready`; the error body's `type` is the internal exception class name rather than a public
+code vocabulary; and the module layout stays flat rather than becoming an `api/` package.
+
 ### Commands
 
 ```powershell
@@ -1744,9 +1784,13 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-520 tests pass (483 from earlier versions, none modified, plus 37 new). The API tests fit a small
+545 tests pass (483 from earlier versions, none modified, plus 62 for the API). The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
-DRIAMS and no bundle, and no test can accidentally depend on a protected split. `models/` and
+DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
+review added coverage for every spectrum rule through HTTP (duplicate, unsorted and non-positive m/z,
+negative intensity, `NaN`, infinity, one column, three columns), the point-count ceiling, five hostile
+filenames, temporary-file cleanup on both success and failure, corrupt and non-bundle model files,
+malformed zones, and that `models/` and `results/` are untouched by serving. `models/` and
 `results/experiments/` are byte-unchanged and the append-only log is still 89 rows at
 `c395fcb3…76e0c7`.
 

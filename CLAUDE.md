@@ -124,4 +124,21 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   - **Uploaded bytes are data, never code.** Nothing from a request reaches `joblib.load`; `.txt` only.
   Honest results to keep stating: there is **no high-confidence-resistant zone** (`upper` is `null`), so a
   spectrum at p = 0.945 is still reported `Uncertain`; and `/batch-predict` is **not faster per sample**
-  (56.69 ms vs 49.66 ms) because preprocessing dominates — it saves round trips, not time.
+  (51.34 ms vs 40.71 ms) because preprocessing dominates, so it saves round trips, not time. An explanation
+  adds ~39 ms (roughly doubling a request), and a cold first request costs ~2.2x a warm one.
+- A **hardening review on 2026-09-26** (addendum in `docs/v0.9_api_plan.md`; the pre-registration above it
+  is unaltered) found and fixed three defects. Keep these fixed:
+  - A degraded `/health` returned an absolute path, because `detail` carried the load error verbatim. The
+    privacy list covered `C:/DRIAMS` but not the project directory, and a test asserted `"not found" in
+    detail`, so a **passing test was holding the leak in place**. `detail` is now one of two fixed strings
+    and a `PATH_LIKE` regex checks every endpoint on success and failure. Lesson: assert on a *safe* public
+    string, never on a substring of an exception message.
+  - A malformed zones file was logged and ignored, silently reporting `not available` for a model that has
+    zones. Unparseable now means **not ready**; absent still serves without a label. `require_model` gates
+    on `ready`, not on the bundle alone: `/health` said degraded while `/predict` answered 200 until it did.
+  - `/predict` accepted several files and silently scored one. It now requires exactly one (400 otherwise).
+  Also: `API_VERSION` is its own constant, never `config.yaml` -> `project.version` (stale at `"0.7.0"`
+  through all of Version 0.8); and the dependency is plain `uvicorn`, not `uvicorn[standard]`, so there is
+  no `--reload`. Deliberately **not** changed, recorded in the addendum: `/health` still carries liveness
+  and readiness together, the error `type` is the exception class name rather than a public code, and the
+  module layout stays flat.
