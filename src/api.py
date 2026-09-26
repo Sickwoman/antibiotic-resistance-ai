@@ -40,17 +40,25 @@ from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from src.api_schemas import (
+    CODE_INTERNAL_ERROR,
+    CODE_INVALID_REQUEST,
+    CODE_INVALID_SPECTRUM,
+    CODE_PAYLOAD_TOO_LARGE,
+    CODE_SERVICE_NOT_READY,
+    CODE_UNSUPPORTED_MEDIA_TYPE,
+    ERROR_CODES,
     AlgorithmInfo,
     BatchItem,
     BatchResponse,
     ErrorBody,
     ExternalResult,
-    HealthResponse,
     LatencyInfo,
     LimitsInfo,
+    LivenessResponse,
     MetricSet,
     ModelInfoResponse,
     PredictionResponse,
+    ReadinessResponse,
     TargetInfo,
     TrainingDataInfo,
     ZoneInfo,
@@ -433,9 +441,35 @@ def default_zones_path(config: dict[str, Any]) -> Path | None:
     return project_path(zones_dir) / config["dataset"]["name"] / "uncertainty.json"
 
 
-def error_response(status: int, exc: Exception, kind: str | None = None) -> JSONResponse:
-    """A message, never a traceback. Mirrors the 'Error: <message>' convention of the project's scripts."""
-    body = ErrorBody(type=kind or type(exc).__name__, message=str(exc))
+# The single mapping from an internal failure to what the client is told. Ordered most specific first,
+# because DataError is the base of SpectrumFormatError and PreprocessingError. Keeping it in one table is
+# the point: a handler cannot drift from the documented vocabulary if it does not choose the code itself.
+ERROR_MAP: tuple[tuple[type[Exception], int, str], ...] = (
+    (BadRequest, 400, CODE_INVALID_REQUEST),
+    (UnsupportedUpload, 415, CODE_UNSUPPORTED_MEDIA_TYPE),
+    (UploadTooLarge, 413, CODE_PAYLOAD_TOO_LARGE),
+    (TooManyFiles, 413, CODE_PAYLOAD_TOO_LARGE),
+    (ModelError, 503, CODE_SERVICE_NOT_READY),
+    (DataError, 422, CODE_INVALID_SPECTRUM),
+)
+
+
+def classify(exc: Exception) -> tuple[int, str]:
+    """(status, public code) for an exception, from ERROR_MAP; anything unmapped is an internal error."""
+    for kind, status, code in ERROR_MAP:
+        if isinstance(exc, kind):
+            return status, code
+    return 500, CODE_INTERNAL_ERROR
+
+
+def error_response(exc: Exception) -> JSONResponse:
+    """A code and a message, never a traceback and never a path.
+
+    Mirrors the 'Error: <message>' convention of the project's scripts. `type` is still filled in for one
+    release so existing callers do not break, but `code` is the field the contract promises.
+    """
+    status, code = classify(exc)
+    body = ErrorBody(code=code, message=str(exc), type=type(exc).__name__)
     return JSONResponse(status_code=status, content={"error": body.model_dump()})
 
 
@@ -491,35 +525,16 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
     app.state.service = service
 
     # ---------------------------------------------------------------------------- error handling
-    @app.exception_handler(UnsupportedUpload)
-    async def _unsupported(request: Request, exc: UnsupportedUpload) -> JSONResponse:
-        return error_response(415, exc)
-
-    @app.exception_handler(BadRequest)
-    async def _bad_request(request: Request, exc: BadRequest) -> JSONResponse:
-        return error_response(400, exc)
-
-    @app.exception_handler(UploadTooLarge)
-    async def _too_large(request: Request, exc: UploadTooLarge) -> JSONResponse:
-        return error_response(413, exc)
-
-    @app.exception_handler(TooManyFiles)
-    async def _too_many(request: Request, exc: TooManyFiles) -> JSONResponse:
-        return error_response(413, exc)
-
-    @app.exception_handler(ModelError)
-    async def _model(request: Request, exc: ModelError) -> JSONResponse:
-        return error_response(503, exc)
-
-    @app.exception_handler(DataError)
-    async def _data(request: Request, exc: DataError) -> JSONResponse:
-        # SpectrumFormatError and PreprocessingError both land here: an invalid spectrum, not a server bug.
-        return error_response(422, exc)
+    for _kind, _status, _code in ERROR_MAP:
+        # One handler per mapped class, all sharing error_response, so the status and the code can only
+        # come from ERROR_MAP. DataError last in the table also catches SpectrumFormatError and
+        # PreprocessingError, which subclass it.
+        app.add_exception_handler(_kind, lambda request, exc: error_response(exc))
 
     @app.exception_handler(Exception)
     async def _unexpected(request: Request, exc: Exception) -> JSONResponse:
         log.exception("an unexpected error reached the API: %s", exc)     # traceback to the log only
-        body = ErrorBody(type="InternalError",
+        body = ErrorBody(code=CODE_INTERNAL_ERROR, type="InternalError",
                          message="The request could not be completed because of an internal error.")
         return JSONResponse(status_code=500, content={"error": body.model_dump()})
 
@@ -534,22 +549,32 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
         cap = limits.max_batch_bytes if request.url.path == "/batch-predict" else limits.max_upload_bytes
         declared = request.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > cap:
-            return error_response(413, UploadTooLarge(
-                f"The request body is {declared} bytes, above the {cap}-byte limit for this endpoint."),
-                kind="UploadTooLarge")
+            return error_response(UploadTooLarge(
+                f"The request body is {declared} bytes, above the {cap}-byte limit for this endpoint."))
         return await call_next(request)
 
     # ---------------------------------------------------------------------------- endpoints
-    @app.get("/health", response_model=HealthResponse)
+    @app.get("/health", response_model=LivenessResponse)
     async def health() -> JSONResponse:
-        ready = service.ready
-        body = HealthResponse(
-            status="ok" if ready else "degraded", model_loaded=ready, zones_loaded=service.zones is not None,
-            model_version=str(service.bundle["model_version"]) if ready else None,
+        """Liveness only: this answers 200 for as long as the process is serving requests at all.
+
+        It deliberately does not consult the model. A liveness probe treats a failure as "restart me", and
+        restarting will not make a missing model appear; that state belongs to /ready.
+        """
+        return JSONResponse(status_code=200, content=LivenessResponse(status="ok").model_dump())
+
+    @app.get("/ready", response_model=ReadinessResponse)
+    async def ready() -> JSONResponse:
+        is_ready = service.ready
+        body = ReadinessResponse(
+            status="ready" if is_ready else "not_ready", model_loaded=service.bundle is not None,
+            zones_loaded=service.zones is not None,
+            model_version=str(service.bundle["model_version"]) if service.bundle is not None else None,
             api_version=service.api_version,
-            uptime_s=round(time.perf_counter() - service.started_at, 3), detail=None if ready else service.detail,
+            uptime_s=round(time.perf_counter() - service.started_at, 3),
+            detail=None if is_ready else service.detail,
         )
-        return JSONResponse(status_code=200 if ready else 503, content=body.model_dump())
+        return JSONResponse(status_code=200 if is_ready else 503, content=body.model_dump())
 
     @app.get("/model-info", response_model=ModelInfoResponse)
     async def info() -> JSONResponse:
@@ -599,7 +624,8 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
                     items.append(BatchItem(index=index, prediction=PredictionResponse.model_validate(payload)))
                 except (UnsupportedUpload, UploadTooLarge, DataError) as exc:
                     # One unusable file does not fail the batch; it is reported in its own slot.
-                    items.append(BatchItem(index=index, error=ErrorBody(type=type(exc).__name__, message=str(exc))))
+                    items.append(BatchItem(index=index, error=ErrorBody(
+                        code=classify(exc)[1], message=str(exc), type=type(exc).__name__)))
                 finally:
                     dest.unlink(missing_ok=True)
         failed = sum(1 for i in items if i.error is not None)
@@ -610,7 +636,8 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
     return app
 
 
-__all__ = ["ADVICE", "API_VERSION", "DETAIL_MODEL_UNAVAILABLE", "DETAIL_ZONES_UNUSABLE", "UNCERTAIN",
+__all__ = ["ADVICE", "API_VERSION", "DETAIL_MODEL_UNAVAILABLE", "DETAIL_ZONES_UNUSABLE", "ERROR_CODES",
+           "ERROR_MAP", "UNCERTAIN", "classify",
            "BadRequest", "Limits", "Service", "check_zone_bounds", "create_app", "default_model_path",
            "default_zones_path",
            "model_info"]
