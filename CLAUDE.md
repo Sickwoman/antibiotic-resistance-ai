@@ -142,3 +142,16 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   no `--reload`. Deliberately **not** changed, recorded in the addendum: `/health` still carries liveness
   and readiness together, the error `type` is the exception class name rather than a public code, and the
   module layout stays flat.
+- **0.9.1 closed two of those deviations** (issues #14 and #15; addendum in `docs/v0.9_api_plan.md`).
+  `/health` is now **liveness only** (always 200 while the process serves, body exactly `{"status": "ok"}`)
+  and `/ready` carries `model_loaded`, `zones_loaded`, `model_version` and the fixed public reason, 200 or
+  503. The old shape made a missing model look like a dead process, which a liveness probe answers by
+  restarting - a restart loop instead of draining traffic. Errors now carry `code` from a closed six-value
+  vocabulary (`invalid_request`, `invalid_spectrum`, `payload_too_large`, `unsupported_media_type`,
+  `service_not_ready`, `internal_error`), all from one ordered table `ERROR_MAP`; `type` is retained one
+  release and deprecated. Two rules to keep: `ERROR_MAP` must stay ordered most specific first, because
+  `DataError` is the base of `SpectrumFormatError`, and the emitted code set must equal `ERROR_CODES` - both
+  asserted by tests. Consumers of the contract include `scripts/benchmark_api.py`, which read the model
+  version from `/health` and had to move to `/ready`: check the scripts when the contract changes.
+  Still open: `/model-info` naming and breadth (safe), flat layout (#17), zone validation in the serving
+  layer rather than the domain model (#16), no bundle sidecars (#18), starlette deprecation (#19).

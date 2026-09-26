@@ -65,24 +65,64 @@ class ApiModel(BaseModel):
 
 
 # ----------------------------------------------------------------------------------------- errors
+# The public error vocabulary: a closed set, so a client can branch on it safely. These names are part of
+# the published contract and may only be added to, never renamed or repurposed.
+CODE_INVALID_REQUEST = "invalid_request"                # the request itself is malformed
+CODE_INVALID_SPECTRUM = "invalid_spectrum"              # the spectrum cannot be read or preprocessed
+CODE_PAYLOAD_TOO_LARGE = "payload_too_large"            # over a configured byte or file-count limit
+CODE_UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"  # not an accepted file suffix
+CODE_SERVICE_NOT_READY = "service_not_ready"            # a required artifact did not load
+CODE_INTERNAL_ERROR = "internal_error"                  # anything unexpected
+
+ERROR_CODES: tuple[str, ...] = (
+    CODE_INVALID_REQUEST, CODE_INVALID_SPECTRUM, CODE_PAYLOAD_TOO_LARGE,
+    CODE_UNSUPPORTED_MEDIA_TYPE, CODE_SERVICE_NOT_READY, CODE_INTERNAL_ERROR,
+)
+
+
 class ErrorBody(ApiModel):
-    type: str
+    """A stable public error.
+
+    `code` is the field to branch on: one of ERROR_CODES, and nothing else. `type` is the internal
+    exception class name and is **deprecated** — it is retained for one release so existing callers keep
+    working, and will be removed. Nothing in the message is a traceback or a filesystem path.
+    """
+
+    code: str
     message: str
+    type: str | None = None          # deprecated; scheduled for removal
 
 
 class ErrorResponse(ApiModel):
     error: ErrorBody
 
 
-# ----------------------------------------------------------------------------------------- health
-class HealthResponse(ApiModel):
-    status: Literal["ok", "degraded"]
+# ------------------------------------------------------------------------ liveness and readiness
+class LivenessResponse(ApiModel):
+    """`GET /health`: the process is running. Nothing more.
+
+    Deliberately carries no artifact state and no internals. A liveness probe that sees a failure here is
+    entitled to restart the process, so this must not fail merely because a model did not load — that is
+    what readiness is for.
+    """
+
+    status: Literal["ok"]
+
+
+class ReadinessResponse(ApiModel):
+    """`GET /ready`: whether every artifact the service needs actually loaded.
+
+    200 when ready, 503 when not. `detail` is one of the fixed public strings, never a raw load error, so
+    it cannot carry a filesystem path.
+    """
+
+    status: Literal["ready", "not_ready"]
     model_loaded: bool
     zones_loaded: bool
     model_version: str | None
     api_version: str
     uptime_s: float
-    detail: str | None = None          # why the service is degraded, when it is
+    detail: str | None = None          # why the service is not ready, when it is not
 
 
 # ------------------------------------------------------------------------------------- prediction

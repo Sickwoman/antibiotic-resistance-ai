@@ -1604,7 +1604,8 @@ part cannot be reached through it, deliberately or by accident.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | whether the service can serve; 503 and `degraded` when the model did not load |
+| `GET /health` | liveness only: the process is up. Always 200 while it is, and carries no internals |
+| `GET /ready` | readiness: whether the model and zones loaded. 200 when ready, 503 when not |
 | `POST /predict` | one uploaded spectrum → a research prediction |
 | `POST /batch-predict` | up to 20 spectra in one request; one bad file does not fail the batch |
 | `GET /model-info` | algorithm, target, threshold, training data, metrics, zones, limits, disclaimer |
@@ -1689,13 +1690,21 @@ Responses are built from declared fields, never by serialising a bundle or a sav
 Uploaded bytes are data, never code. A `.joblib` upload is refused at the suffix gate, and a test patches
 `joblib.load` to prove nothing from a request ever reaches it.
 
-| Condition | Status |
-|---|---|
-| invalid spectrum — empty, corrupted, non-numeric, too few points | 422 |
-| upload or batch over the byte limit, or too many files | 413 |
-| unsupported suffix | 415 |
-| model unavailable, or a bundle whose feature count does not match | 503 |
-| anything unexpected | 500, generic message, traceback logged |
+Every error body is `{"error": {"code", "message", "type"}}`. **`code` is the field to branch on** — a
+closed vocabulary, so it cannot change under a client. `type` is the internal exception class name, kept for
+one release and **deprecated**; it will be removed.
+
+| Condition | Status | `code` |
+|---|---|---|
+| malformed request — not exactly one spectrum file | 400 | `invalid_request` |
+| invalid spectrum — empty, corrupted, non-numeric, too few or too many points | 422 | `invalid_spectrum` |
+| upload or batch over the byte limit, or too many files | 413 | `payload_too_large` |
+| unsupported suffix | 415 | `unsupported_media_type` |
+| model or zones unavailable, or a bundle whose feature count does not match | 503 | `service_not_ready` |
+| anything unexpected | 500 | `internal_error` — generic message, traceback logged |
+
+Status and code both come from one table (`src/api.py::ERROR_MAP`), so a handler cannot invent either. A
+test asserts the codes the API can emit are exactly the documented set.
 
 ### Measured latency
 
@@ -1770,10 +1779,32 @@ of being read from `config.yaml → project.version`, which tracks the experimen
 `"0.7.0"` for the whole of Version 0.8; and the serving dependency is plain `uvicorn` rather than
 `uvicorn[standard]`, dropping four packages this service does not need — which also drops `--reload`.
 
-Three divergences were reviewed and **deliberately kept**, and are recorded in the addendum rather than
-quietly left: `/health` still carries liveness and readiness together rather than splitting into
-`/health` + `/ready`; the error body's `type` is the internal exception class name rather than a public
-code vocabulary; and the module layout stays flat rather than becoming an `api/` package.
+Three divergences were reviewed and deliberately kept at the time. **Two have since been closed** in
+the 0.9.1 follow-up (issues #14 and #15): `/health` is now liveness only with readiness moved to `/ready`,
+and every error carries a `code` from a closed public vocabulary. The third stands: the module layout is
+still flat rather than an `api/` package ([#17](https://github.com/Sickwoman/antibiotic-resistance-ai/issues/17)),
+which the audit classified as architectural debt with no behavioural risk.
+
+### The 0.9.1 contract follow-up
+
+Two acceptance criteria the V0.9 audit recorded as unmet are now met, and both were interface work with no
+change to any prediction.
+
+**`/health` was doing two jobs.** It answered 503 when the model failed to load, which a liveness probe
+reads as "the process is dead" and restarts — a restart loop, when the correct response is to stop routing
+traffic to a live but unready process. `/health` now answers 200 for as long as the process serves, with
+`{"status": "ok"}` and nothing else; `/ready` carries `model_loaded`, `zones_loaded`, the model version and
+the fixed public reason when it is not ready. `/predict`, `/batch-predict` and `/model-info` still refuse
+with 503 while unready, and a test enumerates the application's own routes to prove it, exempting `/health`
+explicitly rather than by omission.
+
+**The error `type` was an internal class name.** `SpectrumFormatError`, `ModelError` and the rest are
+implementation details; a client branching on them breaks when a class is renamed, and the set of possible
+values was unbounded and undocumented. Errors now carry `code` from the six-value vocabulary above, drawn
+from a single mapping table, with `type` retained one release for compatibility.
+
+One bug this caught on the way: `scripts/benchmark_api.py` read the model version from `/health`, which no
+longer carries it. It now probes `/ready`, which is the correct endpoint for that question anyway.
 
 ### Commands
 
