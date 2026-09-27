@@ -33,7 +33,7 @@ from src.api import (
     default_model_path,
     default_zones_path,
 )
-from src.api_schemas import (
+from src.api.schemas import (
     CODE_INTERNAL_ERROR,
     CODE_INVALID_REQUEST,
     CODE_INVALID_SPECTRUM,
@@ -803,7 +803,7 @@ def test_no_response_ever_carries_a_filesystem_path(tmp_path, spectrum, zones_fi
 
 def _recording_tempdir(monkeypatch) -> list[Path]:
     """Patch the module's TemporaryDirectory so a test can see where an upload was written."""
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     created: list[Path] = []
     real = api_module.TemporaryDirectory
@@ -1018,7 +1018,7 @@ def test_an_unexpected_exception_never_leaks_its_message(tmp_path, spectrum, mon
     Tested by making the inference call raise something carrying a filesystem path, rather than by
     trusting that no such exception exists.
     """
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     def explode(*args: object, **kwargs: object) -> None:
         raise RuntimeError(f"internal failure while reading {secret_path}")
@@ -1140,7 +1140,7 @@ def test_a_not_ready_service_carries_the_readiness_code(tmp_path, spectrum):
 
 
 def test_an_unexpected_fault_carries_the_internal_code(tmp_path, spectrum, monkeypatch):
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     def explode(*args: object, **kwargs: object) -> None:
         raise RuntimeError("boom")
