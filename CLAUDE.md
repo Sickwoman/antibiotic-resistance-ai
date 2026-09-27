@@ -142,6 +142,27 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   no `--reload`. Deliberately **not** changed, recorded in the addendum: `/health` still carries liveness
   and readiness together, the error `type` is the exception class name rather than a public code, and the
   module layout stays flat.
+- **0.9.2 cleared the last four follow-ups** (#16-#19; addendum in `docs/v0.9_api_plan.md`). Rules to keep:
+  - **Zone validation lives in `src/uncertainty.py::Zones.__post_init__`**, not in the API. An edge must be
+    None or a finite probability in [0, 1]; the interval is **closed**, because a `(0.0, 1.0)` pair is a
+    legitimate fixture. `check_zone_bounds` is gone - once construction validates, a post-load check cannot
+    fire, and leaving one would read like a defence that does nothing.
+  - **The serving code is the `src/api/` package**: `app.py` (transport only), `inference_service.py`
+    (loading, readiness, prediction path), `metadata.py`, `errors.py`, `schemas.py`. `predict_spectrum_file`
+    and `TemporaryDirectory` must stay imported in `inference_service.py`, and tests must patch
+    **`src.api.inference_service`**, never `src.api`: patching a re-exported alias binds a name nothing
+    reads, so the test passes while testing nothing. Same trap as the old `"not found" in detail` assertion.
+  - **Bundle digests are verified.** `scripts/write_bundle_checksums.py --write` creates the `.sha256`
+    sidecars (they live in gitignored `models/`, so CI never sees them and those tests skip). A *missing*
+    sidecar is still accepted - the check is an extra, not a gate - so `/ready` reports `digest_verified`
+    rather than pretending the check ran.
+  - **`API_VERSION` moves when the contract moves**, and is never sourced from `config.yaml`. It is `0.9.2`
+    because 0.9.1 split `/health` and added error `code`, and 0.9.2 added `digest_verified`. The rule the
+    test protects is about sourcing, not about the number differing from `project.version`.
+  - The suite runs on **httpx2** (starlette 1.7 asks for it); `httpx` stays only for
+    `scripts/benchmark_api.py`. The mutation audit now covers **12** defects across three files.
+  - The V0.8 plan's "Not executed" header and `adaptation.established.evaluation_scored: false` are both
+    **hash-pinned history** - never edit them; a dated addendum records the real state.
 - **0.9.1 closed two of those deviations** (issues #14 and #15; addendum in `docs/v0.9_api_plan.md`).
   `/health` is now **liveness only** (always 200 while the process serves, body exactly `{"status": "ok"}`)
   and `/ready` carries `model_loaded`, `zones_loaded`, `model_version` and the fixed public reason, 200 or
