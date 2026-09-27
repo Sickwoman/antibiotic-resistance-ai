@@ -1192,3 +1192,84 @@ def test_every_error_body_has_code_and_message(tmp_path, spectrum):
         assert set(body) >= {"code", "message"}
         assert body["code"] in ERROR_CODES, f"{body['code']!r} is outside the documented vocabulary"
 
+
+# ------------------------------------------------------------------------------------------------
+# Bundle digest verification (issue #18)
+# ------------------------------------------------------------------------------------------------
+
+def test_readiness_reports_a_verified_digest(tmp_path, zones_file):
+    """save_bundle writes a .sha256 sidecar, so a freshly saved bundle verifies."""
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        body = client.get("/ready").json()
+    assert body["status"] == "ready"
+    assert body["digest_verified"] is True
+
+
+def test_readiness_reports_an_unverified_digest_without_a_sidecar(tmp_path, spectrum, zones_file):
+    """A missing sidecar must read as unverified, not as a passed check — and must still serve.
+
+    load_bundle refuses a *mismatch* but accepts a missing sidecar, because bundles saved before checksums
+    existed have to keep loading. That fail-open behaviour is deliberate and pinned by tests/test_predict.py;
+    this test makes sure the API reports it honestly rather than implying the check ran.
+    """
+    import shutil
+
+    from src.predict import checksum_path
+
+    saved = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    bare = tmp_path / "nosidecar" / "m.joblib"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(saved, bare)                       # the sidecar is deliberately not copied
+    assert not checksum_path(bare).exists()
+
+    app = create_app(copy.deepcopy(load_config()), model_path=bare, zones_path=zones_file)
+    with TestClient(app) as client:
+        body = client.get("/ready").json()
+        predicted = post_spectrum(client, spectrum)
+    assert body["status"] == "ready" and body["digest_verified"] is False
+    assert predicted.status_code == 200, "a missing sidecar must not stop the service serving"
+
+
+def test_a_tampered_bundle_is_refused_and_leaks_no_path(tmp_path, spectrum, zones_file):
+    """The point of the sidecar: a bundle that changed after it was saved must not load."""
+    saved = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    data = bytearray(saved.read_bytes())
+    data[len(data) // 2] ^= 0x01                    # flip one bit
+    saved.write_bytes(bytes(data))
+
+    app = create_app(copy.deepcopy(load_config()), model_path=saved, zones_path=zones_file)
+    with TestClient(app) as client:
+        ready = client.get("/ready")
+        predicted = post_spectrum(client, spectrum)
+    assert ready.status_code == 503
+    assert ready.json()["status"] == "not_ready" and ready.json()["digest_verified"] is False
+    assert ready.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+    assert predicted.status_code == 503
+    # The library message names the file; the public one must not.
+    assert not PATH_LIKE.search(ready.text) and not PATH_LIKE.search(predicted.text)
+
+
+def test_the_committed_serving_bundles_have_verifying_sidecars():
+    """Guards the real artifacts. Skips in CI, where models/ is gitignored."""
+    from src.predict import checksum_path, verify_digest
+
+    models = project_path("models")
+    if not models.is_dir():
+        pytest.skip("no models directory in this checkout")
+    bundles = [b for b in sorted(models.rglob("best_*.joblib")) if "cache" not in b.parts]
+    if not bundles:
+        pytest.skip("no saved bundles in this checkout")
+    for bundle in bundles:
+        assert checksum_path(bundle).is_file(), f"{bundle.name} has no .sha256 sidecar"
+        assert verify_digest(bundle) is not None, f"{bundle.name} did not verify"
+
+
+def test_the_served_bundle_still_has_its_audited_digest():
+    """The V0.9 release audit recorded this digest; writing a sidecar must not have altered the bundle."""
+    from src.predict import file_digest
+
+    bundle = project_path("models/v0.4") / "ecoli_ciprofloxacin" / "best_random.joblib"
+    if not bundle.is_file():
+        pytest.skip("the project model is not in this checkout")
+    assert file_digest(bundle).startswith("d59d6d7deafa1af4")
+

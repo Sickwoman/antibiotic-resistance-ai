@@ -65,7 +65,15 @@ from src.api_schemas import (
     finite_or_none,
 )
 from src.data_loader import DataError
-from src.predict import DISCLAIMER, ModelError, load_bundle, load_zones, predict_spectrum_file, prediction_payload
+from src.predict import (
+    DISCLAIMER,
+    ModelError,
+    load_bundle,
+    load_zones,
+    predict_spectrum_file,
+    prediction_payload,
+    verify_digest,
+)
 from src.uncertainty import ADVICE, RESISTANT, SUSCEPTIBLE, UNCERTAIN, Zones
 from src.utils import ConfigError, get_logger, project_path
 
@@ -161,6 +169,7 @@ class Service:
     zones: Zones | None = None
     detail: str | None = None
     zones_failed: bool = False           # the file exists but is not a zones record: not the same as absent
+    digest_verified: bool = False        # the bundle matched its .sha256 sidecar (False = no sidecar)
     started_at: float = field(default_factory=time.perf_counter)
     external: list[ExternalResult] = field(default_factory=list)
     internal: list[MetricSet] = field(default_factory=list)
@@ -485,7 +494,11 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
         path = model_path or default_model_path(config)
         try:
             service.bundle = load_bundle(path, n_jobs=int(api_cfg.get("request_threads", 1)))
-            log.info("serving model %s", service.bundle["model_version"])
+            # load_bundle already refused a mismatch; this records whether the check could run at all,
+            # so a missing sidecar is visible on /ready instead of looking like a passed check.
+            service.digest_verified = verify_digest(path) is not None
+            log.info("serving model %s (digest %s)", service.bundle["model_version"],
+                     "verified" if service.digest_verified else "unverified: no sidecar")
         except (ModelError, DataError, ConfigError) as exc:
             # str(exc) names the file that was missing or unreadable, i.e. an absolute path. It must not
             # reach a response, so the public detail is a fixed string and the real reason is logged.
@@ -572,6 +585,7 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
             model_version=str(service.bundle["model_version"]) if service.bundle is not None else None,
             api_version=service.api_version,
             uptime_s=round(time.perf_counter() - service.started_at, 3),
+            digest_verified=service.digest_verified,
             detail=None if is_ready else service.detail,
         )
         return JSONResponse(status_code=200 if is_ready else 503, content=body.model_dump())
