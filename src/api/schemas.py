@@ -10,7 +10,8 @@ starlette renders JSON with `allow_nan=False`, so an un-sanitised number taken f
 `ValueError: Out of range float values are not JSON compliant` at render time and become a 500. Every
 number that comes from a report therefore passes through `finite_or_none`.
 
-See docs/v0.9_api_plan.md and protocol amendment 5.
+See docs/v0.9_api_plan.md and protocol amendment 5. Moved here from
+src/api_schemas.py when the serving code became a package (issue #17).
 """
 
 from __future__ import annotations
@@ -122,6 +123,10 @@ class ReadinessResponse(ApiModel):
     model_version: str | None
     api_version: str
     uptime_s: float
+    # True when the bundle matched the .sha256 sidecar written beside it, False when no sidecar exists so
+    # the check could not run. It is reported rather than enforced: load_bundle refuses a *mismatch* but
+    # accepts a missing sidecar, because bundles saved before checksums existed must keep loading.
+    digest_verified: bool = False
     detail: str | None = None          # why the service is not ready, when it is not
 
 

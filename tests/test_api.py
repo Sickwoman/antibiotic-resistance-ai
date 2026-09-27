@@ -29,12 +29,11 @@ from src.api import (
     ERROR_MAP,
     PROJECT_MODEL_VERSION,
     Limits,
-    check_zone_bounds,
     create_app,
     default_model_path,
     default_zones_path,
 )
-from src.api_schemas import (
+from src.api.schemas import (
     CODE_INTERNAL_ERROR,
     CODE_INVALID_REQUEST,
     CODE_INVALID_SPECTRUM,
@@ -804,7 +803,7 @@ def test_no_response_ever_carries_a_filesystem_path(tmp_path, spectrum, zones_fi
 
 def _recording_tempdir(monkeypatch) -> list[Path]:
     """Patch the module's TemporaryDirectory so a test can see where an upload was written."""
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     created: list[Path] = []
     real = api_module.TemporaryDirectory
@@ -912,7 +911,7 @@ def test_the_api_version_is_its_own_constant(tmp_path):
     That field was stale at "0.7.0" for the whole of Version 0.8, so sourcing a public contract version
     from it would let an unrelated edit change the API's identity.
     """
-    assert API_VERSION == "0.9.0"
+    assert API_VERSION == "0.9.2"          # moves when the contract moves, not when config does
     config = copy.deepcopy(load_config())
     config["project"]["version"] = "99.99.99-nonsense"
     model_path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
@@ -965,11 +964,9 @@ def test_serving_leaves_every_historical_artifact_untouched(tmp_path, spectrum, 
 def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, case, content):
     """A zone file that parses but cannot be compared against must not be served.
 
-    Zones.from_dict checks that two edges are ordered; nothing checked that an edge was finite or inside
-    [0, 1]. A NaN edge makes every comparison false, so the zone silently disappears and every spectrum
-    returns "Uncertain" from a model that has a zone. An infinite edge makes every comparison true, so
-    every spectrum is labelled high-confidence. Both are silent, which is exactly the class of failure the
-    malformed-zones fix exists to stop.
+    The rule itself lives in src.uncertainty.Zones since issue #16, so an unusable record cannot be
+    constructed at all: load_zones raises, wraps it as ModelError, and the service reports not ready. This
+    test covers the serving consequence; tests/test_uncertainty.py covers the rule.
     """
     zones = tmp_path / f"zones_{case}.json"
     zones.write_text(content, encoding="utf-8")
@@ -985,12 +982,16 @@ def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, c
 
 @pytest.mark.parametrize(("lower", "upper"), [(0.2, None), (None, 0.8), (0.2, 0.8), (None, None), (0.0, 1.0)])
 def test_usable_zone_bounds_are_accepted(lower, upper):
-    """The guard must not reject a fitted outcome: a side that does not exist is None, which is fine."""
-    check_zone_bounds(Zones(0.5, lower, upper, ZoneRule(), "validation", 10))
+    """A fitted outcome must still construct: a side that does not exist is None, which is fine.
+
+    (0.0, 1.0) is the closed-interval boundary and is kept deliberately — the API's "every call uncertain"
+    fixture uses it, and a rule stricter than 0 <= edge <= 1 would break that.
+    """
+    Zones(0.5, lower, upper, ZoneRule(), "validation", 10)
 
 
-def test_the_committed_zone_file_passes_the_bound_guard():
-    """The real Version 0.6 artifact must remain servable; the guard may only reject genuine nonsense."""
+def test_the_committed_zone_file_still_loads():
+    """The real Version 0.6 artifact must remain servable; the rule may only reject genuine nonsense."""
     path = project_path("results/metrics/v0.6") / "ecoli_ciprofloxacin" / "uncertainty.json"
     if not path.is_file():
         pytest.skip("the Version 0.6 zone file is not in this checkout")
@@ -998,7 +999,7 @@ def test_the_committed_zone_file_passes_the_bound_guard():
 
     zones = _load_zones(path)
     assert zones is not None
-    check_zone_bounds(zones)
+    assert zones.lower is not None and zones.upper is None       # the shipped fit: no resistant side
 
 
 # ------------------------------------------------------------------------------------------------
@@ -1017,7 +1018,7 @@ def test_an_unexpected_exception_never_leaks_its_message(tmp_path, spectrum, mon
     Tested by making the inference call raise something carrying a filesystem path, rather than by
     trusting that no such exception exists.
     """
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     def explode(*args: object, **kwargs: object) -> None:
         raise RuntimeError(f"internal failure while reading {secret_path}")
@@ -1139,7 +1140,7 @@ def test_a_not_ready_service_carries_the_readiness_code(tmp_path, spectrum):
 
 
 def test_an_unexpected_fault_carries_the_internal_code(tmp_path, spectrum, monkeypatch):
-    import src.api as api_module
+    import src.api.inference_service as api_module
 
     def explode(*args: object, **kwargs: object) -> None:
         raise RuntimeError("boom")
@@ -1191,4 +1192,85 @@ def test_every_error_body_has_code_and_message(tmp_path, spectrum):
         body = r.json()["error"]
         assert set(body) >= {"code", "message"}
         assert body["code"] in ERROR_CODES, f"{body['code']!r} is outside the documented vocabulary"
+
+
+# ------------------------------------------------------------------------------------------------
+# Bundle digest verification (issue #18)
+# ------------------------------------------------------------------------------------------------
+
+def test_readiness_reports_a_verified_digest(tmp_path, zones_file):
+    """save_bundle writes a .sha256 sidecar, so a freshly saved bundle verifies."""
+    with TestClient(build_app(tmp_path, zones=zones_file)) as client:
+        body = client.get("/ready").json()
+    assert body["status"] == "ready"
+    assert body["digest_verified"] is True
+
+
+def test_readiness_reports_an_unverified_digest_without_a_sidecar(tmp_path, spectrum, zones_file):
+    """A missing sidecar must read as unverified, not as a passed check — and must still serve.
+
+    load_bundle refuses a *mismatch* but accepts a missing sidecar, because bundles saved before checksums
+    existed have to keep loading. That fail-open behaviour is deliberate and pinned by tests/test_predict.py;
+    this test makes sure the API reports it honestly rather than implying the check ran.
+    """
+    import shutil
+
+    from src.predict import checksum_path
+
+    saved = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    bare = tmp_path / "nosidecar" / "m.joblib"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(saved, bare)                       # the sidecar is deliberately not copied
+    assert not checksum_path(bare).exists()
+
+    app = create_app(copy.deepcopy(load_config()), model_path=bare, zones_path=zones_file)
+    with TestClient(app) as client:
+        body = client.get("/ready").json()
+        predicted = post_spectrum(client, spectrum)
+    assert body["status"] == "ready" and body["digest_verified"] is False
+    assert predicted.status_code == 200, "a missing sidecar must not stop the service serving"
+
+
+def test_a_tampered_bundle_is_refused_and_leaks_no_path(tmp_path, spectrum, zones_file):
+    """The point of the sidecar: a bundle that changed after it was saved must not load."""
+    saved = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
+    data = bytearray(saved.read_bytes())
+    data[len(data) // 2] ^= 0x01                    # flip one bit
+    saved.write_bytes(bytes(data))
+
+    app = create_app(copy.deepcopy(load_config()), model_path=saved, zones_path=zones_file)
+    with TestClient(app) as client:
+        ready = client.get("/ready")
+        predicted = post_spectrum(client, spectrum)
+    assert ready.status_code == 503
+    assert ready.json()["status"] == "not_ready" and ready.json()["digest_verified"] is False
+    assert ready.json()["detail"] == DETAIL_MODEL_UNAVAILABLE
+    assert predicted.status_code == 503
+    # The library message names the file; the public one must not.
+    assert not PATH_LIKE.search(ready.text) and not PATH_LIKE.search(predicted.text)
+
+
+def test_the_committed_serving_bundles_have_verifying_sidecars():
+    """Guards the real artifacts. Skips in CI, where models/ is gitignored."""
+    from src.predict import checksum_path, verify_digest
+
+    models = project_path("models")
+    if not models.is_dir():
+        pytest.skip("no models directory in this checkout")
+    bundles = [b for b in sorted(models.rglob("best_*.joblib")) if "cache" not in b.parts]
+    if not bundles:
+        pytest.skip("no saved bundles in this checkout")
+    for bundle in bundles:
+        assert checksum_path(bundle).is_file(), f"{bundle.name} has no .sha256 sidecar"
+        assert verify_digest(bundle) is not None, f"{bundle.name} did not verify"
+
+
+def test_the_served_bundle_still_has_its_audited_digest():
+    """The V0.9 release audit recorded this digest; writing a sidecar must not have altered the bundle."""
+    from src.predict import file_digest
+
+    bundle = project_path("models/v0.4") / "ecoli_ciprofloxacin" / "best_random.joblib"
+    if not bundle.is_file():
+        pytest.skip("the project model is not in this checkout")
+    assert file_digest(bundle).startswith("d59d6d7deafa1af4")
 

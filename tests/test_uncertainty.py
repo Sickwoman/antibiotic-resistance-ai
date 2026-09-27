@@ -8,6 +8,7 @@ its target produces no zone (and reports what it does reach), and the model's ow
 from __future__ import annotations
 
 import json
+import math
 
 import numpy as np
 import pytest
@@ -214,3 +215,60 @@ def test_bootstrap_refuses_a_group_per_row_mismatch():
     y, prob = separable(n=40)
     with pytest.raises(UncertaintyError):
         bootstrap_zone_metrics(y, np.arange(10), prob, Zones(0.5, 0.2, 0.8, ZoneRule()), resamples=5)
+
+
+# ------------------------------------------------------------------------------------------------
+# Edge validation at construction (issue #16)
+# ------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("lower", "upper", "expected"), [
+    (float("nan"), None, "not a finite"),
+    (float("inf"), None, "not a finite"),
+    (None, float("-inf"), "not a finite"),
+    (None, float("nan"), "not a finite"),
+    (-3.0, 5.0, "outside the probability range"),
+    (1.5, None, "outside the probability range"),
+    (None, 1.5, "outside the probability range"),
+    (-0.1, None, "outside the probability range"),
+    (0.9, 0.1, "is above upper edge"),
+])
+def test_an_unusable_edge_is_refused_at_construction(lower, upper, expected):
+    """An edge that is not a usable probability makes `label` silently wrong, so it cannot be constructed.
+
+    A NaN edge makes every comparison false, removing that zone from a model that has one; an infinite edge
+    makes every comparison true, labelling every spectrum high-confidence. Neither raises anywhere
+    downstream, which is why the rule sits at construction.
+    """
+    with pytest.raises(UncertaintyError, match=expected):
+        Zones(0.5, lower, upper, ZoneRule())
+
+
+@pytest.mark.parametrize(("lower", "upper"), [
+    (None, None), (0.2, None), (None, 0.8), (0.2, 0.8), (0.0, 1.0), (0.5, 0.5),
+])
+def test_a_usable_edge_pair_is_accepted(lower, upper):
+    """None means that side was not fitted, which is a real outcome and must stay valid."""
+    zones = Zones(0.5, lower, upper, ZoneRule())
+    assert zones.lower == lower and zones.upper == upper
+
+
+def test_from_dict_rejects_the_same_values():
+    """load_zones reaches the rule through from_dict, so a foreign file cannot smuggle an edge past it."""
+    for payload in ({"threshold": 0.5, "lower": float("nan"), "upper": None},
+                    {"threshold": 0.5, "lower": float("inf"), "upper": None},
+                    {"threshold": 0.5, "lower": -3.0, "upper": 5.0},
+                    {"threshold": 0.5, "lower": 0.9, "upper": 0.1}):
+        with pytest.raises(UncertaintyError):
+            Zones.from_dict(payload)
+
+
+def test_fit_zones_cannot_produce_a_refused_edge():
+    """The rule constrains hand-written records, not the fitter: an edge is None or an observed cut."""
+    rng = np.random.default_rng(3)
+    for _ in range(25):
+        y = (rng.random(300) < 0.35).astype(int)
+        prob = np.clip(rng.random(300) * 0.7 + y * 0.2, 0.0, 1.0)
+        zones, _low, _high, _curve = fit_zones(y, prob, 0.35, ZoneRule())
+        for edge in (zones.lower, zones.upper):
+            assert edge is None or (math.isfinite(edge) and 0.0 <= edge <= 1.0)
+

@@ -7,9 +7,10 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.9 – the backend API.** Versions 0.1 (download +
+**Status: Version 0.9 – the backend API (patch release 0.9.2).** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
-0.5 (neural networks) and 0.6 (explainability and confidence zones) are complete. Models are evaluated as
+0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
+time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
 fixed in [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md), approved before any model was
 trained; the Version 0.4 search was fixed in [`docs/v0.4_search_plan.md`](docs/v0.4_search_plan.md) before
 any model was tuned, the Version 0.5 networks in
@@ -1703,7 +1704,7 @@ one release and **deprecated**; it will be removed.
 | model or zones unavailable, or a bundle whose feature count does not match | 503 | `service_not_ready` |
 | anything unexpected | 500 | `internal_error` — generic message, traceback logged |
 
-Status and code both come from one table (`src/api.py::ERROR_MAP`), so a handler cannot invent either. A
+Status and code both come from one table (`src/api/errors.py::ERROR_MAP`), so a handler cannot invent either. A
 test asserts the codes the API can emit are exactly the documented set.
 
 ### Measured latency
@@ -1746,12 +1747,38 @@ latency.
    scientific gain.
 4. **No high-confidence-resistant answer is possible**, as above — a property of the Version 0.6 fit, not
    of the API.
-5. **The saved bundle's digest is not verified**, because the shipped bundles have no `.sha256` sidecar;
-   `save_bundle` writes one, but the existing files predate it and `models/` is deliberately left frozen.
+5. **The saved bundle's digest is verified** since 0.9.2 (issue #18): `.sha256` sidecars were generated
+   from the bundles' current bytes, so `verify_digest` now refuses a bundle that changed after it was
+   saved, and `/ready` reports `digest_verified`. A *missing* sidecar is still accepted rather than fatal,
+   so the check is an extra and not a gate, and it is a checksum rather than a signature — it catches
+   corruption and substitution, not someone who can write both files.
 6. **The model is unchanged and so are its limits.** Everything Versions 0.7 and 0.8 found still holds:
    no generalisation gap was demonstrated, and local recalibration was not shown to help.
    `/model-info` reports the external results beside the internal one for exactly that reason.
 7. **Research prototype**, not a clinically validated diagnostic, and never a treatment recommendation.
+
+### Patch releases 0.9.1 and 0.9.2
+
+Four follow-ups the release audit filed as non-blockers were cleared after V0.9 closed, before starting
+Version 1.0 — deliberately in that order, because V1.0 adds a result page that will consume this API and
+changing a contract after a frontend couples to it means changing both sides.
+
+| Issue | Change |
+|---|---|
+| #14 | `/health` is liveness only; `/ready` carries the artifact state. The old shape answered 503 on a model-load failure, which a liveness probe reads as "restart me" — a restart loop where the right behaviour is to drain traffic. |
+| #15 | Errors carry `code` from a closed six-value vocabulary, resolved from one ordered table. `type` (the internal exception class name) is retained one release, deprecated. |
+| #16 | Zone-bound validation moved into `src/uncertainty.py::Zones`, so an unusable zone cannot be constructed by *any* consumer rather than only being refused at the serving boundary. |
+| #17 | The serving code became the `src/api/` package: app, inference service, metadata, errors, schemas. |
+| #18 | `.sha256` sidecars generated for the saved bundles, so `verify_digest` is active rather than inert; `/ready` reports `digest_verified`. |
+| #19 | The test suite runs on `httpx2`, which starlette 1.7 asks for — the suite is warning-free again. |
+
+Two of these were worth more than their size. **#16** turned out to close a genuine silent-failure class: a
+NaN zone edge makes every comparison false, so the zone disappears and a model that *has* one reports every
+spectrum as uncertain; an infinite edge makes every comparison true, labelling every spectrum
+high-confidence. Neither raises anywhere. **#17** carried the real risk, and not in the split itself: three
+tests monkeypatch module attributes, and behind a re-exporting package `__init__` those patches would have
+bound names nothing reads — passing while testing nothing. The mutation audit, retargeted at the new
+modules, catches 12 of 12 reintroduced defects, which is what proves they still bite.
 
 ### The hardening review (2026-09-26)
 
@@ -1815,7 +1842,8 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-545 tests pass (483 from earlier versions, none modified, plus 62 for the API). The API tests fit a small
+603 tests pass (483 from earlier versions, none modified, plus the API and uncertainty tests added
+across 0.9 and its patch releases). The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
 DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
 review added coverage for every spectrum rule through HTTP (duplicate, unsorted and non-positive m/z,
@@ -1825,7 +1853,7 @@ malformed zones, and that `models/` and `results/` are untouched by serving. `mo
 `results/experiments/` are byte-unchanged and the append-only log is still 89 rows at
 `c395fcb3…76e0c7`.
 
-## Project structure (Version 0.9)
+## Project structure (Version 0.9.2)
 
 ```
 antibiotic-resistance-ai/
@@ -1849,6 +1877,7 @@ antibiotic-resistance-ai/
 │   ├── adapt_model.py          Version 0.8 adaptation run (spends the protected part once)
 │   ├── serve_api.py            Version 0.9 backend API (localhost; no authentication)
 │   ├── benchmark_api.py        Version 0.9 measured request latency (durations only)
+│   ├── write_bundle_checksums.py  write or verify the .sha256 sidecar beside each bundle
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -1865,8 +1894,12 @@ antibiotic-resistance-ai/
 │   ├── explain.py              Version 0.6 contributions, permutation importance, m/z regions
 │   ├── uncertainty.py          Version 0.6 confident / uncertain zones and their intervals
 │   ├── predict.py              saving/loading models, prediction with timing and confidence
-│   ├── api.py                  Version 0.9 endpoints, upload limits, response allow-list
-│   ├── api_schemas.py          Version 0.9 declared response models; what may never be served
+│   ├── api/                    Version 0.9 serving package, one responsibility per module:
+│   │   ├── app.py              construction, lifespan, routes, handlers (no inference logic)
+│   │   ├── inference_service.py  artifact loading, readiness, the prediction path
+│   │   ├── metadata.py         the /model-info allow-list
+│   │   ├── errors.py           exception types and the status/code table
+│   │   └── schemas.py          declared response models; what may never be served
 │   ├── model_plots.py          figures shared by the model scripts
 │   └── tables.py               Markdown helpers for result tables
 ├── docs/evaluation_protocol.md how models are evaluated (approved before any training)
