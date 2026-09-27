@@ -18,12 +18,17 @@ nbformat>=5.9        # notebook validation in tests
 ipykernel>=6.29
 
 # V0.9 backend API, kept to the minimum. python-multipart is REQUIRED for file uploads: without it the
-# multipart endpoints fail. httpx is what starlette's TestClient runs on, and it was previously present
-# only transitively (via jupyter), so it is declared rather than relied on by accident.
+# multipart endpoints fail.
 # Plain uvicorn, NOT uvicorn[standard]: the extra pulls uvloop, httptools, websockets, watchfiles and
 # python-dotenv, none of which this service needs. Dropping watchfiles also drops --reload, which was a
 # development convenience rather than a requirement.
+# Two HTTP clients are declared on purpose, each with one caller:
+#   httpx2 - starlette 1.7's TestClient asks for it and warns on httpx, so the test suite runs on it.
+#   httpx  - scripts/benchmark_api.py drives a real uvicorn server with it. Left on httpx so the committed
+#            api_timing.json, whose `transport` field records "driven with httpx", stays true to how those
+#            numbers were actually measured. It moves to httpx2 the next time the benchmark is re-recorded.
 fastapi>=0.115
 uvicorn>=0.30
 python-multipart>=0.0.9
+httpx2>=2.13
 httpx>=0.27
