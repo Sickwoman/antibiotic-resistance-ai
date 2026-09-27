@@ -29,7 +29,6 @@ from src.api import (
     ERROR_MAP,
     PROJECT_MODEL_VERSION,
     Limits,
-    check_zone_bounds,
     create_app,
     default_model_path,
     default_zones_path,
@@ -965,11 +964,9 @@ def test_serving_leaves_every_historical_artifact_untouched(tmp_path, spectrum, 
 def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, case, content):
     """A zone file that parses but cannot be compared against must not be served.
 
-    Zones.from_dict checks that two edges are ordered; nothing checked that an edge was finite or inside
-    [0, 1]. A NaN edge makes every comparison false, so the zone silently disappears and every spectrum
-    returns "Uncertain" from a model that has a zone. An infinite edge makes every comparison true, so
-    every spectrum is labelled high-confidence. Both are silent, which is exactly the class of failure the
-    malformed-zones fix exists to stop.
+    The rule itself lives in src.uncertainty.Zones since issue #16, so an unusable record cannot be
+    constructed at all: load_zones raises, wraps it as ModelError, and the service reports not ready. This
+    test covers the serving consequence; tests/test_uncertainty.py covers the rule.
     """
     zones = tmp_path / f"zones_{case}.json"
     zones.write_text(content, encoding="utf-8")
@@ -985,12 +982,16 @@ def test_an_unusable_zone_file_makes_the_service_not_ready(tmp_path, spectrum, c
 
 @pytest.mark.parametrize(("lower", "upper"), [(0.2, None), (None, 0.8), (0.2, 0.8), (None, None), (0.0, 1.0)])
 def test_usable_zone_bounds_are_accepted(lower, upper):
-    """The guard must not reject a fitted outcome: a side that does not exist is None, which is fine."""
-    check_zone_bounds(Zones(0.5, lower, upper, ZoneRule(), "validation", 10))
+    """A fitted outcome must still construct: a side that does not exist is None, which is fine.
+
+    (0.0, 1.0) is the closed-interval boundary and is kept deliberately — the API's "every call uncertain"
+    fixture uses it, and a rule stricter than 0 <= edge <= 1 would break that.
+    """
+    Zones(0.5, lower, upper, ZoneRule(), "validation", 10)
 
 
-def test_the_committed_zone_file_passes_the_bound_guard():
-    """The real Version 0.6 artifact must remain servable; the guard may only reject genuine nonsense."""
+def test_the_committed_zone_file_still_loads():
+    """The real Version 0.6 artifact must remain servable; the rule may only reject genuine nonsense."""
     path = project_path("results/metrics/v0.6") / "ecoli_ciprofloxacin" / "uncertainty.json"
     if not path.is_file():
         pytest.skip("the Version 0.6 zone file is not in this checkout")
@@ -998,7 +999,7 @@ def test_the_committed_zone_file_passes_the_bound_guard():
 
     zones = _load_zones(path)
     assert zones is not None
-    check_zone_bounds(zones)
+    assert zones.lower is not None and zones.upper is None       # the shipped fit: no resistant side
 
 
 # ------------------------------------------------------------------------------------------------

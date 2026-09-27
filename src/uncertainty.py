@@ -19,6 +19,7 @@ Nothing here decides treatment. "High-confidence resistant" is a research label 
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -134,6 +135,34 @@ class Zones:
     fitted_on: str = "validation"
     n_fitted: int = 0
 
+    def __post_init__(self) -> None:
+        """Refuse an edge that is not a usable probability, so an unusable zone cannot exist.
+
+        `label` validates the probability it is handed but not the edges it compares against, and nothing
+        checked that an edge was finite or inside [0, 1]. Both resulting failures are silent, which is why
+        they are refused here rather than somewhere downstream:
+
+        - a NaN edge makes every comparison false, so that zone quietly disappears and a model that does
+          have a zone reports every spectrum as uncertain;
+        - an infinite edge makes every comparison true, so every spectrum is labelled high-confidence.
+
+        `None` stays valid: a side that does not exist is a fitted outcome, and is exactly what the shipped
+        Version 0.6 file records for the resistant side. `fit_zones` cannot produce a rejected value - an
+        edge there is either None or a cut drawn from observed probabilities - so this constrains hand-written
+        and foreign records, not the fitters.
+        """
+        for name, edge in (("lower", self.lower), ("upper", self.upper)):
+            if edge is None:
+                continue
+            if not math.isfinite(float(edge)):
+                raise UncertaintyError(f"The {name} confidence-zone edge is {edge!r}, which is not a finite "
+                                       "probability, so every comparison against it would be meaningless.")
+            if not 0.0 <= float(edge) <= 1.0:
+                raise UncertaintyError(f"The {name} confidence-zone edge is {edge!r}, outside the "
+                                       "probability range [0, 1].")
+        if self.lower is not None and self.upper is not None and self.lower > self.upper:
+            raise UncertaintyError(f"lower edge {self.lower} is above upper edge {self.upper}.")
+
     def label(self, prob: np.ndarray | float) -> np.ndarray:
         """The three-way output for one probability or an array of them."""
         p = np.atleast_1d(np.asarray(prob, dtype=np.float64))
@@ -159,12 +188,10 @@ class Zones:
         if missing:
             raise UncertaintyError(f"Not a zones record: {sorted(missing)} missing.")
         lower, upper = data["lower"], data["upper"]
-        zones = cls(float(data["threshold"]), None if lower is None else float(lower),
-                    None if upper is None else float(upper), ZoneRule.from_config(data.get("rule") or {}),
-                    str(data.get("fitted_on", "validation")), int(data.get("n_fitted", 0)))
-        if zones.lower is not None and zones.upper is not None and zones.lower > zones.upper:
-            raise UncertaintyError(f"lower edge {zones.lower} is above upper edge {zones.upper}.")
-        return zones
+        # Every edge rule now lives in __post_init__, so constructing is validating.
+        return cls(float(data["threshold"]), None if lower is None else float(lower),
+                   None if upper is None else float(upper), ZoneRule.from_config(data.get("rule") or {}),
+                   str(data.get("fitted_on", "validation")), int(data.get("n_fitted", 0)))
 
 
 def fit_zones(y: np.ndarray, prob: np.ndarray, threshold: float,
