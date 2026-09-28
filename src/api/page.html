@@ -1,19 +1,4 @@
 <!DOCTYPE html>
-<!--
-  The Version 1.0 result page. Served by GET / from src/api/page.py.
-
-  Two rules govern this file and are enforced by tests/test_page.py:
-
-  1. It makes no scientific decision. Every value shown is read from an API response and assigned to an
-     element. The script contains no confidence-label text and no comparison against the returned
-     probability or threshold, so there is no branch that could infer a confidence the model did not return.
-     The result region below is empty on purpose: it is filled only from a response.
-  2. It is same-origin and stateless. No external script, stylesheet, font, icon or analytics; nothing is
-     written to localStorage, sessionStorage, IndexedDB or a cookie; no prediction history is kept.
-
-  {{DISCLAIMER}} and {{ADVICE}} are replaced when the page is served, from src.predict.DISCLAIMER and
-  src.uncertainty.ADVICE, so this file cannot drift from the canonical strings.
--->
 <html lang="en">
 <head>
 <meta charset="utf-8">

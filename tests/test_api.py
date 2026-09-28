@@ -1051,9 +1051,14 @@ def test_no_route_serves_a_success_while_the_service_is_degraded(tmp_path, spect
             methods = getattr(route, "methods", set()) or set()
             if not path or path.startswith("/openapi") or path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
                 continue
-            if path == "/health":
-                # Liveness is exempt by design: it reports the process, not the artifacts.
-                assert client.get(path).status_code == 200
+            if path in ("/health", "/"):
+                # Two deliberate exemptions, asserted rather than skipped. Liveness reports the process,
+                # not the artifacts. The result page is served whatever the readiness state, because a
+                # reader arriving at an unready service should be told so by the page rather than meeting
+                # a bare 503 - the page itself reports that it cannot predict.
+                exempt = client.get(path)
+                assert exempt.status_code == 200, f"{path} should still answer 200 while degraded"
+                assert not PATH_LIKE.search(exempt.text), f"{path} leaked a path when degraded"
                 continue
             for method in sorted(methods & {"GET", "POST"}):
                 if method == "GET":
