@@ -911,7 +911,7 @@ def test_the_api_version_is_its_own_constant(tmp_path):
     That field was stale at "0.7.0" for the whole of Version 0.8, so sourcing a public contract version
     from it would let an unrelated edit change the API's identity.
     """
-    assert API_VERSION == "0.9.2"          # moves when the contract moves, not when config does
+    assert API_VERSION == "1.0.0"          # moves when the contract moves, not when config does
     config = copy.deepcopy(load_config())
     config["project"]["version"] = "99.99.99-nonsense"
     model_path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")

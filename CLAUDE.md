@@ -163,6 +163,29 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     `scripts/benchmark_api.py`. The mutation audit now covers **12** defects across three files.
   - The V0.8 plan's "Not executed" header and `adaptation.established.evaluation_scored: false` are both
     **hash-pinned history** - never edit them; a dated addendum records the real state.
+- **Version 1.0 is the result page, the consolidated README and deployment documentation**
+  (`docs/v1.0_plan.md` pre-registered at `d1718cc`, plus amendment 7). Rules to keep:
+  - The page (`src/api/page.html`, served by `src/api/page.py` at `GET /`) **makes no scientific decision**.
+    Its script contains no confidence-label text and no comparison against `resistance_probability` or
+    `threshold`, so it cannot infer a label. That matters because the zones have `upper: null` - a spectrum at
+    p = 0.9453 is correctly `Uncertain`, and a page that styled it as a confident call would be overruling the
+    model. Do not add a branch there.
+  - The result region is **empty in the markup** and filled only from a response; a failed request clears it
+    before the fetch. Explanatory copy may name a label, the result region may not (amendment 7 point 3).
+  - `page.py` substitutes **only project constants** (`DISCLAIMER`, `ADVICE`) into the file, never anything
+    from a request - that is the one way a static page could become an injection vector.
+  - Same-origin and stateless: no external script/style/font/analytics, no `localStorage`/`sessionStorage`/
+    `indexedDB`/cookie, no prediction history. Tests assert on **attribute values**, not on the characters
+    `//`, which every JS comment contains.
+  - `GET /` and `/health` are the **two exemptions** from the degraded-route invariant, asserted positively
+    rather than skipped: an unready service should still serve the page that says so.
+  - The suite **does not execute the page's JavaScript** (CI installs Python only). The invariants are
+    structural and asserted on the served HTML; `node --check` on the extracted script is a local-only extra.
+  - `API_VERSION` is `1.0.0` because `GET /` is a contract change. It is still never sourced from config.
+  - A known defect found during V1.0 and deliberately **not** fixed there:
+    `results/metrics/v0.7/ecoli_ciprofloxacin/tables.md` reports the two `external` seed spreads over six
+    rows (five seeds plus the saved-model row) while printing `Seeds | 5`. The README's 5-seed figures are the
+    correct ones. Regenerating a V0.7 artifact was out of scope; fix it separately.
 - **0.9.1 closed two of those deviations** (issues #14 and #15; addendum in `docs/v0.9_api_plan.md`).
   `/health` is now **liveness only** (always 200 while the process serves, body exactly `{"status": "ok"}`)
   and `/ready` carries `model_loaded`, `zones_loaded`, `model_version` and the fixed public reason, 200 or

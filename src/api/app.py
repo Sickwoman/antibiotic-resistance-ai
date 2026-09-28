@@ -64,11 +64,11 @@ log = get_logger("api")
 # whole of Version 0.8), so sourcing a public API version from it would let an unrelated edit change the
 # contract's identity. The model carries its own separate version and the three are never conflated.
 #
-# It moves when the contract moves, which is why it is 0.9.2 and not 0.9.0: 0.9.1 split /health into
-# liveness and /ready and added `code` to every error body, and 0.9.2 added `digest_verified` to /ready.
-# The rule the independence test protects is that this value is never *sourced* from configuration - not
-# that it must differ numerically from anything else.
-API_VERSION = "0.9.2"
+# It moves when the contract moves: 0.9.1 split /health into liveness and /ready and added `code` to every
+# error body, 0.9.2 added `digest_verified` to /ready, and 1.0.0 adds the result page at GET /. The rule the
+# independence test protects is that this value is never *sourced* from configuration - not that it must
+# differ numerically from anything else.
+API_VERSION = "1.0.0"
 
 
 def create_app(config: dict[str, Any], *, model_path: Path | None = None,
