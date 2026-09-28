@@ -315,3 +315,33 @@ fits the existing rules, and what that layer is forbidden from doing.
    patient. `/model-info` reports the external Version 0.7 and Version 0.8 results beside the internal test
    metrics, including the null and mixed outcomes, because serving the internal number alone would overstate
    the model.
+
+### Amendment 6 — 2026-09-28: the result page, and what a summary may claim
+
+Added before any Version 1.0 code existed, together with [the Version 1.0 plan](v1.0_plan.md). It changes no
+model, no threshold, no split, no metric and no recorded result. Version 1.0 is engineering and documentation
+only; the append-only log gains no row.
+
+1. **The result page is a client of the API, not a second serving path.** It calls the existing endpoints and
+   reimplements nothing: not preprocessing, not the threshold, not the confidence zones, not the upload
+   limits, not the error mapping. Every number it shows is read from a response at runtime, so it cannot
+   disagree with the model. Amendment 5 governs the API it calls, and continues to apply unchanged.
+2. **The page may not state a confidence the model does not have.** The fitted zones have no
+   high-confidence-resistant side, so that label is unreachable and the page must render a high probability
+   as `Uncertain` rather than styling it as a confident call. It names no antibiotic for a patient and uses
+   no diagnostic language, which is section 1 and rules 12–13 applied to a user interface.
+3. **The page is same-origin and stateless.** No third-party script, style, font or endpoint, so a spectrum
+   cannot reach anywhere but this service; nothing is persisted in the browser or on the server; and no
+   identifier is displayed, logged or transmitted.
+4. **A consolidated summary may not be stronger than its record.** The Version 1.0 README adds Architecture,
+   Training, Results, Limitations and Ethics sections across versions. A summary is where a project starts
+   sounding better than its evidence, so: no claim may exceed its per-version source; each headline number
+   cites the section it came from and is copied from a committed artifact rather than retyped; and the null
+   and mixed outcomes appear in Results, not only in Limitations. Specifically, that no generalisation gap
+   was demonstrated, that local recalibration was not demonstrated to help, that the A + C refit's verdict is
+   *mixed* rather than success, and that no arm reached the 0.95 zone target.
+5. **The per-version sections are not rewritten.** They record what was pre-registered and what was found,
+   and they stay as they are. The new sections are added in front of them and link down.
+6. **Deployment is documented, not performed.** The service has no authentication by design. Version 1.0
+   describes running it locally and states what would have to be true before exposure could be considered; it
+   ships no container, orchestration or hosting configuration, and does not present a deployment as available.
