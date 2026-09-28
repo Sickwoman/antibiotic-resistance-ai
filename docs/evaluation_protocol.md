@@ -315,3 +315,71 @@ fits the existing rules, and what that layer is forbidden from doing.
    patient. `/model-info` reports the external Version 0.7 and Version 0.8 results beside the internal test
    metrics, including the null and mixed outcomes, because serving the internal number alone would overstate
    the model.
+
+### Amendment 6 — 2026-09-28: the result page, and what a summary may claim
+
+Added before any Version 1.0 code existed, together with [the Version 1.0 plan](v1.0_plan.md). It changes no
+model, no threshold, no split, no metric and no recorded result. Version 1.0 is engineering and documentation
+only; the append-only log gains no row.
+
+1. **The result page is a client of the API, not a second serving path.** It calls the existing endpoints and
+   reimplements nothing: not preprocessing, not the threshold, not the confidence zones, not the upload
+   limits, not the error mapping. Every number it shows is read from a response at runtime, so it cannot
+   disagree with the model. Amendment 5 governs the API it calls, and continues to apply unchanged.
+2. **The page may not state a confidence the model does not have.** The fitted zones have no
+   high-confidence-resistant side, so that label is unreachable and the page must render a high probability
+   as `Uncertain` rather than styling it as a confident call. It names no antibiotic for a patient and uses
+   no diagnostic language, which is section 1 and rules 12–13 applied to a user interface.
+3. **The page is same-origin and stateless.** No third-party script, style, font or endpoint, so a spectrum
+   cannot reach anywhere but this service; nothing is persisted in the browser or on the server; and no
+   identifier is displayed, logged or transmitted.
+4. **A consolidated summary may not be stronger than its record.** The Version 1.0 README adds Architecture,
+   Training, Results, Limitations and Ethics sections across versions. A summary is where a project starts
+   sounding better than its evidence, so: no claim may exceed its per-version source; each headline number
+   cites the section it came from and is copied from a committed artifact rather than retyped; and the null
+   and mixed outcomes appear in Results, not only in Limitations. Specifically, that no generalisation gap
+   was demonstrated, that local recalibration was not demonstrated to help, that the A + C refit's verdict is
+   *mixed* rather than success, and that no arm reached the 0.95 zone target.
+5. **The per-version sections are not rewritten.** They record what was pre-registered and what was found,
+   and they stay as they are. The new sections are added in front of them and link down.
+6. **Deployment is documented, not performed.** The service has no authentication by design. Version 1.0
+   describes running it locally and states what would have to be true before exposure could be considered; it
+   ships no container, orchestration or hosting configuration, and does not present a deployment as available.
+
+### Amendment 7 — 2026-09-28: the result page's interface obligations
+
+Added before any Version 1.0 page code existed, because implementation found three things the Version 1.0
+plan left unstated. It changes no model, no threshold, no split, no metric and no recorded result, and it
+narrows rather than widens what the page may do.
+
+1. **The page must be usable without sight, without a mouse, and without colour vision.** It is this
+   project's only user interface, and a prediction a reader cannot perceive is worse than no prediction.
+   Concretely: the file input carries a programmatic label; the submit action is reachable and operable from
+   the keyboard; the status and result region is an `aria-live` region so a screen reader is told when an
+   answer or an error arrives; the document uses semantic landmarks and headings rather than anonymous
+   containers; **the confidence label is conveyed as text, never by colour alone**; and focus moves to the
+   status region after a render so a keyboard user is not left at the top of the page. Error text says what
+   to do next in plain language, consistent with rule 15.
+
+2. **Only module constants may be substituted into the served page, never anything from a request.** The
+   page is a static file, and the canonical strings — the disclaimer, the uncertain-call advice, the
+   reachable confidence labels — are substituted into it when it is served, so that the page cannot drift
+   from `src.predict.DISCLAIMER` and `src.uncertainty.ADVICE` the way a pasted copy would. This is a fixed
+   allow-list of project constants and a string replacement, not a template engine, so it adds no
+   dependency. **No value derived from a request is ever substituted**: doing so would make the page an
+   injection vector, which is the one way a static page could become unsafe.
+
+3. **Verification item 6 is scoped to the result region.** Item 6 of the Version 1.0 plan forbids hard-coded
+   result strings in the page, while item 7 requires the page to *explain* that a high-confidence-resistant
+   answer is unreachable — which cannot be done without naming that label. The two are reconciled as the
+   plan's own wording already implies ("as an achievable outcome"): the **result region is empty in the
+   served markup** and is filled only from an API response, while explanatory copy about what the model can
+   and cannot answer lives in a separate, clearly marked region. A label appearing in an explanation is not
+   a hard-coded result; a label appearing in the result region would be.
+
+4. **The page's JavaScript is not executed by the test suite, and that boundary is recorded rather than
+   implied.** Continuous integration installs Python only. So the page is written so that the unsafe code
+   *cannot exist* — its script contains no confidence-label literal and no comparison against the returned
+   probability or threshold, leaving no branch that could infer a confidence the model did not return — and
+   the tests assert that structure on the served HTML. A behavioural test under a JavaScript runtime would
+   need its own amendment, because it would add a test-time dependency the Version 1.0 plan forbids.

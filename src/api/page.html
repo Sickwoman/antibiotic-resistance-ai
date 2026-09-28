@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antibiotic resistance research prediction</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5; margin: 0 auto; max-width: 46rem; padding: 1rem 1rem 4rem;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; }
+  .note {
+    border: 2px solid currentColor; border-radius: 0.4rem; padding: 0.75rem 1rem; margin: 1rem 0;
+    font-weight: 600;
+  }
+  form { border: 1px solid currentColor; border-radius: 0.4rem; padding: 1rem; margin: 1.5rem 0; }
+  label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+  input[type="file"] { display: block; margin-bottom: 0.75rem; max-width: 100%; }
+  .row { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.15rem 0; }
+  .row dt { font-weight: 600; min-width: 14rem; }
+  dl { margin: 0.5rem 0; }
+  dt, dd { margin: 0; }
+  button { font: inherit; padding: 0.45rem 1rem; border-radius: 0.3rem; cursor: pointer; }
+  #status:empty { display: none; }
+  #status { border: 1px solid currentColor; border-radius: 0.4rem; padding: 0.6rem 0.9rem; margin: 1rem 0; }
+  #result:empty { display: none; }
+  #result { border: 1px solid currentColor; border-radius: 0.4rem; padding: 0.6rem 0.9rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+  th, td { border-bottom: 1px solid currentColor; padding: 0.3rem 0.4rem; text-align: left; }
+  footer { margin-top: 3rem; font-size: 0.9rem; }
+  .quiet { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Antibiotic resistance research prediction</h1>
+  <p class="quiet">MALDI-TOF spectrum &rarr; resistance probability for one species&ndash;antibiotic pair.</p>
+  <p class="note" role="note">{{DISCLAIMER}}</p>
+</header>
+
+<main>
+  <h2>Predict from a spectrum</h2>
+  <form id="form">
+    <label for="spectrum">Raw MALDI-TOF spectrum file (.txt)</label>
+    <input type="file" id="spectrum" name="file" accept=".txt" required
+           aria-describedby="spectrum-help">
+    <p id="spectrum-help" class="quiet">
+      A DRIAMS-style raw text spectrum: comment lines beginning <code>#</code>, then
+      <code>m/z intensity</code> rows. The file is sent to this service only, and is not stored.
+    </p>
+    <p>
+      <input type="checkbox" id="explain" name="explain">
+      <label for="explain" style="display:inline; font-weight:400;">
+        Also show which m/z regions moved this prediction
+      </label>
+    </p>
+    <button type="submit" id="submit">Predict</button>
+  </form>
+
+  <!-- Announced to assistive technology when a prediction or an error arrives. -->
+  <div id="status" role="status" aria-live="polite" tabindex="-1"></div>
+
+  <!-- Empty on purpose. Filled only from an API response; never pre-populated with a result. -->
+  <section id="result" aria-labelledby="result-heading"></section>
+  <h2 id="result-heading" hidden>Result</h2>
+
+  <h2>What this model can and cannot answer</h2>
+  <div id="about" class="quiet">
+    <p>Loading the model description&hellip;</p>
+  </div>
+</main>
+
+<footer>
+  <p class="quiet">
+    When the model declines to call an isolate it reports: &ldquo;{{ADVICE}}&rdquo;
+  </p>
+</footer>
+
+<script>
+/* Rendering is assignment only. No value below is computed, compared or inferred: each field of the
+   response is written to one element exactly as the API returned it. */
+(function () {
+  "use strict";
+
+  var form = document.getElementById("form");
+  var fileInput = document.getElementById("spectrum");
+  var explainInput = document.getElementById("explain");
+  var submit = document.getElementById("submit");
+  var statusBox = document.getElementById("status");
+  var resultBox = document.getElementById("result");
+  var resultHeading = document.getElementById("result-heading");
+  var aboutBox = document.getElementById("about");
+
+  function clear(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
+
+  function say(message) {
+    clear(statusBox);
+    statusBox.appendChild(document.createTextNode(message));
+  }
+
+  function definition(parent, term, value) {
+    if (value === null || value === undefined) { return; }
+    var row = document.createElement("div");
+    row.className = "row";
+    var dt = document.createElement("dt");
+    dt.appendChild(document.createTextNode(term));
+    var dd = document.createElement("dd");
+    dd.appendChild(document.createTextNode(String(value)));
+    row.appendChild(dt);
+    row.appendChild(dd);
+    parent.appendChild(row);
+  }
+
+  function regionTable(regions) {
+    var table = document.createElement("table");
+    var head = table.createTHead().insertRow();
+    ["Rank", "m/z from", "m/z to", "Contribution", "Towards"].forEach(function (text) {
+      var th = document.createElement("th");
+      th.appendChild(document.createTextNode(text));
+      head.appendChild(th);
+    });
+    var body = table.createTBody();
+    regions.forEach(function (region) {
+      var tr = body.insertRow();
+      [region.rank, region.mz_start, region.mz_end, region.contribution, region.towards]
+        .forEach(function (value) {
+          tr.insertCell().appendChild(document.createTextNode(String(value)));
+        });
+    });
+    return table;
+  }
+
+  /* Every line here is a straight copy from the response. */
+  function renderResult(data) {
+    clear(resultBox);
+    resultHeading.hidden = false;
+    var list = document.createElement("dl");
+    definition(list, "Species", data.species);
+    definition(list, "Antibiotic", data.antibiotic);
+    definition(list, "Model prediction", data.prediction);
+    definition(list, "Model's resistance probability", data.resistance_probability);
+    definition(list, "Decision cut-off used", data.threshold);
+    definition(list, "Confidence label", data.confidence);
+    definition(list, "What to do next", data.advice);
+    definition(list, "Model version", data.model_version);
+    definition(list, "Preprocessing time (ms)", data.preprocessing_ms);
+    definition(list, "Inference time (ms)", data.inference_ms);
+    definition(list, "Total time (ms)", data.total_ms);
+    resultBox.appendChild(list);
+
+    if (data.explanation) {
+      var caption = document.createElement("p");
+      caption.appendChild(document.createTextNode(
+        "m/z regions that moved this prediction, named by interval only:"));
+      resultBox.appendChild(caption);
+      resultBox.appendChild(regionTable(data.explanation));
+    }
+
+    var small = document.createElement("p");
+    small.className = "quiet";
+    small.appendChild(document.createTextNode(data.disclaimer));
+    resultBox.appendChild(small);
+  }
+
+  /* The model description, including which confidence labels this fitted model can return. The page makes
+     no claim of its own about the zones: it prints what /model-info says. */
+  function renderAbout(info) {
+    clear(aboutBox);
+    var list = document.createElement("dl");
+    definition(list, "Species", info.target.species);
+    definition(list, "Antibiotic", info.target.antibiotic);
+    definition(list, "Algorithm", info.algorithm.name);
+    definition(list, "Decision cut-off", info.threshold);
+    definition(list, "Application version", info.api_version);
+    definition(list, "Model version", info.model_version);
+    definition(list, "Confidence labels this model can return",
+      info.confidence_zones.possible_labels.join("; "));
+    aboutBox.appendChild(list);
+    var note = document.createElement("p");
+    note.appendChild(document.createTextNode(info.confidence_zones.note));
+    aboutBox.appendChild(note);
+    var use = document.createElement("p");
+    use.appendChild(document.createTextNode(info.intended_use));
+    aboutBox.appendChild(use);
+  }
+
+  function describeFailure(response, body) {
+    if (body && body.error && body.error.message) { return body.error.message; }
+    return "The request could not be completed (status " + response.status + ").";
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (!fileInput.files || fileInput.files.length !== 1) {
+      say("Choose one spectrum file first.");
+      statusBox.focus();
+      return;
+    }
+    /* A failed request must never leave an earlier result on screen looking like this upload's answer. */
+    clear(resultBox);
+    resultHeading.hidden = true;
+    say("Predicting…");
+    submit.disabled = true;
+
+    var payload = new FormData();
+    payload.append("file", fileInput.files[0]);
+    var url = explainInput.checked ? "/predict?explain=true" : "/predict";
+
+    fetch(url, { method: "POST", body: payload })
+      .then(function (response) {
+        return response.json().catch(function () { return null; }).then(function (body) {
+          return { response: response, body: body };
+        });
+      })
+      .then(function (outcome) {
+        if (!outcome.response.ok) {
+          say(describeFailure(outcome.response, outcome.body));
+          statusBox.focus();
+          return;
+        }
+        say("Prediction complete.");
+        renderResult(outcome.body);
+        statusBox.focus();
+      })
+      .catch(function () {
+        say("The service could not be reached. It runs locally; check that it is still running.");
+        statusBox.focus();
+      })
+      .then(function () { submit.disabled = false; });
+  });
+
+  fetch("/model-info")
+    .then(function (response) { return response.ok ? response.json() : null; })
+    .then(function (info) {
+      if (info) { renderAbout(info); return; }
+      clear(aboutBox);
+      aboutBox.appendChild(document.createTextNode(
+        "The model description is unavailable, so the service is not ready to predict."));
+    })
+    .catch(function () {
+      clear(aboutBox);
+      aboutBox.appendChild(document.createTextNode("The model description could not be loaded."));
+    });
+}());
+</script>
+
+</body>
+</html>

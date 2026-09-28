@@ -911,7 +911,7 @@ def test_the_api_version_is_its_own_constant(tmp_path):
     That field was stale at "0.7.0" for the whole of Version 0.8, so sourcing a public contract version
     from it would let an unrelated edit change the API's identity.
     """
-    assert API_VERSION == "0.9.2"          # moves when the contract moves, not when config does
+    assert API_VERSION == "1.0.0"          # moves when the contract moves, not when config does
     config = copy.deepcopy(load_config())
     config["project"]["version"] = "99.99.99-nonsense"
     model_path = save_bundle(make_bundle(), tmp_path / "models" / "m.joblib")
@@ -1051,9 +1051,14 @@ def test_no_route_serves_a_success_while_the_service_is_degraded(tmp_path, spect
             methods = getattr(route, "methods", set()) or set()
             if not path or path.startswith("/openapi") or path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
                 continue
-            if path == "/health":
-                # Liveness is exempt by design: it reports the process, not the artifacts.
-                assert client.get(path).status_code == 200
+            if path in ("/health", "/"):
+                # Two deliberate exemptions, asserted rather than skipped. Liveness reports the process,
+                # not the artifacts. The result page is served whatever the readiness state, because a
+                # reader arriving at an unready service should be told so by the page rather than meeting
+                # a bare 503 - the page itself reports that it cannot predict.
+                exempt = client.get(path)
+                assert exempt.status_code == 200, f"{path} should still answer 200 while degraded"
+                assert not PATH_LIKE.search(exempt.text), f"{path} leaked a path when degraded"
                 continue
             for method in sorted(methods & {"GET", "POST"}):
                 if method == "GET":

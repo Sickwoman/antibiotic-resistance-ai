@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 0.9 – the backend API (patch release 0.9.2).** Versions 0.1 (download +
+**Status: Version 1.0 – complete.** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
 time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
@@ -44,6 +44,280 @@ species. This project trains a model on historical examples where both the spect
 result are known, and then estimates the probability of resistance for a new spectrum within seconds.
 The main research question is whether such a model **keeps working across hospitals and time periods**,
 and whether adaptation or retraining helps when it does not.
+
+## Architecture
+
+Three layers, deliberately separated so that only one of them can change what a prediction means.
+
+```
+                        a raw MALDI-TOF spectrum (.txt, ~430 KB, ~20,700 points)
+                                              │
+  presentation ────────────────────────────────┼───────────────────────────────────────────────
+   GET /            result page (src/api/page.html) — reads every value from a response,
+                    computes nothing, stores nothing, calls no third party
+                                              │  multipart upload
+  serving ─────────────────────────────────────┼───────────────────────────────────────────────
+   POST /predict    src/api/app.py             │  route, handlers, body-size guard
+                    src/api/inference_service.py  suffix gate → streamed write to a generated
+                                              │     temporary name → bounded bytes and points
+                    src/api/errors.py          │  one table: exception → status + public code
+                    src/api/metadata.py        │  the /model-info allow-list
+                                              │
+  scientific inference ────────────────────────┼───────────────────────────────────────────────
+                    src/preprocessing.py       │  sqrt → Savitzky-Golay → SNIP baseline → TIC
+                                              │     → 6,000 bins of 3 Da over m/z 2000–20000
+                    src/predict.py             │  the frozen Version 0.4 bundle, verified against
+                                              │     its .sha256 sidecar before it is loaded
+                    bundle threshold           │  0.1426, fitted on validation, never at request time
+                    src/uncertainty.py         │  the Version 0.6 zones → three-way label
+                    src/explain.py             │  optional exact TreeSHAP → m/z regions
+                                              ▼
+                                    a JSON prediction, then the page
+```
+
+**What each layer may do.** The inference layer is frozen: the model, its preprocessing, its cut-off and its
+confidence zones are all artifacts produced by earlier versions and are never refitted at serving time. The
+serving layer adds transport, validation and an explicit response contract, and is forbidden from fitting,
+scoring a dataset part or appending to any log ([protocol amendment 5](docs/evaluation_protocol.md#amendments)).
+The presentation layer adds nothing at all: it reads fields from a response and assigns them to elements, so
+it cannot disagree with the model ([amendment 7](docs/evaluation_protocol.md#amendments)).
+
+**Why the boundary is drawn there.** A prediction has exactly one definition in this project, in
+`src/predict.py::predict_spectrum_file`. The command line and the HTTP API both call it and both format
+their output with `prediction_payload`, and a test compares the two field by field on real spectra from all
+four hospitals. The page then displays that response. So there is one place where a resistance probability
+can be decided, and two thin layers that carry it outward.
+
+Preprocessing is the expensive step and the one that must match training exactly — about 33 ms of a 39 ms
+request, against 1.4 ms for the model itself
+([`api_timing.json`](results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json)). An example spectrum before
+and after is in [Version 0.2](#version-02--from-raw-spectrum-to-model-ready-data).
+
+![Preprocessing an example spectrum](results/plots/v0.2/ecoli_ciprofloxacin_example_preprocessing.png)
+
+## Training
+
+**The data.** DRIAMS, a public, de-identified MALDI-TOF database from four Swiss hospitals. The project
+model is trained on *Escherichia coli* / ciprofloxacin from DRIAMS-A only — 2,977 training spectra, with 426
+held for validation and 856 for a single test scoring
+([`best_model_card.json`](results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json)). DRIAMS-B, C and D
+were never used for training; each was opened once, for the experiments described under Results.
+
+**Splits are by patient, not by spectrum.** Two spectra from one patient are more alike than two spectra from
+two patients, so splitting by spectrum would let the same patient appear on both sides and inflate every
+number. Every split groups whole patients, and a leakage check refuses any split where a group appears in
+more than one part ([Version 0.2](#version-02--from-raw-spectrum-to-model-ready-data)).
+
+**Preprocessing is fixed before any model sees the data** and is identical for training and serving: square
+root intensities, Savitzky–Golay smoothing, SNIP baseline removal, total-ion-current normalisation, then
+binning into 6,000 bins of 3 Da across m/z 2000–20000. The settings are hashed into a feature fingerprint
+(`347cbd6d5d956ff9`) that every saved model carries, and a prediction is refused if the two disagree — which
+is what stops a model ever being fed features it was not trained on.
+
+**The search, and what it chose.** Version 0.4 tuned four families under patient-grouped cross-validation and
+selected on validation AUROC: logistic regression 0.747, random forest 0.745, **LightGBM 0.776**, RBF SVM
+0.692 ([`best_model_card.json`](results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json)). Version 0.5
+then asked whether a neural network would do better; it did not — the best MLP reached 0.712 against the
+LightGBM's 0.751 on test, so **the classical model remained the project's model**
+([Version 0.5](#version-05--neural-networks-mlp-and-1-d-cnn)).
+
+**Calibration and the cut-off.** The winner is probability-calibrated with a sigmoid fitted on out-of-fold
+predictions of five patient-grouped folds, which is why its probabilities can be used at all: calibration
+improved the validation Brier score from 0.153 uncalibrated to 0.139 calibrated. The decision threshold
+**0.14261540693905073** is not 0.5 and was not chosen by hand — it is the smallest cut-off reaching
+sensitivity ≥ 0.90 on the validation part (`threshold_rule: {rule: min_sensitivity, min_sensitivity: 0.9}`),
+because a missed resistant isolate is the more costly error. It has never been re-fitted since.
+
+![What the Version 0.4 search explored](results/plots/v0.4/ecoli_ciprofloxacin_search_overview.png)
+
+## Results
+
+The project's model is `v0.4.0-tuned_lightgbm-random-seed42`. Everything below is copied from a committed
+artifact; each block names the artifact and the version section that produced it.
+
+**Internal test — scored once, on held-out patients from DRIAMS-A**
+([`test_evaluations.csv`](results/experiments/test_evaluations.csv), intervals from
+[`test_intervals.json`](results/metrics/v0.4/ecoli_ciprofloxacin/test_intervals.json); see
+[Version 0.4](#version-04--tuning-class-weights-feature-reduction-and-calibration)):
+
+| | value | 95 % interval |
+|---|---|---|
+| n / resistant | 856 / 197 | |
+| AUROC | **0.751** | [0.696, 0.807] |
+| PR-AUC | 0.556 | [0.445, 0.659] |
+| Brier | 0.144 | [0.120, 0.170] |
+| sensitivity at the cut-off | 0.827 | [0.760, 0.896] |
+| specificity | 0.458 | [0.411, 0.505] |
+
+Intervals are 2,000 bootstrap resamples of **patient groups**, not spectra. Sensitivity is 0.827 on test
+against the 0.90 the cut-off was fitted for on validation — the cut-off was chosen on a different 426 rows,
+and that is the expected cost of not re-fitting it.
+
+**This is a modest model, and the interval says so.** An AUROC interval of [0.696, 0.807] on one species, one
+antibiotic and one hospital is a research result, not a diagnostic.
+
+**Generalisation to other hospitals and to a later year — no gap was demonstrated, which is not the same as
+no gap** ([`generalisation_gaps.csv`](results/metrics/v0.7/ecoli_ciprofloxacin/generalisation_gaps.csv); see
+[Version 0.7](#version-07--generalisation-across-hospitals-and-time)):
+
+| Comparison | AUROC gap | 95 % interval | Demonstrated? |
+|---|---|---|---|
+| internal vs later year (DRIAMS-A 2018) | +0.022 | [−0.054, +0.094] | no |
+| internal vs DRIAMS-B | −0.064 | [−0.152, +0.030] | no |
+| internal vs DRIAMS-D | +0.023 | [−0.043, +0.085] | no |
+
+The saved model, unchanged, scored AUROC 0.809 at DRIAMS-B (n = 213) and 0.704 at DRIAMS-D (n = 1,938)
+([`test_evaluations.csv`](results/experiments/test_evaluations.csv)). **Every interval includes zero, so no
+generalisation gap was demonstrated at any site. That is not evidence that the model generalises, and not
+evidence that no site effect exists.** The intervals are 0.13–0.18 wide: a 0.05 AUROC drop at another
+hospital would matter clinically and sits comfortably inside all three. The experiment was not powered to
+settle the question it asked. DRIAMS-B's higher score is not evidence it works better there — B is the
+smallest site, 59 resistant isolates, and has the widest interval of all.
+
+**Training on two sites did not demonstrably help the third.** Adding DRIAMS-B to the training data changed
+AUROC at DRIAMS-D by **−0.016 [−0.034, +0.001]** on the same 1,938 rows
+([`two_sites_versus_one.json`](results/metrics/v0.7/ecoli_ciprofloxacin/two_sites_versus_one.json)). The
+interval includes zero, so harm is not demonstrated either. Nothing here supports the intuition that a second
+site helps — B contributed 188 rows, about 4.7 % of the combined training part.
+
+**Adapting to a new hospital — the primary result was null and the secondary is mixed.** Version 0.8 spent
+DRIAMS-C's protected 30 % once, 267 spectra with 71 resistant
+([`primary_result.json`](results/metrics/v0.8/ecoli_ciprofloxacin__site-C/primary_result.json),
+[`evaluation_metrics.csv`](results/metrics/v0.8/ecoli_ciprofloxacin__site-C/evaluation_metrics.csv); see
+[Version 0.8](#version-08--adapting-to-a-new-hospital)). The endpoint is the Brier score, chosen in advance
+because AUROC is mathematically unable to respond to recalibration.
+
+| Arm | Brier | AUROC | paired Δ vs baseline | 95 % interval | p | Holm | Verdict |
+|---|---|---|---|---|---|---|---|
+| B1 saved model (baseline) | 0.1458 | 0.765 | — | | | | |
+| **A1 recalibration only** | 0.1493 | 0.765 | **−0.0035** | [−0.0161, +0.0085] | 0.576 | not rejected | **NOT DEMONSTRATED** |
+| **A2 refit on A + C** | 0.1271 | 0.820 | **+0.0187** | [+0.0086, +0.0290] | 0.001 | rejected | **MIXED** |
+
+**Recalibration-only was not demonstrated to help.** The interval includes zero and the point estimate is
+slightly unfavourable. This is **not** a claim of equivalence: with 71 resistant isolates the interval spans
+about ±0.012 on a Brier of ~0.15, so effects that would matter clinically sit inside it.
+
+**The A + C refit is MIXED, not a success.** Its Brier improvement of 0.0187 excludes zero and survives Holm
+correction at the 0.025 level, and it lifted AUROC from 0.765 to 0.820. But the co-primary requirement is a
+*pair* — NPV ≥ 0.95 **and** coverage within 0.05 of baseline — and its locally refitted confidence zone
+reached NPV 0.904, below target, on the very site it was then measured at. Under the pre-registered rule that
+is `mixed`: better average probabilities bought with a confidence zone that can no longer be trusted at the
+stated level. A1's sensitivity also fell from 0.887 to 0.507, because the threshold was held frozen while
+recalibration moved the probability scale — a consequence of the locked protocol, not a tuning choice.
+
+**The confidence zone, and the answer this model cannot give.** Version 0.6 fitted a three-way output on
+validation: below the lower edge is *high-confidence susceptible*, above it is *uncertain*
+([`uncertainty.json`](results/metrics/v0.6/ecoli_ciprofloxacin/uncertainty.json); see
+[Version 0.6](#version-06--evaluation-and-explainability)). The susceptible side reached NPV 0.955 at 25.8 %
+coverage on validation, and 0.948 [0.910, 0.981] at 24.9 % coverage on the stored test predictions
+([`zone_intervals.json`](results/metrics/v0.6/ecoli_ciprofloxacin/zone_intervals.json)).
+
+**The high-confidence-resistant side does not exist.** Its best achievable precision at the minimum coverage
+was 0.84, below the pre-registered 0.95 target, so `upper` is `null`. The practical consequence is visible in
+the API and on the result page: a spectrum the model scores at 0.9453 is reported **`Uncertain`**, not
+high-confidence resistant. The model can tell you, with measured reliability, when an isolate is probably
+susceptible; it cannot tell you with confidence when one is resistant.
+
+**And no arm reached the zone target at the new hospital.** At DRIAMS-C, NPV was 0.935 (B1), 0.929 (B2), 0.926
+(A1) and 0.904 (A2) ([`zone_results.csv`](results/metrics/v0.8/ecoli_ciprofloxacin__site-C/zone_results.csv)).
+**No arm reached 0.95 on its point estimate — including both baselines.** The zone that held at DRIAMS-B and
+DRIAMS-D did not hold at DRIAMS-C, and that is a result about the zone, not about adaptation.
+
+**Serving performance**, measured over 200 validation spectra against a real server, durations only
+([`api_timing.json`](results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json); see
+[Version 0.9](#version-09--the-backend-api)): warm request 39.1 ms median, of which 33.2 ms is preprocessing
+and 1.4 ms is the model; cold first request 86.3 ms; an explanation adds 38.3 ms. A 20-file batch is 48.8 ms
+per spectrum — batching saves round trips, not time.
+
+![Version 0.4 ROC and precision–recall](results/plots/v0.4/ecoli_ciprofloxacin_random_roc_pr.png)
+![The confidence zones](results/plots/v0.6/ecoli_ciprofloxacin_random_uncertainty_zones.png)
+![Generalisation across sites](results/plots/v0.7/ecoli_ciprofloxacin_generalisation_auroc.png)
+![Paired change in Brier at DRIAMS-C](results/plots/v0.8/ecoli_ciprofloxacin__site-C_adaptation_brier.png)
+
+## Limitations
+
+Consolidated from the seven per-version limitation lists; nothing from them is dropped. The unfavourable
+scientific findings are in **Results** above, where they belong, not hidden here.
+
+**The evidence is thin in the places that matter most.**
+
+1. **Resistant isolates are few.** 197 in the internal test, 59 at DRIAMS-B, 71 in DRIAMS-C's protected part.
+   Every interval that matters is wide because of this, and DRIAMS-B's results are indicative only.
+2. **One species, one antibiotic, one development hospital.** Nothing here generalises to another pair or
+   another site by argument; it would have to be measured.
+3. **The cut-off rests on 97 resistant validation isolates**, so its sensitivity is itself uncertain and is
+   below target on test (0.827 against 0.90).
+4. **DRIAMS-C carries no patient identifier**, so every spectrum is treated as its own group. Its intervals
+   are sample-level and **may be too narrow** if several spectra come from one unobserved patient. No
+   correction is applied, because the approved protocol specifies none and inventing one after seeing the
+   cohort would be a methodology change.
+5. **DRIAMS-A re-hashes patient identifiers every year**, so the later-year evaluation is date-separated with
+   incomplete patient linkage — never a patient-level generalisation result. Its zone evaluation is further
+   confounded: the saved model shares 848 of those 1,233 rows, so a refitted model had to be used.
+6. **External intervals are sample-level with unknown within-patient dependence** and are expected to be too
+   narrow; the real uncertainty is larger than printed.
+
+**The zone and the explanations promise less than they appear to.**
+
+7. **No high-confidence-resistant answer is possible** — a property of the Version 0.6 fit, not of the API.
+8. **The zones were fitted on 426 validation rows with 97 resistant**, so both edges are noisy, and the
+   test-side numbers are a check on stored predictions rather than an independent fit.
+9. **Explanations describe this model on this data, not resistance biology.** No m/z region is given a
+   protein or peptide identity — there is no MS/MS confirmation and no independent panel — and contributions
+   are additive on the model's margin, not on the probability.
+
+**Engineering limits.**
+
+10. **No authentication, rate limiting or TLS.** The service binds `127.0.0.1` and must not be exposed to a
+    network. Single process; concurrency is unmeasured.
+11. **`.txt` spectra only**, up to 4 MB and 200,000 points.
+12. **The bundle's digest is verified but a missing sidecar is accepted** — the check is an extra, not a gate,
+    and a checksum is not a signature: it catches corruption and substitution, not someone who can write both
+    files.
+13. **Timings are from one laptop.** The Version 0.4 size-matched search time recorded as 40,235 s is
+    misleading — the machine slept for about eleven hours; the real cost was roughly 14 minutes.
+14. **One search, one selection, one seed reported.** Version 0.5's early-stopping split was not
+    patient-grouped (it cannot leak into validation or test), and its patient-overlap check was not repeated
+    because no network became the saved model.
+15. **Retrospective data throughout.** No prospective evaluation, and a negative result here does not prove a
+    negative in general — Version 0.5's networks were given a small search, so "networks did not win" means
+    "not with this budget on this data".
+
+## Ethics and intended use
+
+**Intended use.** Methodological research into whether MALDI-TOF spectra carry usable resistance signal, and
+software evaluation of the surrounding engineering. That is the whole of it.
+
+**Not intended, and not supported by anything in this repository:** clinical diagnosis; choosing, ranking or
+withholding an antibiotic; treatment selection; patient management; triage; or replacing laboratory
+antimicrobial susceptibility testing. **No endpoint, page or document here names an antibiotic for a
+patient.** There is no regulatory approval, no clinical validation, and no claim of either.
+
+**Why the disclaimer is on every prediction, not in a footnote.** The model returns a number between 0 and 1
+that is easy to read as a clinical probability. It is not one: it is this model's estimate, on this species
+and antibiotic, from one hospital's spectra, with an AUROC interval of [0.696, 0.807]. Every response and the
+result page carry the same sentence, from one constant in the source, so it cannot be softened in one place
+and not another.
+
+**Data and privacy.** DRIAMS is public and de-identified, and this project keeps it that way. Patient, case
+and order numbers never leave the dataset builder — they survive only as an opaque group identifier used to
+prevent leakage — and a test scans every committed file for identifier-shaped values on every run. Raw
+spectra stay out of the repository. The serving path never logs or echoes an uploaded filename, because raw
+DRIAMS files are named after their spectrum UUID; uploads are written under a generated name and deleted
+after the request. The result page sends a spectrum to this service and nowhere else: it loads no third-party
+script, font or analytics, and stores nothing in the browser.
+
+**What would have to be true before clinical use could even be discussed.** Prospective evaluation at more
+than one site; far more resistant isolates than 197; a confidence zone that reaches its target on both sides
+and holds at a hospital it was not fitted at — which it currently does not; patient-level linkage so
+intervals can be trusted; external validation by people who did not build it; and a regulatory pathway. None
+of these exists here, and the gap is the point of saying so.
+
+**Honest reporting as a rule, not a preference.** Every version was pre-registered before its code was
+written, and the null and mixed results above are reported as prominently as the positive ones because the
+protocol requires it ([amendment 6](docs/evaluation_protocol.md#amendments)). The two findings a reader is
+most likely to want simplified — that no generalisation gap was *demonstrated*, and that the A + C refit was
+*mixed* rather than successful — are the two most important not to simplify.
 
 ## Dataset: DRIAMS (verified 2026-09-16)
 
@@ -154,6 +428,73 @@ The extra index is needed because the lock pins `torch==2.14.0+cpu`, which lives
 rather than on PyPI. Library versions are also part of every cache key and are written into each run's
 `run_config.json`, so a dependency change can never silently reuse a result computed with other versions:
 the cache misses and the work is redone.
+
+## Deployment
+
+**This is a local research deployment, and that is the only deployment this project has.** Everything below
+was run against the real model before being written down; nothing here is aspirational.
+
+### Running it
+
+From the project root, with the virtual environment active (see [Setup](#setup-windows-powershell)):
+
+```powershell
+python scripts/serve_api.py                      # binds 127.0.0.1:8000
+python scripts/serve_api.py --port 8077          # a different port
+```
+
+Then, in a browser or another shell:
+
+```powershell
+# the result page
+start http://127.0.0.1:8000/
+
+# liveness and readiness
+curl.exe http://127.0.0.1:8000/health            # {"status":"ok"}
+curl.exe http://127.0.0.1:8000/ready             # model_loaded, zones_loaded, digest_verified
+
+# a prediction
+curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
+curl.exe http://127.0.0.1:8000/model-info
+```
+
+Verified on 2026-09-28 against the project model: `GET /` returned 200 `text/html` (10,203 bytes),
+`/health` `{"status":"ok"}`, `/ready` ready with `digest_verified: true`, and a real DRIAMS-A spectrum through
+`/predict` returned probability 0.9453, prediction `Resistant`, confidence **`Uncertain`** — which is the
+correct answer for this model and is worth seeing once, because it is the behaviour a reader is most likely
+to assume is a bug.
+
+`scripts/benchmark_api.py` measures request latency against a real server and writes
+`results/metrics/v0.9/<dataset>/api_timing.json`. It records durations only.
+
+### What is deliberately not here
+
+| Not implemented | Consequence |
+|---|---|
+| Authentication | anyone who can reach the port can use the service |
+| Rate limiting | a single client can occupy it indefinitely |
+| TLS | traffic is plaintext; the spectrum is not encrypted in transit |
+| Multi-worker / multi-process serving | one process, one request at a time under load |
+| Container, orchestration, cloud, autoscaling | no image, no manifest, no hosting configuration exists |
+| Persistence, database, accounts, prediction history | nothing is stored; each request is independent |
+| Reverse proxy, HTTPS termination, health-check wiring | not configured |
+
+**So the service binds `127.0.0.1` and must not be exposed to a network.** That is not a default left
+unchanged — it is the only safe configuration for what is actually built. There is no production readiness
+claim here, because there is no production deployment.
+
+### What would have to exist first
+
+Before exposing this beyond a local machine, all of the following would be needed, and none is in scope for
+Version 1.0: authentication and authorisation; rate limiting and request-size enforcement at the edge as well
+as in the application; TLS termination; a supervised multi-worker setup with measured concurrency and memory
+behaviour; structured request logging that still never records a spectrum or an identifier; and a decision
+about data handling that this research prototype has never needed, because it stores nothing.
+
+Beyond the engineering, the scientific preconditions in [Ethics and intended use](#ethics-and-intended-use)
+matter more: a service that is hardened but wrong is worse than one that is neither, and the model's own
+limits — no high-confidence-resistant answer, a confidence zone that did not hold at a third hospital, an
+AUROC interval of [0.696, 0.807] — do not change by deploying it.
 
 ## Version 0.1 usage
 
@@ -1842,8 +2183,8 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-603 tests pass (483 from earlier versions, none modified, plus the API and uncertainty tests added
-across 0.9 and its patch releases). The API tests fit a small
+630 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
+added across 0.9, its patch releases and 1.0). The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
 DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
 review added coverage for every spectrum rule through HTTP (duplicate, unsorted and non-positive m/z,
@@ -1853,7 +2194,7 @@ malformed zones, and that `models/` and `results/` are untouched by serving. `mo
 `results/experiments/` are byte-unchanged and the append-only log is still 89 rows at
 `c395fcb3…76e0c7`.
 
-## Project structure (Version 0.9.2)
+## Project structure (Version 1.0)
 
 ```
 antibiotic-resistance-ai/
@@ -1899,7 +2240,9 @@ antibiotic-resistance-ai/
 │   │   ├── inference_service.py  artifact loading, readiness, the prediction path
 │   │   ├── metadata.py         the /model-info allow-list
 │   │   ├── errors.py           exception types and the status/code table
-│   │   └── schemas.py          declared response models; what may never be served
+│   │   ├── schemas.py          declared response models; what may never be served
+│   │   ├── page.py             serves the result page; substitutes only project constants
+│   │   └── page.html           the Version 1.0 result page (static; reads every value from the API)
 │   ├── model_plots.py          figures shared by the model scripts
 │   └── tables.py               Markdown helpers for result tables
 ├── docs/evaluation_protocol.md how models are evaluated (approved before any training)

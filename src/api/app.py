@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from src.api.errors import ERROR_MAP, UploadTooLarge, error_response
 from src.api.inference_service import (
@@ -45,6 +45,7 @@ from src.api.inference_service import (
     predict_one,
 )
 from src.api.metadata import model_info
+from src.api.page import render_page
 from src.api.schemas import (
     CODE_INTERNAL_ERROR,
     BatchResponse,
@@ -63,11 +64,11 @@ log = get_logger("api")
 # whole of Version 0.8), so sourcing a public API version from it would let an unrelated edit change the
 # contract's identity. The model carries its own separate version and the three are never conflated.
 #
-# It moves when the contract moves, which is why it is 0.9.2 and not 0.9.0: 0.9.1 split /health into
-# liveness and /ready and added `code` to every error body, and 0.9.2 added `digest_verified` to /ready.
-# The rule the independence test protects is that this value is never *sourced* from configuration - not
-# that it must differ numerically from anything else.
-API_VERSION = "0.9.2"
+# It moves when the contract moves: 0.9.1 split /health into liveness and /ready and added `code` to every
+# error body, 0.9.2 added `digest_verified` to /ready, and 1.0.0 adds the result page at GET /. The rule the
+# independence test protects is that this value is never *sourced* from configuration - not that it must
+# differ numerically from anything else.
+API_VERSION = "1.0.0"
 
 
 def create_app(config: dict[str, Any], *, model_path: Path | None = None,
@@ -120,6 +121,16 @@ def create_app(config: dict[str, Any], *, model_path: Path | None = None,
         return await call_next(request)
 
     # ---------------------------------------------------------------------------- endpoints
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def index() -> HTMLResponse:
+        """The result page (Version 1.0). A client of this API, not a second serving path.
+
+        It holds no scientific logic: the browser reads every value from a /predict response. The page is
+        served whatever the readiness state, because a reader who arrives at an unready service should be
+        told so by the page rather than meeting a bare 503.
+        """
+        return HTMLResponse(content=render_page())
+
     @app.get("/health", response_model=LivenessResponse)
     async def health() -> JSONResponse:
         """Liveness only: this answers 200 for as long as the process is serving requests at all.
