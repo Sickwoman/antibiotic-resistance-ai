@@ -345,3 +345,41 @@ only; the append-only log gains no row.
 6. **Deployment is documented, not performed.** The service has no authentication by design. Version 1.0
    describes running it locally and states what would have to be true before exposure could be considered; it
    ships no container, orchestration or hosting configuration, and does not present a deployment as available.
+
+### Amendment 7 — 2026-09-28: the result page's interface obligations
+
+Added before any Version 1.0 page code existed, because implementation found three things the Version 1.0
+plan left unstated. It changes no model, no threshold, no split, no metric and no recorded result, and it
+narrows rather than widens what the page may do.
+
+1. **The page must be usable without sight, without a mouse, and without colour vision.** It is this
+   project's only user interface, and a prediction a reader cannot perceive is worse than no prediction.
+   Concretely: the file input carries a programmatic label; the submit action is reachable and operable from
+   the keyboard; the status and result region is an `aria-live` region so a screen reader is told when an
+   answer or an error arrives; the document uses semantic landmarks and headings rather than anonymous
+   containers; **the confidence label is conveyed as text, never by colour alone**; and focus moves to the
+   status region after a render so a keyboard user is not left at the top of the page. Error text says what
+   to do next in plain language, consistent with rule 15.
+
+2. **Only module constants may be substituted into the served page, never anything from a request.** The
+   page is a static file, and the canonical strings — the disclaimer, the uncertain-call advice, the
+   reachable confidence labels — are substituted into it when it is served, so that the page cannot drift
+   from `src.predict.DISCLAIMER` and `src.uncertainty.ADVICE` the way a pasted copy would. This is a fixed
+   allow-list of project constants and a string replacement, not a template engine, so it adds no
+   dependency. **No value derived from a request is ever substituted**: doing so would make the page an
+   injection vector, which is the one way a static page could become unsafe.
+
+3. **Verification item 6 is scoped to the result region.** Item 6 of the Version 1.0 plan forbids hard-coded
+   result strings in the page, while item 7 requires the page to *explain* that a high-confidence-resistant
+   answer is unreachable — which cannot be done without naming that label. The two are reconciled as the
+   plan's own wording already implies ("as an achievable outcome"): the **result region is empty in the
+   served markup** and is filled only from an API response, while explanatory copy about what the model can
+   and cannot answer lives in a separate, clearly marked region. A label appearing in an explanation is not
+   a hard-coded result; a label appearing in the result region would be.
+
+4. **The page's JavaScript is not executed by the test suite, and that boundary is recorded rather than
+   implied.** Continuous integration installs Python only. So the page is written so that the unsafe code
+   *cannot exist* — its script contains no confidence-label literal and no comparison against the returned
+   probability or threshold, leaving no branch that could infer a confidence the model did not return — and
+   the tests assert that structure on the served HTML. A behavioural test under a JavaScript runtime would
+   need its own amendment, because it would add a test-time dependency the Version 1.0 plan forbids.
