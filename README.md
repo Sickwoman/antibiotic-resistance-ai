@@ -1555,6 +1555,9 @@ scored on the `temporal` test part, where the intersection is **848 of 1,233 row
 
 Across the five seeds: `temporal` 0.733 (0.727–0.740), B 0.817 (0.810–0.824), D 0.717 (0.712–0.728),
 `external_ab` at D 0.715 (0.709–0.721). Every model beats the no-skill reference at every site.
+(The generated `tables.md` prints B and D as 0.816 and 0.715: it pooled the saved-model row in with the five
+seeds. The figures here are the correct ones — see the
+[erratum](results/metrics/v0.7/ecoli_ciprofloxacin/tables_ERRATUM.md) and #22.)
 
 **Uncertainty intervals — the generalisation gap.** These test sets share no rows, so the interval is the
 second-level unpaired bootstrap of protocol section 6, which is wider than a paired one and is meant to be:
@@ -2183,8 +2186,9 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-630 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
-added across 0.9, its patch releases and 1.0). The API tests fit a small
+644 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
+added across 0.9, its patch releases and 1.0, the pre-registration check and the #22 regression tests).
+The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
 DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
 review added coverage for every spectrum rule through HTTP (duplicate, unsorted and non-positive m/z,
