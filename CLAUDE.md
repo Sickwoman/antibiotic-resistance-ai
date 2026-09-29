@@ -182,10 +182,12 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   - The suite **does not execute the page's JavaScript** (CI installs Python only). The invariants are
     structural and asserted on the served HTML; `node --check` on the extracted script is a local-only extra.
   - `API_VERSION` is `1.0.0` because `GET /` is a contract change. It is still never sourced from config.
-  - A known defect found during V1.0 and deliberately **not** fixed there:
-    `results/metrics/v0.7/ecoli_ciprofloxacin/tables.md` reports the two `external` seed spreads over six
-    rows (five seeds plus the saved-model row) while printing `Seeds | 5`. The README's 5-seed figures are the
-    correct ones. Regenerating a V0.7 artifact was out of scope; fix it separately.
+  - **Issue #22, fixed**: `scripts/generalisation_tables.py` grouped the seed-variation table by split and
+    site only, so the saved-model row (same split, same site, seed 42 like the first refit seed) joined the
+    five refit seeds; `nunique()` still read 5 while the mean and range covered six rows. It now groups by
+    model too and refuses a group where a seed appears twice. The committed V0.7 `tables.md` is **preserved**
+    with the wrong B/D cells (0.816 / 0.715), and `tables_ERRATUM.md` beside it gives the correct ones (0.817 /
+    0.717). Never regenerate a committed version's outputs to fix a reporting bug - add an erratum.
 - **0.9.1 closed two of those deviations** (issues #14 and #15; addendum in `docs/v0.9_api_plan.md`).
   `/health` is now **liveness only** (always 200 while the process serves, body exactly `{"status": "ok"}`)
   and `/ready` carries `model_loaded`, `zones_loaded`, `model_version` and the fixed public reason, 200 or

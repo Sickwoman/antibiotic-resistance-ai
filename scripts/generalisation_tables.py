@@ -101,10 +101,26 @@ def reference_section(test: pd.DataFrame) -> str:
 
 
 def seed_section(test: pd.DataFrame) -> str:
-    """Mean and range over the seeds, so a single seed is never mistaken for the result."""
+    """Mean and range over the seeds, so a single seed is never mistaken for the result.
+
+    Grouped by model as well as by split and site (issue #22). The saved Version 0.4 model is scored at the
+    same split and site as the refitted seeds, and its seed (42) is the same as the first refit seed. Grouped
+    by split and site alone, it joined their group: the distinct-seed count still read 5 because 42 appeared
+    twice, while the mean and range were taken over six rows. With the model in the key it forms a group of
+    one, which the fewer-than-two rule below already leaves out, because a fixed reference has no seed spread.
+
+    Every group must also hold exactly one row per seed, so the printed count and the statistics describe the
+    same rows. A seed appearing twice is refused rather than averaged over - the same way a table with a
+    missing cell is refused - and that check runs first, so a duplicated seed cannot hide inside a group
+    that would otherwise be skipped.
+    """
     models = test[test["model"] != "prevalence"]
     rows = []
-    for (split, site), group in models.groupby(["split", "site"], sort=False):
+    for (split, site, _model), group in models.groupby(["split", "site", "model"], sort=False):
+        duplicated = group["seed"][group["seed"].duplicated()].unique().tolist()
+        if duplicated:
+            raise ConfigError(f"seed {duplicated} appears more than once for {split} at {site}, so a seed count "
+                              "would not match the rows its mean and range are taken over.")
         if group["seed"].nunique() < 2:
             continue
         rows.append({"Experiment": split, "Tested on": site, "Seeds": int(group["seed"].nunique()),
