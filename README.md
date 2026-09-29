@@ -2186,8 +2186,9 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-630 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
-added across 0.9, its patch releases and 1.0). The API tests fit a small
+644 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
+added across 0.9, its patch releases and 1.0, the pre-registration check and the #22 regression tests).
+The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
 DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
 review added coverage for every spectrum rule through HTTP (duplicate, unsorted and non-positive m/z,

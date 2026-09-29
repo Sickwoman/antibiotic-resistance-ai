@@ -383,3 +383,25 @@ narrows rather than widens what the page may do.
    probability or threshold, leaving no branch that could infer a confidence the model did not return — and
    the tests assert that structure on the served HTML. A behavioural test under a JavaScript runtime would
    need its own amendment, because it would add a test-time dependency the Version 1.0 plan forbids.
+
+### Record — 2026-09-29: edits made in place to approved text
+
+This protocol says it "changes only through a dated amendment at the end of this file". A sweep on
+2026-09-29, comparing each version of the file against the one approved at commit `3c0bca7`, found that this
+was not always followed. The in-place edits are listed here so the history is complete. They are **kept**,
+not reverted, because each one corrected or clarified approved text, and reverting would reinstate wording
+already found to be inaccurate or under-specified.
+
+| Where | Commit | What changed | Why it is kept |
+|---|---|---|---|
+| Section 7, "Different test sets" | `d3d4d9e` (PR #8, external code review, 2026-09-18) | "the difference with an interval from independent bootstraps" was expanded in place to say how: each metric resampled inside its own test set, draws taken independently and subtracted (`unpaired_difference`), giving a second-level bootstrap wider than a paired interval | It specifies the method the approved sentence already named; it does not change which method is used |
+| Amendment 2, point 3 | `e8d13fb` (PR #10, V0.6 audit fixes, 2026-09-21) | the check before stored test probabilities may be reused was strengthened in place, from "reproduce the logged test AUROC" to "cover exactly that test part's rows and reproduce both the logged AUROC and the logged Brier score", with the reason that AUROC is unchanged by a monotone rescaling | The audit found the original wording described a check too weak to support the claim made; reverting would restore that |
+
+One further change is **not** an exception and is listed only so the sweep is fully accounted for: at `d3d4d9e`
+the placeholder "None yet." under **Amendments** was replaced when amendment 1 was written. That placeholder
+existed to be replaced.
+
+**The rule from here on is unchanged, and now stated with its reason:** approved text is corrected by a dated
+entry at the end of this file, never edited where it stands, so that anyone reading the file can tell what
+was decided in advance from what was learned afterwards. The two edits above predate this record; no approved
+text has been edited in place since.

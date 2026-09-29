@@ -188,6 +188,17 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     model too and refuses a group where a seed appears twice. The committed V0.7 `tables.md` is **preserved**
     with the wrong B/D cells (0.816 / 0.715), and `tables_ERRATUM.md` beside it gives the correct ones (0.817 /
     0.717). Never regenerate a committed version's outputs to fix a reporting bug - add an erratum.
+- **Version 1.0 is closed** (squash-merged as `69bfd23`, PR #23; release candidate `5afb6e2`). It is the last
+  version on the roadmap: anything further is new scope and needs its own pre-registration.
+- **Pruning a merged branch does not lose its commits.** GitHub keeps `refs/pull/N/head` for every pull request,
+  holding its full history. An earlier record claimed the branches were the only refs holding the audited
+  commits; that was wrong and is corrected by addendum in `docs/v0.9_api_plan.md`. The written SHA tables are
+  still kept, because a default clone does not fetch `refs/pull/*`.
+- **Pre-registrations are append-only, and `tests/test_preregistration.py` enforces it.** Each plan's locked
+  text is pinned by length + SHA-256 (not by `git show`, because CI checks out shallowly). A sweep on
+  2026-09-29 found three in-place edits: one by me in the 0.9.2 docs pass (V0.9 plan line 26, now restored)
+  and two older ones in the protocol (disclosed, not reverted, because they corrected wrong text). When a new
+  version's plan is committed, **add it to `LOCKED`** - `test_every_plan_in_docs_is_locked` fails until you do.
 - **0.9.1 closed two of those deviations** (issues #14 and #15; addendum in `docs/v0.9_api_plan.md`).
   `/health` is now **liveness only** (always 200 while the process serves, body exactly `{"status": "ok"}`)
   and `/ready` carries `model_loaded`, `zones_loaded`, `model_version` and the fixed public reason, 200 or
