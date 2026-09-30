@@ -310,13 +310,17 @@ def assert_log_ready_for_append(path: Path, rows: list[dict[str, Any]], *, expec
     if not rows:
         raise EvaluationError("No rows to append; refusing a no-op production write.")
     frame = pd.DataFrame(rows)
-    for column in ("experiment", "model", "seed"):                   # 6. new and unique keys
+    # 6. new and unique keys. The dataset is part of the key: the same experiment, model name and seed on
+    # another dataset (Version 1.1's ceftriaxone rows against the ciprofloxacin ones) is a different
+    # evaluation, and a key without it refused every Version 1.1 row as a second scoring.
+    key = ["dataset", "experiment", "model", "seed"] if "dataset" in frame.columns else ["experiment", "model", "seed"]
+    for column in key:
         if column not in frame.columns:
             raise EvaluationError(f"Rows to append lack the key column {column!r}.")
-    incoming = list(zip(frame["experiment"], frame["model"], frame["seed"], strict=True))
+    incoming = list(frame[key].itertuples(index=False, name=None))
     if len(set(incoming)) != len(incoming):
-        raise EvaluationError("The rows to append contain a duplicate (experiment, model, seed) key.")
-    existing = set(zip(current["experiment"], current["model"], current["seed"], strict=True))
+        raise EvaluationError(f"The rows to append contain a duplicate ({', '.join(key)}) key.")
+    existing = set(current[key].itertuples(index=False, name=None))
     clash = sorted(str(k) for k in set(incoming) & existing)
     if clash:
         raise EvaluationError(f"{len(clash)} experiment key(s) already exist in the log, so this would score "

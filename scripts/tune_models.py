@@ -50,6 +50,7 @@ from src.evaluate import (  # noqa: E402
     TEST_LOG_COLUMNS,
     EvaluationError,
     append_test_log,
+    assert_log_ready_for_append,
     choose_threshold,
     classification_metrics,
     interval,
@@ -87,6 +88,7 @@ from src.utils import (  # noqa: E402
     PROJECT_ROOT,
     ConfigError,
     driams_root,
+    file_hash,
     get_logger,
     git_commit,
     keep_awake,
@@ -224,6 +226,9 @@ class Context:
         self.code = code_fingerprint(sources)
         self.versions = versions()
         self.report_dir.mkdir(parents=True, exist_ok=True)
+        self.log_sha256_at_start: str | None = None          # set by preflight(), before any test row loads
+        self.log_at_start = pd.DataFrame()
+        self.log_bytes_at_start = b""
 
     def experiment(self, name: str) -> tuple[str, np.ndarray, np.ndarray, np.ndarray]:
         """(split name, train, validation, test rows) of a named experiment."""
@@ -354,8 +359,15 @@ def preflight(ctx: Context, allow_rescore: bool) -> dict[str, Any]:
         if split in locked:
             raise SplitError(f"Experiment {name!r} uses the {split} test part, which is locked by the "
                              "evaluation protocol (evaluation.locked_test_splits in config.yaml).")
+    if ctx.tc.get("append_gate") == "strict" and allow_rescore:
+        raise EvaluationError(f"{ctx.section}.append_gate is strict: each test part is scored once, so "
+                              "--allow-rescore is refused.")
     reference = _reference_for_test(ctx) if ctx.compare is not None else None
     log_path = project_path(ctx.ev["test_log"])
+    # The log as this run found it, before any test row is loaded: what the strict gate checks against.
+    ctx.log_sha256_at_start = file_hash(log_path)
+    ctx.log_at_start = pd.read_csv(log_path) if log_path.is_file() and log_path.stat().st_size else pd.DataFrame()
+    ctx.log_bytes_at_start = log_path.read_bytes() if log_path.is_file() else b""
     if log_path.is_file() and log_path.stat().st_size:
         existing = pd.read_csv(log_path)
         if existing.columns.tolist() != TEST_LOG_COLUMNS:
@@ -519,6 +531,37 @@ def plot_calibration(panels: list[tuple[str, np.ndarray, list[tuple[str, np.ndar
 
 # ------------------------------------------------------------------------------------------------ test stage
 
+def append_rows(ctx: Context, rows: list[dict[str, Any]]) -> None:
+    """Append this run's test rows to the log.
+
+    A section with `append_gate: strict` (Version 1.1) runs the seven pre-write checks first, against the log
+    as the run found it before any test row was loaded, and writes their result to pre_write_checks.json
+    before the log is touched, so the pre-write hash and row count are recorded rather than reconstructed.
+    Afterwards the row count is checked, and the log must still begin with its exact earlier bytes. Other
+    sections append as they always have (their --allow-rescore run is an additional, separately logged run by
+    design).
+    """
+    path = project_path(ctx.ev["test_log"])
+    if ctx.tc.get("append_gate") != "strict":
+        append_test_log(path, rows, locked=ctx.ev["locked_test_splits"])
+        return
+    before = ctx.log_at_start
+    pre_write = assert_log_ready_for_append(path, rows, expected_sha256=ctx.log_sha256_at_start,
+                                            expected_rows=int(len(before)), committed=before if len(before) else None)
+    (ctx.report_dir / "pre_write_checks.json").write_text(json.dumps(pre_write, indent=2), encoding="utf-8")
+    log.info("pre-write checks passed: log at %s with %d data rows; appending %d new key(s)",
+             pre_write["pre_write_sha256"][:16], pre_write["pre_write_rows"], pre_write["rows_to_append"])
+    append_test_log(path, rows, locked=ctx.ev["locked_test_splits"])
+    # Checked on the bytes, not on parsed frames: "unchanged" means byte for byte, and a parsed comparison can
+    # differ on an inferred column type alone.
+    if not path.read_bytes().startswith(ctx.log_bytes_at_start):
+        raise EvaluationError("The log no longer begins with the exact bytes it had before this append.")
+    after = pd.read_csv(path)
+    if len(after) != pre_write["expected_rows_after"]:
+        raise EvaluationError(f"After appending the log holds {len(after)} rows, not the "
+                              f"{pre_write['expected_rows_after']} expected.")
+
+
 def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any]) -> dict[str, Any] | None:
     """Score every final model once on its test part, then append the log before anything else is written.
 
@@ -538,7 +581,7 @@ def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any])
     for name in {f.experiment for f in everything}:
         arrays[f"{name}__rows"] = ctx.experiment(name)[3]
     if ref["bundle"] is None:                    # no earlier model on this dataset (Version 1.1)
-        append_test_log(project_path(ctx.ev["test_log"]), rows, locked=ctx.ev["locked_test_splits"])
+        append_rows(ctx, rows)
         print(f"\n{len(rows)} test evaluations appended to {ctx.ev['test_log']}")
         ctx.model_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(ctx.model_dir / "test_probabilities.npz", **arrays)
@@ -556,7 +599,7 @@ def score_and_log(ctx: Context, everything: list[Finalist], ref: dict[str, Any])
                "calibrated": "calibration" in v03, "setting": f"{older} saved model (unchanged)",
                "train_size": v03["split"]["train_size"], "reproduces_logged_auroc_within": gap, **v03_metrics}
     rows.append({**base, "stage": ctx.reference_stage, **v03_row})
-    append_test_log(project_path(ctx.ev["test_log"]), rows, locked=ctx.ev["locked_test_splits"])
+    append_rows(ctx, rows)
     print(f"\n{len(rows)} test evaluations appended to {ctx.ev['test_log']}")
     if gap > 1e-4:
         raise EvaluationError(f"The saved {older} model gives test AUROC {v03_metrics['roc_auc']:.6f}, "
@@ -657,7 +700,9 @@ def main() -> int:
         previous_path = ctx.report_dir / "validation_metrics.csv"
         previous = pd.read_csv(previous_path) if previous_path.is_file() else None
         ref = preflight(ctx, args.allow_rescore) if args.evaluate_test else None
-        write_run_status(ctx, specs, "running")
+        at_start = ({"log_sha256_at_start": ctx.log_sha256_at_start, "log_rows_at_start": int(len(ctx.log_at_start))}
+                    if args.evaluate_test else {})
+        write_run_status(ctx, specs, "running", **at_start)
         section(f"{ctx.meta_section['title']} on {ctx.dataset_name} "
                 f"(rows fingerprint {ctx.summary['row_fingerprint']}); "
                 f"test parts {'WILL' if args.evaluate_test else 'will NOT'} be scored; families: "

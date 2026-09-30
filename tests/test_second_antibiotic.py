@@ -29,8 +29,9 @@ import yaml
 from sklearn.metrics import roc_auc_score
 
 from src.dataset import CohortSpec, build_dataset, load_dataset
+from src.evaluate import TEST_LOG_COLUMNS
 from src.splits import build_splits, load_splits
-from src.utils import load_config, project_path
+from src.utils import file_hash, load_config, project_path
 from tests.test_model_scripts_e2e import (
     EXTERNAL_SITE,
     EXTERNAL_SITE_2,
@@ -50,6 +51,10 @@ PRIMARY = "e2e_ciprofloxacin"        # ends in its antibiotic, so the second dat
 DATASET = "e2e_ceftriaxone"
 SEEDS = [42, 43]
 T, F = "tuned_lightgbm", "tuned_lightgbm_cipro_setting"
+# (stage, experiment, split, model, seed) of earlier ciprofloxacin rows with the keys Version 1.1 will reuse
+HISTORY = [("v0.4-tuned", "random", "random", T, 42), ("v0.4-tuned", "random", "random", T, 43),
+           ("v0.7-generalisation", f"temporal__{SITE}", "temporal", T, 42),
+           ("v0.7-reference", f"temporal__{SITE}", "temporal", "prevalence", 42)]
 
 
 # ------------------------------------------------------------------------------------------------ the real config
@@ -84,6 +89,8 @@ def test_the_version_11_generalisation_section_matches_the_plan(config):
     assert g["experiments"] == ["temporal", "external"]
     assert g["reuse_logged"] == ["random"] and g["score_saved_model_on"] == []
     assert "zone_transfer" not in g and "shift_diagnostic" not in g
+    assert t["append_gate"] == g["append_gate"] == "strict"                  # the seven pre-write checks
+    assert "append_gate" not in config["tuning"] and "append_gate" not in config["generalisation"]
     assert (g["stage"], g["reference_stage"]) == ("v1.1-generalisation", "v1.1-reference")
     assert g["seeds"] == config["generalisation"]["seeds"]
     for section in (t, g):                           # new outputs only under the v1.1 folders
@@ -161,6 +168,7 @@ class Result:
     config_path: Path
     runs: dict[str, Run]
     logs: dict[str, pd.DataFrame]
+    shas: dict[str, str | None]
 
     def report(self, section: str) -> Path:
         return Path(self.config[section]["report_dir"]) / DATASET
@@ -190,36 +198,47 @@ def v11(tmp_path_factory) -> Result:
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
     ws, log_path = SimpleNamespace(root=tmp), Path(config["evaluation"]["test_log"])
+    # The log as the real one looks when Version 1.1 starts: earlier rows for the other antibiotic that carry
+    # the same (experiment, model, seed) keys Version 1.1 is about to write. The strict gate must tell them apart.
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([{**dict.fromkeys(TEST_LOG_COLUMNS, 0), "logged_at": "2026-09-01 00:00:00", "stage": stage,
+                   "dataset": PRIMARY, "experiment": experiment, "split": split, "model": model, "seed": seed,
+                   "roc_auc": 0.5, "brier": 0.25}
+                  for stage, experiment, split, model, seed in HISTORY])[TEST_LOG_COLUMNS].to_csv(
+        log_path, index=False, lineterminator="\n")
     tune, generalise = importlib.import_module("tune_models"), importlib.import_module("measure_generalisation")
     tune_args = ("--config", config_path, "--section", "second_antibiotic", "--dataset", DATASET)
-    result = Result(tmp, config, config_path, {}, {})
+    result = Result(tmp, config, config_path, {}, {}, {})
 
     def read_log() -> pd.DataFrame:
         return pd.read_csv(log_path) if log_path.is_file() and log_path.stat().st_size else pd.DataFrame()
 
-    result.logs["start"] = read_log()
+    def snapshot(name: str) -> None:
+        result.logs[name], result.shas[name] = read_log(), file_hash(log_path)
+
+    snapshot("start")
     result.runs["development"] = run_script(tune, ws, *tune_args)
-    result.logs["development"] = read_log()
+    snapshot("development")
     result.runs["test"] = run_script(tune, ws, *tune_args, "--evaluate-test")
-    result.logs["test"] = read_log()
+    snapshot("test")
     # A row for the *other* antibiotic with the same split, model name and seed, appended after Version 1.1's.
     # Without a dataset filter, the generalisation run would check its stored probabilities against this row.
     decoy = result.logs["test"].iloc[[0]].copy()
     for column, value in (("dataset", PRIMARY), ("stage", "v0.4-tuned"), ("roc_auc", 0.123456), ("brier", 0.456789)):
         decoy[column] = value
     decoy.to_csv(log_path, mode="a", header=False, index=False, lineterminator="\n")
-    result.logs["decoy"] = read_log()
+    snapshot("decoy")
     result.runs["generalisation"] = run_script(
         generalise, ws, "--config", config_path, "--section", "second_antibiotic_generalisation",
         "--dataset", DATASET)
-    result.logs["generalisation"] = read_log()
+    snapshot("generalisation")
     return result
 
 
 def test_the_development_run_fits_both_arms_and_scores_nothing(v11):
     run = v11.runs["development"]
     assert run.code == 0, run.log.messages
-    assert len(v11.logs["development"]) == len(v11.logs["start"]) == 0
+    assert v11.shas["development"] == v11.shas["start"] and len(v11.logs["start"]) == len(HISTORY)
     validation = pd.read_csv(v11.report("second_antibiotic") / "validation_metrics.csv")
     calibrated = validation[validation["calibrated"]]
     assert sorted(calibrated.loc[calibrated["model"] == T, "seed"]) == SEEDS          # T: every seed
@@ -284,6 +303,28 @@ def test_log_lookups_tell_the_two_antibiotics_apart(v11):
     reused = pd.read_csv(v11.report("second_antibiotic_generalisation") / "reused_from_log.csv")
     assert sorted(reused["seed"]) == SEEDS                          # T's two seeds, and nothing else
     assert 0.123456 not in set(reused["roc_auc"])
+
+
+def test_each_append_passed_the_strict_gate_before_the_log_was_touched(v11):
+    """The pre-write hash and row count on disk are the log exactly as each run found it, and the keys it
+    appended were new even though the ciprofloxacin history carries the same (experiment, model, seed)."""
+    for section, before, after in (("second_antibiotic", "development", "test"),
+                                   ("second_antibiotic_generalisation", "decoy", "generalisation")):
+        checks = v11.read_json(section, "pre_write_checks.json")
+        assert checks["pre_write_sha256"] == v11.shas[before]
+        assert checks["pre_write_rows"] == len(v11.logs[before])
+        assert checks["rows_to_append"] == len(v11.logs[after]) - len(v11.logs[before])
+        assert checks["expected_rows_after"] == len(v11.logs[after]) and checks["checked_against_committed"]
+
+
+def test_a_second_scoring_is_refused_by_the_strict_gate(v11):
+    log_path = Path(v11.config["evaluation"]["test_log"])
+    before = log_path.read_bytes()
+    run = run_script(importlib.import_module("tune_models"), SimpleNamespace(root=v11.tmp), "--config",
+                     v11.config_path, "--section", "second_antibiotic", "--dataset", DATASET, "--evaluate-test",
+                     "--allow-rescore")
+    assert run.code == 1 and run.log.has("--allow-rescore is refused")
+    assert log_path.read_bytes() == before
 
 
 def test_every_earlier_log_row_is_unchanged(v11):

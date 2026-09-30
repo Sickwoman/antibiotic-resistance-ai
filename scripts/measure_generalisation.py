@@ -44,6 +44,7 @@ from src.dataset import load_dataset  # noqa: E402
 from src.evaluate import (  # noqa: E402
     EvaluationError,
     append_test_log,
+    assert_log_ready_for_append,
     bootstrap,
     choose_threshold,
     classification_metrics,
@@ -165,6 +166,7 @@ class Context:
             folder.mkdir(parents=True, exist_ok=True)
         self.test_log = project_path(self.ev["test_log"])
         self.test_log_hash = file_hash(self.test_log)
+        self.test_log_bytes = self.test_log.read_bytes() if self.test_log.is_file() else b""
         # src/train.py is not in the key: nothing here goes through it. src/tuning.py is, because
         # fit_calibrated and base_pipeline decide what a refit actually is.
         self.code = code_fingerprint([Path(__file__).resolve().parents[1] / "src" / "tuning.py"])
@@ -703,8 +705,8 @@ def figures(ctx: Context, refits: list[dict[str, Any]], source_roc_auc: float,
 
 def run(ctx: Context) -> None:
     started = time.perf_counter()
-    ctx.write_status("running")
     before = pd.read_csv(ctx.test_log) if ctx.test_log.is_file() and ctx.test_log.stat().st_size else pd.DataFrame()
+    ctx.write_status("running", log_sha256_at_start=ctx.test_log_hash, log_rows_at_start=int(len(before)))
 
     # Nothing may be scored until the refit is proved to be the saved model in another data regime.
     faithful = prove_the_refit_is_faithful(ctx)
@@ -765,8 +767,24 @@ def run(ctx: Context) -> None:
 
     # The log is appended once, before any other output is written, so a crash later cannot leave a
     # scoring unrecorded. It is append-only and the run checks that nothing earlier changed.
+    # A section with `append_gate: strict` (Version 1.1) runs the seven pre-write checks against the log as this
+    # run found it, and writes their result to disk before the log is touched.
+    pre_write = None
+    if ctx.gc.get("append_gate") == "strict":
+        pre_write = assert_log_ready_for_append(ctx.test_log, log_rows, expected_sha256=ctx.test_log_hash,
+                                                expected_rows=int(len(before)),
+                                                committed=before if len(before) else None)
+        (ctx.report_dir / "pre_write_checks.json").write_text(json.dumps(pre_write, indent=2), encoding="utf-8")
+        log.info("pre-write checks passed: log at %s with %d data rows; appending %d new key(s)",
+                 pre_write["pre_write_sha256"][:16], pre_write["pre_write_rows"], pre_write["rows_to_append"])
     append_test_log(ctx.test_log, log_rows, locked=ctx.ev["locked_test_splits"])
     ctx.assert_test_log_only_grew(before)
+    if pre_write:                                  # byte for byte, not only as parsed frames
+        if not ctx.test_log.read_bytes().startswith(ctx.test_log_bytes):
+            raise EvaluationError("The log no longer begins with the exact bytes it had before this append.")
+        if len(pd.read_csv(ctx.test_log)) != pre_write["expected_rows_after"]:
+            raise EvaluationError(f"After appending the log does not hold the {pre_write['expected_rows_after']} "
+                                  "rows expected.")
     log.info("%d test evaluations appended to %s", len(log_rows), show_path(ctx.test_log))
 
     np.savez_compressed(ctx.model_dir / "test_probabilities.npz", **arrays,
@@ -819,6 +837,7 @@ def run(ctx: Context) -> None:
                      zone_transfer_tested=bool(len(transfer)),
                      source_roc_auc=source_point, plots=[p.name for p in made],
                      reused_logged_rows=int(len(reused)), reuse_logged=ctx.reuse_logged,
+                     pre_write_checks=pre_write,
                      test_log_sha256=file_hash(ctx.test_log))
     log.info("%s reports written to %s", ctx.title, show_path(ctx.report_dir))
     log.info("finished in %.1f minutes", (time.perf_counter() - started) / 60)

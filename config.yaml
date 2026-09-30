@@ -583,6 +583,7 @@ second_antibiotic:
   seeds: [42, 43, 44, 45, 46]
   retune_experiments: []              # the patient-overlap check is not repeated (the plan's "Not run")
   primary_family: lightgbm            # arm T is the Version 1.1 model whatever validation says (the plan)
+  append_gate: strict                 # the seven pre-write checks before the append; no --allow-rescore
   model_dir: models/v1.1              # git-ignored
   report_dir: results/metrics/v1.1
   plot_dir: results/plots/v1.1
@@ -639,6 +640,7 @@ second_antibiotic_generalisation:
   reuse_logged: [random]
   score_saved_model_on: []
   seeds: [42, 43, 44, 45, 46]         # as Version 0.7: mean and range over seeds, intervals for seed 42
+  append_gate: strict                 # the seven pre-write checks before the append
   model_dir: models/v1.1/generalisation
   report_dir: results/metrics/v1.1/generalisation
   plot_dir: results/plots/v1.1
