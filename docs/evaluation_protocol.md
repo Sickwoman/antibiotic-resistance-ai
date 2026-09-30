@@ -426,3 +426,25 @@ changes no earlier model, threshold, split, metric or recorded result.
    selected, and no result may describe it as meeting the rule. The rule is unchanged.
 6. **The cohort is isolates with both results.** The 93 isolates with only a ceftriaxone result, 27 of them
    resistant, are in no split. Results describe the cohort as it is and are not generalised to them.
+
+### Amendment 9 — 2026-09-30: a development-only study of calibration and the cut-off (Version 1.2)
+
+Recorded before any Version 1.2 code or experiment, together with [the Version 1.2
+plan](v1.2_calibration_plan.md), on the project owner's instruction. It changes no earlier model, threshold,
+split, metric or recorded result.
+
+1. **No untouched evaluation data exist.** Every test part of both antibiotics' A, B and D cohorts has been
+   scored and its results inspected, so none of them — and no new random split of their spectra — can give an
+   independent confirmation. Version 1.2 therefore runs on development data only, and every conclusion it draws
+   is exploratory.
+2. **The development pool is derived, not drawn:** the `random` training and validation rows of
+   `ecoli_ceftriaxone` that were never in an inspected test part and share no patient group with one (2,421
+   spectra, 247 resistant). Model fitting, calibration and the cut-off are chosen inside cross-validation folds
+   of that pool only.
+3. **Development results never enter the production log.** They go to a separate append-only development log,
+   through the same strict pre-write gate.
+4. **A cut-off's target must be supported.** The rule is unchanged — the highest cut-off with sensitivity at
+   least 0.90 on the selection set — but a selection set with fewer than 50 resistant spectra cannot support
+   that target, and a cut-off chosen on one is reported as unsupported.
+5. **DRIAMS-C stays closed.** Its ceftriaxone labels are the only unused candidate for a future one-time
+   evaluation, and opening them needs a separate dated amendment approved by the owner.
