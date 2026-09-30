@@ -1,0 +1,117 @@
+{
+  "git_commit": "4ecb130",
+  "pool": {
+    "spectra": 2421,
+    "resistant_spectra": 247,
+    "patient_groups": 1189,
+    "resistant_patient_groups": 105,
+    "spectra_per_group": {
+      "mean": 2.04,
+      "median": 2.0,
+      "p90": 4.0,
+      "max": 15
+    },
+    "resistant_spectra_per_resistant_group": {
+      "mean": 2.35,
+      "median": 2.0,
+      "max": 9,
+      "groups_with_1": 37,
+      "groups_with_2": 34,
+      "groups_with_3_to_5": 27,
+      "groups_with_6_or_more": 7
+    },
+    "top_10pct_resistant_groups": {
+      "groups": 11,
+      "resistant_spectra": 66,
+      "share": 0.267
+    },
+    "groups_with_resistant_and_susceptible_spectra": 7,
+    "fingerprint": "064a4bbbd05847f2"
+  },
+  "screening": {
+    "with_single_category_result": {
+      "2015": {
+        "resistant": 18,
+        "susceptible": 4
+      },
+      "2016": {
+        "resistant": 248,
+        "susceptible": 2
+      },
+      "2017": {
+        "resistant": 238,
+        "susceptible": 4
+      },
+      "2018": {
+        "resistant": 141,
+        "susceptible": 4
+      }
+    },
+    "before": "2018-01-01",
+    "dated_before": {
+      "rows": 514,
+      "resistant": 504,
+      "date_min": "2015-11-18",
+      "date_max": "2017-12-29",
+      "patient_groups": 270
+    },
+    "links": {
+      "excluded: patient has a clinical row outside the pool": {
+        "rows": 8,
+        "resistant": 8,
+        "patient_groups": 5,
+        "resistant_patient_groups": 5
+      },
+      "joins a pool patient (same year folder)": {
+        "rows": 73,
+        "resistant": 73,
+        "patient_groups": 28,
+        "resistant_patient_groups": 28
+      },
+      "screening only: a new patient": {
+        "rows": 433,
+        "resistant": 423,
+        "patient_groups": 237,
+        "resistant_patient_groups": 233
+      }
+    },
+    "pool_resistant_groups_with_a_screening_isolate": 18,
+    "pool_susceptible_only_groups_with_a_screening_isolate": 10,
+    "spectral_check": {
+      "checked": 506,
+      "unreadable_or_malformed": 3,
+      "differs_from_driams_binned": 7,
+      "no_binned_file": 0,
+      "identical_to_a_clinical_spectrum": 0,
+      "identical_to_an_earlier_screening_spectrum": 0
+    },
+    "usable": {
+      "rows": 496,
+      "resistant": 486,
+      "patient_groups": 260,
+      "joining_pool_patients": {
+        "rows": 70,
+        "patient_groups": 27
+      },
+      "new_patients": {
+        "rows": 426,
+        "resistant": 416,
+        "patient_groups": 233,
+        "resistant_patient_groups": 229
+      }
+    }
+  },
+  "noise": {
+    "folds": 15,
+    "mean": -0.0044,
+    "sd": 0.0186,
+    "corrected_half_width_95": 0.0224,
+    "uncorrected_half_width_95": 0.0103,
+    "detectable_at_80pct_power": 0.032,
+    "note": "two LightGBM settings on the same rows; a change of training data may give a larger sd"
+  },
+  "prevalence_only_auroc": {
+    "half-year": 0.571,
+    "sample type": 0.553
+  }
+}
