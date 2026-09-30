@@ -235,3 +235,20 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     byte-identically; the first model was stamped `v1.0.0` and rerun from cache with identical validation.
   - A cut-off chosen on one small validation part has missed its sensitivity target on test twice (0.827
     ciprofloxacin, 0.823 ceftriaxone). Do not describe the 0.90 target as achieved on new patients.
+- **Version 1.2 is a development-only study** (`docs/v1.2_calibration_plan.md`, amendment 9; branch
+  `v1.2-calibration`). No test part was read, the production log is untouched (113 rows), and **every V1.2
+  result is exploratory** - no untouched evaluation data exist. It runs on a derived pool: `ecoli_ceftriaxone`'s
+  `random` training + validation rows minus every row, and every patient group, of an inspected test part
+  (2,421 spectra, 247 resistant). `python scripts/v12_development.py`; results go to the separate development
+  log `results/experiments/development_runs.csv`, which `DevelopmentLog` refuses to point at the production log.
+  - Findings, as the data supports them: primary (Brier, B minus C) **not demonstrated**, +0.0002 [-0.0024,
+    +0.0028]; C's cut-off far steadier across folds (sensitivity SD 0.058 against 0.151) at lower specificity
+    (0.370 against 0.446), reaching 0.90 in 7 of 15 folds; **forward in time no arm held its target** (0.56-0.79)
+    because every arm under-predicted 2017 (intercepts +0.67 to +0.81; resistance 8.3 % -> 11.4 %).
+  - A cut-off chosen on fewer than 50 resistant spectra is **unsupported**: report it, never describe it as
+    targeting 0.90. The Version 1.1 procedure's slice holds about 25.
+  - **A `CalibratedClassifierCV` calibrator works on the pipeline's `decision_function` (LightGBM's raw margin),
+    not on `predict_proba`.** Map anything through it on that scale; `cross_fitted_probabilities` proves its
+    predictions reproduce the calibrator, and `assert_same_scale` that they share the model's scale.
+  - Under the plan's section 12, C does not qualify for a held-out evaluation (its primary was not met).
+    DRIAMS-C's ceftriaxone labels are the only unused candidate; opening them needs an owner-approved amendment.
