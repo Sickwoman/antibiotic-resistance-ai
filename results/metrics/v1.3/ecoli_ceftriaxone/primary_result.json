@@ -1,0 +1,117 @@
+{
+  "endpoint": "pooled delivered sensitivity in the later periods, U minus E",
+  "U": {
+    "sensitivity": 0.9294871794871795,
+    "specificity": 0.16037008481110254,
+    "flag_rate": 0.8492773571920165,
+    "n": 1453,
+    "n_resistant": 156,
+    "precision": 0.11750405186385737
+  },
+  "E": {
+    "sensitivity": 0.8141025641025641,
+    "specificity": 0.4464148033924441,
+    "flag_rate": 0.5815554026152787,
+    "n": 1453,
+    "n_resistant": 156,
+    "precision": 0.1502958579881657
+  },
+  "U_minus_E": {
+    "estimate": 0.11538461538461542,
+    "low": 0.018975621190811073,
+    "high": 0.24827586206896546
+  },
+  "U_sensitivity_interval": {
+    "low": 0.8221890547263682,
+    "high": 0.9942528735632183
+  },
+  "E_sensitivity_interval": {
+    "low": 0.6624980095541401,
+    "high": 0.9271642994074589
+  },
+  "U_specificity_interval": {
+    "low": 0.08541326860967403,
+    "high": 0.3930044858298635
+  },
+  "E_specificity_interval": {
+    "low": 0.24754930002020986,
+    "high": 0.5977765756886316
+  },
+  "E_minus_U_specificity": {
+    "estimate": 0.28604471858134156,
+    "low": 0.07062484050000123,
+    "high": 0.40376203621545226
+  },
+  "attainment_probability": {
+    "E": 0.0615,
+    "U": 0.7455
+  },
+  "bootstrap": {
+    "resamples": 2000,
+    "skipped_single_class": 0,
+    "seed": 42,
+    "level": 0.95
+  },
+  "exploratory": true,
+  "verdict": "higher sensitivity only by flagging nearly everyone: unhelpful",
+  "provenance": {
+    "run_id": "a2d6ee2",
+    "git_commit": "a2d6ee2",
+    "plan": "docs/v1.3_threshold_plan.md",
+    "plan_sha256": "ee8be88e641ee31595c1cf9fad51a1708430372b4e40f7f9bcc854be52639151",
+    "config_section_sha256": "d05e94886f1a18a2f6a843ff8fcd5f297a554264ad4433d1633c1a58a2cb0b68",
+    "dataset": "ecoli_ceftriaxone",
+    "dataset_row_fingerprint": "fb65868756a623ee",
+    "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+    "pool_fingerprint": "064a4bbbd05847f2",
+    "card_sha256": "d98b53bad6a01ab8dd6e73b1eece5021240a9a4bfc2827838c83ab69ffd27b8f",
+    "setting": {
+      "subsample": 1.0,
+      "reg_lambda": 10.0,
+      "num_leaves": 31,
+      "n_estimators": 300,
+      "min_child_samples": 10,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.3,
+      "class_weight": null
+    },
+    "counts": {
+      "2017H1": {
+        "available": 912,
+        "available_resistant": 76,
+        "selection_resistant": 39,
+        "gap": 3,
+        "later": 730,
+        "removed_seen": 0,
+        "later_resistant": 68,
+        "recent_resistant": 40,
+        "recent_resistant_groups": 18,
+        "k_star": 1
+      },
+      "2017H2": {
+        "available": 1627,
+        "available_resistant": 141,
+        "selection_resistant": 63,
+        "gap": 18,
+        "later": 723,
+        "removed_seen": 53,
+        "later_resistant": 88,
+        "recent_resistant": 65,
+        "recent_resistant_groups": 24,
+        "k_star": 3
+      }
+    },
+    "production_log_sha256_at_start": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+    "ledger_entries": 6,
+    "seconds": 121.9,
+    "finished": "2026-09-30 22:44:27",
+    "development_log_pre_write": {
+      "pre_write_sha256": "74e9d1b57262b401dbb3aa208eb44942614d3d2dafc7901fdff131873cc598cc",
+      "pre_write_rows": 16,
+      "rows_to_append": 8,
+      "expected_rows_after": 24,
+      "checked_against_committed": true,
+      "checked_at": "2026-09-30 22:44:27"
+    }
+  }
+}
