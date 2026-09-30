@@ -46,8 +46,9 @@ Version 1.2 studied calibration and the cut-off **on development data only, so e
 exploratory**: its primary endpoint was not demonstrated, a cut-off chosen on more data was much steadier
 across patients, and in one forward-in-time split no cut-off held its sensitivity target. See
 [Version 1.2](#version-12--calibration-and-the-cut-off-on-development-data-only-exploratory).
-Version 1.3, also development-only and exploratory, found that a cut-off rule with a stated uncertainty
-guarantee raised delivered sensitivity only by flagging about 85 % of isolates. See
+Version 1.3, also development-only and exploratory, found that a cut-off rule designed to carry an
+uncertainty guarantee (only a heuristic in that design) raised delivered sensitivity only by flagging about 85 %
+of isolates; the rules tested did not establish useful performance, which is not a universal limit. See
 [Version 1.3](#version-13--an-uncertainty-aware-cut-off-over-time-development-only-exploratory).
 
 ## The idea in simple words
@@ -332,10 +333,12 @@ scientific findings are in **Results** above, where they belong, not hidden here
 
 **Version 1.3 added one, also from development data (exploratory).**
 
-20. **A guarded 90 % sensitivity is not reachable at a useful specificity with this model.** A cut-off rule
-    with a stated uncertainty guarantee reached 0.93 pooled sensitivity in later periods only by flagging 85 %
-    of isolates (specificity 0.16); the empirical rule flagged 58 % and missed the target. The whole
-    development pool holds only 105 resistant patients, and the model's discrimination is modest.
+20. **The cut-off rules tested did not reach a guarded 90 % sensitivity without flagging nearly everyone.** A
+    rule designed to carry a 95 % guarantee (a heuristic in that design) reached 0.93 pooled sensitivity in
+    later periods only by flagging 85 % of isolates (specificity 0.16); the empirical rule flagged 58 % and
+    missed the target. This is one fixed model at two origins, with 105 resistant patients in the whole
+    development pool, not evidence that no better operating point exists. The 0.90 target, like every other
+    operating number in this project, is a research criterion, not a clinical standard.
 
 ## Ethics and intended use
 
@@ -2513,14 +2516,19 @@ months before each gap moved it by −0.03 and +0.16. Brier(uncorrected) minus B
 (calibration intercepts +0.36 and +0.58), and the recent window did not anticipate it. As in Version 1.2, that is
 an observation, not an explanation. No cut-off decision can change under a monotone correction.
 
-**What this supports, and what it leaves open.** Supported, on development data: the empirical rule falls short
-again — as it will about half the time even without any shift: for exchangeable scores, its chance of a true
-sensitivity of at least 0.90 is P(Binomial(39, 0.10) ≥ 4) = 0.56 at the first origin and
-P(Binomial(63, 0.10) ≥ 7) = 0.44 at the second — and an uncertainty-aware rule does raise delivered sensitivity. But with this
-model's discrimination (AUROC 0.749 and 0.680 in the two periods) and 39–63 resistant patients to choose on, a
-guarded 90 % costs nearly all the specificity. **Not supported:** that any cut-off rule makes this model useful,
-that U's 95 % holds here, or that recent recalibration helps. The limit is the model's discrimination and the
-number of resistant patients, not the rule.
+**What this supports, and what it leaves open.** Supported, on development data: the empirical rule fell short
+again, and an uncertainty-aware rule raised delivered sensitivity, at a large cost in specificity. For reference,
+a *theoretical* figure, not an observed rate: if the selection scores were exchangeable with future scores and
+came from a scoring function fixed independently of them, rule E's chance of a true sensitivity of at least 0.90
+would be P(Binomial(39, 0.10) ≥ 4) = 0.56 at the first origin and P(Binomial(63, 0.10) ≥ 7) = 0.44 at the
+second. This design met neither condition, so the figures only show that E would often fall short even without
+drift ([derivation, conventions and ties](docs/v1.3_threshold_plan.md#closure--2026-09-30-corrections-and-checks)).
+With this model (AUROC 0.749 and 0.680 in the two periods) and 39–63 resistant patients to choose on, a guarded
+90 % cost nearly all the specificity. **Not supported:** that any cut-off rule makes this model useful, that U's
+95 % holds here, or that recent recalibration helps. **Not shown either:** a universal limit. Two rules on one
+fixed model at two origins did not establish useful performance; that does not show that no rule, model,
+representation or training set could, nor that discrimination is the only constraint. The "flags nearly everyone"
+verdict applies the pre-set line to U's pooled point estimate (0.160); its interval (0.085–0.393) crosses 0.20.
 
 **DRIAMS-C.** None of Version 1.2's candidate, rule E or rule U warrants spending DRIAMS-C's ceftriaxone labels:
 E is known to miss its target, U is unhelpful by the pre-set line, and C's standing is uncertain in any case

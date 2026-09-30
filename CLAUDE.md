@@ -276,5 +276,13 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     cut-offs on one spectrum per patient group; resample whole groups.
   - Time: only labels dated at least 7 days before an origin; later-period spectra of patients already seen
     that year are removed; patients cannot be linked across years.
-  - **No frozen procedure so far (V1.2's C, E, U) warrants a DRIAMS-C evaluation.** The limit is the model's
-    discrimination and the number of resistant patients, not the cut-off rule.
+  - **No frozen procedure so far (V1.2's C, E, U) warrants a DRIAMS-C evaluation.** The rules tested did not
+    establish useful performance with this model. That is **not** a universal limit and not proof that
+    discrimination is the constraint: never write "the limit is ...". The 0.56 / 0.44 for rule E are
+    theoretical (exchangeable scores, a scoring function independent of them), not observed attainment rates; the
+    derivation, order-statistic convention and tie handling are in the plan's closure record. Every operating number
+    (0.90, 0.95, 0.20, the 7-day gap, 30 / 15 / 50) is a research criterion, never a clinical standard.
+  - **Test automation must surface failures.** CI runs every step under `bash` (GitHub: `-eo pipefail`); never pipe
+    pytest into `tail`/`tee` before a commit - read pytest's own exit code. `tests/conftest.py` fails the whole
+    session if a test changed `results/experiments/test_evaluations.csv` or `development_runs.csv`: every test that
+    runs a script must point both logs into `tmp_path`.
