@@ -87,3 +87,10 @@ tested on the same development pool without any spent test part, 2018 data or DR
 isolates only. Hypotheses 2–5 are recorded, not pursued. Had the audit found no such source, the recommendation
 would have been to stop model iteration and write the reproducible research report — which is what the Version 1.4
 plan's stopping rule requires after it, whatever it finds.
+
+**Correction — 2026-10-01.** Section 3 above counted a screening spectrum as joining a pool patient when the patient's
+*group* was in the pool. The Version 1.4 plan's rule excludes a screening spectrum whose patient has any clinical
+*row* outside the pool, and 15 pool patients' ceftriaxone-only isolates (in no split) are such rows. Under that rule
+one more (resistant) screening spectrum is excluded: 495 usable (485 resistant) from 259 patient groups, 69 spectra
+of 26 pool patients, 9 excluded. The 233 new patients (229 resistant) are unchanged. The generated tables are kept as
+computed; see the addendum of [the Version 1.4 plan](v1.4_screening_plan.md).

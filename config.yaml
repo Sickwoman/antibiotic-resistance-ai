@@ -763,8 +763,10 @@ v14_screening:
   screening:
     workstation: HospitalHygiene
     before: "2018-01-01"              # nothing dated 2018 or later (the spent temporal test period)
-    expected: {usable: 496, usable_resistant: 486, patient_groups: 260, joining: 70, joining_groups: 27, new: 426,
-               new_resistant: 416, new_groups: 233, new_resistant_groups: 229, excluded_outside_pool: 8}
+    # corrected before any model was fitted (plan addendum 2026-10-01): the rule as written also excludes a pool
+    # patient's screening spectrum when that patient has an unsplit clinical isolate (the audit counted it)
+    expected: {usable: 495, usable_resistant: 485, patient_groups: 259, joining: 69, joining_groups: 26, new: 426,
+               new_resistant: 416, new_groups: 233, new_resistant_groups: 229, excluded_outside_pool: 9}
   pool_source_split: random
   spent_splits: [random, temporal, external, external_ab]
   expected_pool: {spectra: 2421, resistant: 247, fingerprint: 064a4bbbd05847f2}
