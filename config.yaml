@@ -729,3 +729,23 @@ v13_threshold:
   development_log: results/experiments/development_runs.csv   # the same development log; never the production log
   model_dir: models/v1.3
   report_dir: results/metrics/v1.3
+
+discrimination_audit:
+  # Before any Version 1.4 decision (docs/discrimination_audit.md). Development data, saved outputs and metadata only:
+  # it fits nothing and scores nothing. The screening spectra are preprocessed only to compare them with the
+  # published DRIAMS binned files (label-free).   python scripts/discrimination_audit.py
+  dataset: ecoli_ceftriaxone
+  pool_source_split: random
+  spent_splits: [random, temporal, external, external_ab]
+  expected_pool: {spectra: 2421, resistant: 247, fingerprint: 064a4bbbd05847f2}
+  heldout_predictions: models/v1.2/ecoli_ceftriaxone/heldout_predictions.npz   # V1.2 arms B and C, partitions 42-44
+  search_tables:
+    ceftriaxone: results/metrics/v1.1/ecoli_ceftriaxone/search_random_lightgbm.csv
+    ciprofloxacin: results/metrics/v0.4/ecoli_ciprofloxacin/search_random_lightgbm.csv
+  screening:
+    site: DRIAMS-A
+    workstation: HospitalHygiene      # excluded from every cohort so far (dataset.exclude_workstations)
+    antibiotic: Ceftriaxone
+    before: "2018-01-01"              # the pool's period; 2018 is the spent temporal test period
+  min_per_class_in_stratum: 15        # within-stratum AUROC only where both classes have at least this many
+  report_dir: results/metrics/v1.4/audit
