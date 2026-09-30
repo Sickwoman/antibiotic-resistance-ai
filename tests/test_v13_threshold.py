@@ -170,6 +170,11 @@ def world(tmp_path_factory):
 
 
 def _run(world, config, tag):
+    """One run of the study. Each run gets its own development log: on a clean tree the run id is the commit, so
+    two runs sharing a log would log the same keys, which the strict gate rightly refuses as a second scoring."""
+    if tag != "feasible":
+        config = copy.deepcopy(config)
+        config["v13_threshold"]["development_log"] = str(world.tmp / f"development_runs_{tag}.csv")
     path = world.tmp / f"config_{tag}.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     seen = []
@@ -181,6 +186,8 @@ def _run(world, config, tag):
 
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(world.module.Ledger, "use", spy)
+        # A clean-tree commit id, as in CI: every run then has the same run id, whatever the local git state.
+        mp.setattr(world.module, "git_commit", lambda: "abc1234")
         run = run_script(world.module, SimpleNamespace(root=world.tmp), "--config", path)
     return run, seen
 
@@ -252,7 +259,7 @@ def test_counts_that_differ_from_the_audit_stop_the_run(world, feasible):
     config["v13_threshold"]["report_dir"] = str(world.tmp / "mismatch")
     run, _ = _run(world, config, "mismatch")
     assert run.code == 1
-    log = pd.read_csv(world.config["v13_threshold"]["development_log"])
+    log = pd.read_csv(world.tmp / "development_runs_mismatch.csv")
     assert log["status"].iloc[-1].startswith("failed:") and "audit" in log["status"].iloc[-1]
 
 
