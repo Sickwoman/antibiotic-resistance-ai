@@ -44,7 +44,7 @@ did not demonstrably beat reusing the ciprofloxacin setting. See
 [Version 1.1](#version-11--a-second-antibiotic-ceftriaxone).
 Version 1.2 studied calibration and the cut-off **on development data only, so every result is
 exploratory**: its primary endpoint was not demonstrated, a cut-off chosen on more data was much steadier
-across patients, and no cut-off held its sensitivity target a year later. See
+across patients, and in one forward-in-time split no cut-off held its sensitivity target. See
 [Version 1.2](#version-12--calibration-and-the-cut-off-on-development-data-only-exploratory).
 
 ## The idea in simple words
@@ -317,13 +317,15 @@ scientific findings are in **Results** above, where they belong, not hidden here
     delivering its target on new patients.
 18. **No untouched test data remain in the A, B and D cohort, for either antibiotic.** Every test part has
     been scored and its results inspected, and a new random split of those spectra is not a fresh holdout.
-    A new confirmatory claim needs data that no version has scored.
+    A new confirmatory claim needs data that no version has scored; DRIAMS-C's standing is audited in
+    [`docs/driams_c_status.md`](docs/driams_c_status.md).
 
 **Version 1.2 added one, from development data (exploratory).**
 
-19. **The cut-off does not survive a year.** Fitted before 2017 and applied to 2017, every arm under-predicted
-    resistance, which rose from 8.3 % to 11.4 %, and delivered 0.56–0.79 sensitivity against 0.90 —
-    including a cut-off chosen on enough resistant spectra to support its target.
+19. **In one forward split, no cut-off held its target.** Fitted before 2017 and applied to 2017, every arm
+    delivered 0.56–0.79 sensitivity against 0.90, including a cut-off chosen on enough resistant spectra to
+    support its target. Resistance was also more common in 2017 and every arm under-predicted it on average,
+    but neither observation explains the loss on its own.
 
 ## Ethics and intended use
 
@@ -2359,9 +2361,10 @@ Recorded in [`docs/v1.2_calibration_plan.md`](docs/v1.2_calibration_plan.md) (pr
 Version 1.2 code or experiment existed — on the project owner's instruction, without a separate review before
 recording. **Development only: no test part was read, nothing was added to the production log, and every
 result below is exploratory.** No untouched evaluation data exist (Limitation 18), so nothing here confirms
-anything. Numbers are copied from [`tables.md`](results/metrics/v1.2/ecoli_ceftriaxone/tables.md), the
-[development log](results/experiments/development_runs.csv) and
-[`pooled_results.json`](results/metrics/v1.2/ecoli_ceftriaxone/pooled_results.json).
+anything. Numbers are copied from
+[`tables_complete.md`](results/metrics/v1.2/ecoli_ceftriaxone/tables_complete.md), which
+`scripts/v12_report.py` generated from the run's saved outputs — no model rerun — to add the three
+pre-specified secondaries the run's own `tables.md` left out, and to name the operands of every difference.
 
 **Why this question.** The cut-off missed its 0.90 sensitivity target on test for both antibiotics (0.827 and
 0.823); Version 1.1's rested on 34 resistant validation spectra, and its probabilities barely beat the base
@@ -2386,10 +2389,10 @@ better than B's — and not demonstrably worse, which is not the same as equal.
 | R0 no-skill | 0.0916 | — | 0.102 | — | — | — |
 | B unchanged Version 1.1 procedure | 0.0802 | 0.780 (0.732–0.822) | 0.324 | 1.00 | 0.842 (0.780–0.896) | 0.481 |
 | C candidate | 0.0800 | 0.767 (0.718–0.811) | 0.324 | 0.92 | 0.895 (0.843–0.938) | 0.369 |
-| D1 diagnostic | 0.0783 | 0.780 (0.729–0.825) | 0.352 | 1.04 | 0.875 (0.819–0.924) | 0.414 |
+| D1 diagnostic | 0.0783 | 0.780 (0.729–0.825) | 0.352 | 1.04 | 0.874 (0.819–0.923) | 0.414 |
 
 Within these years every arm was about 12–15 % better than always predicting the base rate (Brier skill B
-0.125, C 0.127, D1 0.146). C minus B: AUROC −0.012 [−0.032, +0.006], PR-AUC +0.000 [−0.034, +0.034].
+0.124, C 0.127, D1 0.146). C minus B: AUROC −0.012 [−0.032, +0.006], PR-AUC +0.000 [−0.034, +0.034].
 
 **The operating point: steadier with C, not solved.**
 
@@ -2411,30 +2414,38 @@ falls short on new patients about half the time, however many resistant spectra 
 |---|---|---|---|---|---|
 | R0 no-skill | 0.1016 | — | — | — | — |
 | B (cut-off unsupported) | 0.0980 | 0.706 | +0.74 | 0.556 | 0.741 |
-| C | 0.0983 | 0.722 | +0.67 | 0.790 | 0.503 |
+| C | 0.0983 | 0.722 | +0.67 | 0.789 | 0.503 |
 | D1 | 0.0992 | 0.690 | +0.81 | 0.567 | 0.677 |
 
-The resistance rate rose from 8.3 % to 11.4 % between the two periods, and every arm under-predicted 2017
-(calibration intercepts +0.67 to +0.81), so fewer resistant isolates crossed cut-offs set on the earlier
-period. No arm came near 0.90, a supported cut-off (D1's, chosen on 76 resistant) was no protection, and the
-Brier scores barely beat the base rate. B minus C on Brier was −0.0003 [−0.0018, +0.0010]. Patients cannot be
-linked across years, so this check is date-separated, not patient-separated.
+No arm came near 0.90, a supported cut-off (D1's, chosen on 76 resistant) was no protection, and the Brier
+scores barely beat the base rate. Brier(B) minus Brier(C) was −0.0003 [−0.0018, +0.0010]. Two further
+observations sit beside this, and **neither explains it**: resistance was more common in the later year (11.4 %
+against 8.3 %), and every arm under-predicted it on average (calibration intercepts +0.67 to +0.81). A
+change in prevalence alone — pure label shift, with resistant and susceptible spectra scoring as before —
+would leave sensitivity at a fixed cut-off unchanged, and a positive intercept fits several kinds of shift.
+The loss may reflect how the later year's resistant spectra scored, the noise of cut-offs chosen on at most
+76 resistant spectra, the cut-off rule's own tendency to fall short, or a mixture; this design cannot
+separate them, and it did not establish label shift. Patients cannot be linked across years, so the check is
+date-separated, not patient-separated.
 
-**Diagnostics (exploratory, unadjusted).** With the setting held fixed, C's procedure improved Brier slightly
-(B minus D1: +0.0020 [+0.0002, +0.0036]); with the procedure held fixed, the simpler setting did not (C minus
-D1: +0.0017 [−0.0002, +0.0035]; AUROC −0.012 [−0.030, +0.005]). B's and D1's setting was selected in Version 1.1
-on these same labels, which flatters both.
+**Diagnostics (exploratory, unadjusted).** Brier(B) minus Brier(D1) was +0.0020 [+0.0002, +0.0036]: D1's
+probabilities were slightly better. B and D1 share a setting and differ only in fitting on 7/8 against 8/8 of
+each training fold — no cut-off enters a Brier score — so this is the effect of about one-eighth more fitting
+data, **not of the cross-fitted cut-off**; its lower bound is barely above zero. Brier(C) minus Brier(D1) was
++0.0017 [−0.0002, +0.0035] and AUROC(C) minus AUROC(D1) −0.012 [−0.030, +0.005]: the simpler setting did not
+demonstrably help. B's and D1's setting was selected in Version 1.1 on these same labels, which flatters both.
 
 **What this shows, and what it does not.** On development data, a cut-off chosen on the cross-fitted
 predictions of about 200 resistant spectra is much steadier across patients than one chosen on about 25, with
 no demonstrated change in probability quality and at a cost in specificity. It does not show that C is better on
 new data, it says nothing about 2018 or another site, and it gives no reason to think any of these cut-offs
-holds its target over time: the forward check says they do not. Every interval treats each fitted model as
+holds its target over time: in the one forward split, none did. Every interval treats each fitted model as
 fixed, so the uncertainty of fitting is left out.
 
 **Next.** Under the plan's section 12, C does not qualify for a one-time held-out evaluation, because its
 primary endpoint was not met. DRIAMS-C's ceftriaxone labels, the only unused candidate, stay closed; opening
-them is the owner's decision.
+them is the owner's decision, and their status is **uncertain** — see
+[`docs/driams_c_status.md`](docs/driams_c_status.md) for what has been accessed there, by antibiotic.
 
 ```powershell
 python scripts/v12_development.py   # development only: no test part read, no production-log row
@@ -2467,6 +2478,7 @@ antibiotic-resistance-ai/
 │   ├── write_bundle_checksums.py  write or verify the .sha256 sidecar beside each bundle
 │   ├── second_antibiotic_report.py  Version 1.1 tables and the two-antibiotic comparison (scores nothing)
 │   ├── v12_development.py      Version 1.2 development-only study (no test part, own development log)
+│   ├── v12_report.py           Version 1.2 complete tables from the saved outputs (fits nothing)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2506,6 +2518,7 @@ antibiotic-resistance-ai/
 ├── docs/v1.0_plan.md           the result page, README and deployment contract
 ├── docs/v1.1_ceftriaxone_plan.md  the second antibiotic (fixed before any Version 1.1 code)
 ├── docs/v1.2_calibration_plan.md  the development-only calibration and cut-off study
+├── docs/driams_c_status.md     what has been accessed at DRIAMS-C, by antibiotic, and its standing
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)

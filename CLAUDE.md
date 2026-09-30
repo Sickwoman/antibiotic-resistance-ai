@@ -243,8 +243,18 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   log `results/experiments/development_runs.csv`, which `DevelopmentLog` refuses to point at the production log.
   - Findings, as the data supports them: primary (Brier, B minus C) **not demonstrated**, +0.0002 [-0.0024,
     +0.0028]; C's cut-off far steadier across folds (sensitivity SD 0.058 against 0.151) at lower specificity
-    (0.370 against 0.446), reaching 0.90 in 7 of 15 folds; **forward in time no arm held its target** (0.56-0.79)
-    because every arm under-predicted 2017 (intercepts +0.67 to +0.81; resistance 8.3 % -> 11.4 %).
+    (0.370 against 0.446), reaching 0.90 in 7 of 15 folds; **in the one forward split no arm held its target**
+    (0.56-0.79). Resistance was higher in 2017 (11.4 % against 8.3 %) and every arm under-predicted on average
+    (intercepts +0.67 to +0.81), but **never write that this explains the loss**: a prevalence change alone
+    leaves sensitivity at a fixed cut-off unchanged, and label shift was not established.
+  - Brier(B) minus Brier(D1) = +0.0020 is the effect of fitting on 8/8 instead of 7/8 of a fold (no cut-off
+    enters Brier), not of the cross-fitted cut-off. Name both operands of every difference.
+  - `results/metrics/v1.2/ecoli_ceftriaxone/tables_complete.md` (from `scripts/v12_report.py`, saved outputs
+    only) is the complete V1.2 report; the run's own `tables.md` omits three secondaries and is kept as written.
+  - DRIAMS-C's standing, by antibiotic, is in `docs/driams_c_status.md`: ciprofloxacin spent; ceftriaxone
+    **uncertain** (labels never used by a model, but their aggregate counts were seen on 2026-09-30, the
+    spectra were used for ciprofloxacin, and there are no patient IDs). Never open C labels without an
+    owner-approved amendment.
   - A cut-off chosen on fewer than 50 resistant spectra is **unsupported**: report it, never describe it as
     targeting 0.90. The Version 1.1 procedure's slice holds about 25.
   - **A `CalibratedClassifierCV` calibrator works on the pipeline's `decision_function` (LightGBM's raw margin),
