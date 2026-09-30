@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-from scipy.stats import beta
+from scipy.stats import beta, binom
 
 from src.dataset import CohortSpec, build_dataset, load_dataset
 from src.development import DevelopmentError, development_pool
@@ -76,6 +76,33 @@ def test_rule_e_is_the_protocols_rule_and_never_below_rule_u():
         assert e["threshold"] == choose_threshold(np.ones(n, int), r, rule)
         assert e["misses_allowed"] == int(np.floor(0.1 * n + 1e-9))
         assert u["threshold"] <= e["threshold"]                             # U flags a superset of E
+
+
+def test_the_reported_attainment_probabilities_of_rule_e_are_exact_binomials():
+    """The 0.56 and 0.44 (README, plan closure record): E keeps r(floor(0.1 n) + 1), and for exchangeable scores
+    from a scoring function that did not see them, P(true sensitivity >= 0.90) = P(Binomial(n, 0.10) >= k).
+    A theoretical value under those assumptions - not an observed attainment rate."""
+    for n, k, reported in ((39, 4, 0.56), (63, 7, 0.44)):
+        e = empirical_cutoff(np.arange(1, n + 1) / (n + 1), 0.90)                  # tie-free scores
+        assert e["k"] == k == int(np.floor(0.1 * n + 1e-9)) + 1
+        assert round(float(binom.sf(k - 1, n, 0.10)), 2) == reported
+    assert round(float(binom.sf(3, 39, 0.10)), 4) == 0.5563 and round(float(binom.sf(6, 63, 0.10)), 4) == 0.4442
+
+
+def test_ties_leave_e_at_the_same_order_statistic_and_only_raise_attainment():
+    """Flagging at or above the cut-off, a tied score law can only raise r(k)'s true sensitivity, so the binomial
+    value becomes a lower bound; E's cut-off is still the value r(floor(0.1 n) + 1)."""
+    rng = np.random.default_rng(5)
+    levels = np.linspace(0, 1, 20)                                   # a score law with 20 atoms, equally likely
+    for n in (39, 63):
+        k = int(np.floor(0.1 * n + 1e-9)) + 1
+        attained = []
+        for _ in range(3000):
+            s = rng.choice(levels, size=n)
+            cut = empirical_cutoff(s, 0.90)["threshold"]
+            assert cut == np.sort(s)[k - 1]
+            attained.append((levels >= cut).mean() >= 0.90)          # true sensitivity of 'flag if score >= cut'
+        assert np.mean(attained) >= binom.sf(k - 1, n, 0.10) - 0.02, n
 
 
 def test_rule_u_equals_the_clopper_pearson_description_for_tie_free_scores():

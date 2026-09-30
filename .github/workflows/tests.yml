@@ -11,6 +11,11 @@ jobs:
   pytest:
     name: pytest (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    # GitHub runs `shell: bash` as `bash --noprofile --norc -eo pipefail {0}` on every OS, so any failing command
+    # or pipe segment fails its step. Windows' default PowerShell fails a step only on its last native command.
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
