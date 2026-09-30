@@ -1,0 +1,320 @@
+{
+  "gate": "Version 1.1 step 4 pre-score gate",
+  "checks": {
+    "branch": "pass",
+    "clean_tree": "pass",
+    "preregistration_first": "pass",
+    "plan_pinned_second": "pass",
+    "report_script_before_scoring": "pass",
+    "permanent_log": "pass",
+    "log_sha": "pass",
+    "log_rows": "pass",
+    "log_matches_main": "pass",
+    "no_v11_rows_yet": "pass",
+    "dataset_identity": "pass",
+    "bundle_belongs_to_dataset": "pass",
+    "dataset_aware:scripts/tune_models.py": "pass",
+    "dataset_aware:scripts/measure_generalisation.py": "pass",
+    "dataset_aware:scripts/second_antibiotic_report.py": "pass",
+    "dataset_aware:src/evaluate.py": "pass",
+    "v07_reuse_blind_to_ceftriaxone": "pass",
+    "counts:random/train": "pass",
+    "counts:random/validation": "pass",
+    "counts:random/test": "pass",
+    "counts:temporal/train": "pass",
+    "counts:temporal/validation": "pass",
+    "counts:temporal/test": "pass",
+    "counts:external/train": "pass",
+    "counts:external/validation": "pass",
+    "counts:external/DRIAMS-B": "pass",
+    "counts:external/DRIAMS-D": "pass",
+    "leakage:random/train-validation": "pass",
+    "leakage:random/train-test": "pass",
+    "leakage:random/validation-test": "pass",
+    "leakage:temporal/train-validation": "pass",
+    "leakage:temporal/train-test": "pass",
+    "leakage:temporal/validation-test": "pass",
+    "leakage:external/train-validation": "pass",
+    "leakage:external/train-test": "pass",
+    "leakage:external/validation-test": "pass",
+    "shared_identical": "pass",
+    "primary_unchanged": "pass",
+    "no_test_label_used": "pass",
+    "arms": "pass",
+    "planned_count": "pass",
+    "planned_keys": "pass",
+    "served_bundle": "pass",
+    "earlier_results_unchanged": "pass"
+  },
+  "branch": "v1.1-ceftriaxone",
+  "head": "83df31c51118f9b3e32807da90d4107b28171ad2",
+  "commits_since_main": [
+    "b6016a3 Pre-register Version 1.1: E. coli + ceftriaxone (protocol amendment 8)",
+    "f8d9c9b Pin the Version 1.1 plan and the protocol through amendment 8",
+    "7116e12 Builder: a dataset for another antibiotic, checked against the primary",
+    "a595b53 Version 1.1 dataset: ecoli_ceftriaxone, built and verified",
+    "0b0735f Version 1.1 config, and the existing scripts taught to run it",
+    "7b852f0 Version 1.1 report script, written before any Version 1.1 result exists",
+    "8ee5c97 project.version 1.1.0, so Version 1.1 models are stamped as Version 1.1",
+    "2255cb3 Version 1.1 development run: search, calibration and validation only",
+    "83df31c Strict append gate for the Version 1.1 scorings; the gate's key gains the dataset"
+  ],
+  "tests": "665 passed (full suite, run immediately before this gate)",
+  "ruff": "clean at the default and py311 targets",
+  "log_pre_write_sha256": "c395fcb34dcdd041ca6d953605b517d6992f95e4df718566ba4b2e59a076e0c7",
+  "log_pre_write_rows": 89,
+  "dataset": {
+    "name": "ecoli_ceftriaxone",
+    "antibiotic": "Ceftriaxone",
+    "row_fingerprint": "fb65868756a623ee",
+    "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+    "feature_fingerprint": "347cbd6d5d956ff9",
+    "built_from": "7116e12"
+  },
+  "splits": {
+    "random": {
+      "file_sha256": "f0c5b606fcbdfabd0f5fc0cac10138dfd441532708bcfe1431ab99b4d1b26578",
+      "dataset_fingerprint": "fb65868756a623ee",
+      "derived_from": {
+        "dataset": "ecoli_ciprofloxacin",
+        "dataset_fingerprint": "151415a4d03dbcc5"
+      }
+    },
+    "within_year": {
+      "file_sha256": "c30effdd8b4e1f231d1535f7aa2cca99c597e47cdebf3fb9bb13e01b5ec1e553",
+      "dataset_fingerprint": "fb65868756a623ee",
+      "derived_from": {
+        "dataset": "ecoli_ciprofloxacin",
+        "dataset_fingerprint": "151415a4d03dbcc5"
+      }
+    },
+    "temporal": {
+      "file_sha256": "2cede4427dd1e123dccdb5f49e1c9f5d22ceba1ae425808ea344ec6feb2cc888",
+      "dataset_fingerprint": "fb65868756a623ee",
+      "derived_from": {
+        "dataset": "ecoli_ciprofloxacin",
+        "dataset_fingerprint": "151415a4d03dbcc5"
+      }
+    },
+    "external": {
+      "file_sha256": "aa9f2abc88610ffe47da499cde67fd58490b093d52427ba8a5422bb0b770996d",
+      "dataset_fingerprint": "fb65868756a623ee",
+      "derived_from": {
+        "dataset": "ecoli_ciprofloxacin",
+        "dataset_fingerprint": "151415a4d03dbcc5"
+      }
+    },
+    "external_ab": {
+      "file_sha256": "ab51b9fecb4d3e4adf740f9d31cddaeeb19911f7abf2d3aacfc1e6877b95bef1",
+      "dataset_fingerprint": "fb65868756a623ee",
+      "derived_from": {
+        "dataset": "ecoli_ciprofloxacin",
+        "dataset_fingerprint": "151415a4d03dbcc5"
+      }
+    }
+  },
+  "arm_t_bundle": {
+    "model_version": "v1.1.0-tuned_lightgbm-random-seed42",
+    "dataset": "ecoli_ceftriaxone",
+    "row_fingerprint": "fb65868756a623ee",
+    "test_metrics": null
+  },
+  "config_sha256": "6b62fa8bc21986f7e2a179ef677274a1628f1013d8ed2a6ed49cf82497d78181",
+  "v11_sections_sha256": "8bd923fa91ec2e2af1071cc9d86f25176315f221f5f81d607092c87041141bd3",
+  "shared_with_primary": {
+    "primary_dataset": "ecoli_ciprofloxacin",
+    "primary_row_fingerprint": "151415a4d03dbcc5",
+    "primary_x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+    "shared_spectra": 6396,
+    "identical": 6396,
+    "only_in_this_dataset": 93,
+    "only_in_primary": 14
+  },
+  "locked_thresholds": {
+    "tuned_lightgbm/seed42": 0.0556021895794706,
+    "tuned_lightgbm/seed43": 0.0687291028342502,
+    "tuned_lightgbm/seed44": 0.0654653178597376,
+    "tuned_lightgbm/seed45": 0.0574302263354571,
+    "tuned_lightgbm/seed46": 0.0444974088734793,
+    "tuned_lightgbm_cipro_setting/seed42": 0.0523108347353337
+  },
+  "planned_rows": [
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm",
+      "seed": 43
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm",
+      "seed": 44
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm",
+      "seed": 45
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm",
+      "seed": 46
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "random",
+      "split": "random",
+      "model": "tuned_lightgbm_cipro_setting",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "tuned_lightgbm",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "tuned_lightgbm",
+      "seed": 43
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "tuned_lightgbm",
+      "seed": 44
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "tuned_lightgbm",
+      "seed": 45
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "tuned_lightgbm",
+      "seed": 46
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "temporal__DRIAMS-A",
+      "split": "temporal",
+      "model": "prevalence",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 43
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 44
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 45
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 46
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 43
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 44
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 45
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "tuned_lightgbm",
+      "seed": 46
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-B",
+      "split": "external",
+      "model": "prevalence",
+      "seed": 42
+    },
+    {
+      "dataset": "ecoli_ceftriaxone",
+      "experiment": "external__DRIAMS-D",
+      "split": "external",
+      "model": "prevalence",
+      "seed": 42
+    }
+  ],
+  "strict_gate_dry_run": {
+    "pre_write_sha256": "c395fcb34dcdd041ca6d953605b517d6992f95e4df718566ba4b2e59a076e0c7",
+    "pre_write_rows": 89,
+    "rows_to_append": 24,
+    "expected_rows_after": 113,
+    "checked_against_committed": true,
+    "checked_at": "2026-09-30 17:43:17"
+  },
+  "keys_that_would_clash_without_the_dataset": 23
+}
