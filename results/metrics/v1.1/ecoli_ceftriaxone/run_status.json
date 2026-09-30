@@ -1,15 +1,15 @@
 {
   "stage": "v1.1-tuned",
   "status": "finished",
-  "updated": "2026-09-30 16:36:03",
+  "updated": "2026-09-30 17:44:00",
   "timezone": "India Standard Time+0530",
-  "git_commit": "8ee5c97",
+  "git_commit": "7c26a36",
   "code_fingerprint": "870d5c1738479099",
   "dataset": "ecoli_ceftriaxone",
   "rows_fingerprint": "fb65868756a623ee",
   "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
   "feature_fingerprint": "347cbd6d5d956ff9",
-  "test_parts_scored": false,
+  "test_parts_scored": true,
   "families": [
     "lightgbm",
     "lightgbm_cipro_setting"
@@ -23,7 +23,7 @@
     "joblib": "1.6.0"
   },
   "chosen_family": "lightgbm",
-  "seconds": 1.0,
+  "seconds": 0.8,
   "config": {
     "project": {
       "name": "antibiotic-resistance-ai",
@@ -817,6 +817,7 @@
       ],
       "retune_experiments": [],
       "primary_family": "lightgbm",
+      "append_gate": "strict",
       "model_dir": "models/v1.1",
       "report_dir": "results/metrics/v1.1",
       "plot_dir": "results/plots/v1.1",
@@ -933,6 +934,7 @@
         45,
         46
       ],
+      "append_gate": "strict",
       "model_dir": "models/v1.1/generalisation",
       "report_dir": "results/metrics/v1.1/generalisation",
       "plot_dir": "results/plots/v1.1"

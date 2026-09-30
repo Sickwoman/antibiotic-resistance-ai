@@ -1,8 +1,8 @@
 {
   "format": "amr-model-bundle/1",
   "model_version": "v1.1.0-tuned_lightgbm-random-seed42",
-  "created": "2026-09-30 16:35:57",
-  "git_commit": "8ee5c97",
+  "created": "2026-09-30 17:43:45",
+  "git_commit": "7c26a36",
   "code_fingerprint": "870d5c1738479099",
   "model": "tuned_lightgbm",
   "model_kind": "lightgbm",
@@ -128,7 +128,28 @@
       "calibration_slope": 0.685043995140749,
       "calibration_intercept": 0.870836701798764
     },
-    "test": null
+    "test": {
+      "n": 856,
+      "n_resistant": 79,
+      "prevalence": 0.09228971962616822,
+      "threshold": 0.05560218957947067,
+      "roc_auc": 0.7130638776208397,
+      "pr_auc": 0.2138235103756623,
+      "brier": 0.08269570531039884,
+      "accuracy": 0.4591121495327103,
+      "balanced_accuracy": 0.6224606161315023,
+      "sensitivity": 0.8227848101265823,
+      "recall": 0.8227848101265823,
+      "specificity": 0.42213642213642216,
+      "precision": 0.1264591439688716,
+      "f1": 0.21922428330522767,
+      "tp": 65,
+      "fp": 449,
+      "tn": 328,
+      "fn": 14,
+      "calibration_slope": 0.6654015652049237,
+      "calibration_intercept": -0.24455230668566486
+    }
   },
   "versions": {
     "python": "3.12.10",

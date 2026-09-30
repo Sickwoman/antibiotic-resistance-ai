@@ -1,18 +1,35 @@
 {
-  "stage": "v1.1-tuned",
+  "stage": "v1.1-generalisation",
   "status": "finished",
-  "updated": "2026-09-30 17:44:00",
+  "updated": "2026-09-30 17:49:45",
   "timezone": "India Standard Time+0530",
   "git_commit": "7c26a36",
-  "code_fingerprint": "870d5c1738479099",
+  "code_fingerprint": "0f5a21572aae29d7",
   "dataset": "ecoli_ceftriaxone",
   "rows_fingerprint": "fb65868756a623ee",
   "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
   "feature_fingerprint": "347cbd6d5d956ff9",
-  "test_parts_scored": true,
-  "families": [
-    "lightgbm",
-    "lightgbm_cipro_setting"
+  "reused_setting_from": "v1.1.0-tuned_lightgbm-random-seed42",
+  "setting": {
+    "subsample": 0.7,
+    "reg_lambda": 10.0,
+    "num_leaves": 31,
+    "n_estimators": 600,
+    "min_child_samples": 40,
+    "learning_rate": 0.03,
+    "colsample_bytree": 0.1,
+    "class_weight": null
+  },
+  "experiments": [
+    "temporal",
+    "external"
+  ],
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
   ],
   "versions": {
     "python": "3.12.10",
@@ -22,8 +39,36 @@
     "lightgbm": "4.7.0",
     "joblib": "1.6.0"
   },
-  "chosen_family": "lightgbm",
-  "seconds": 0.8,
+  "seconds": 341.7,
+  "refit_faithful": {
+    "experiment": "random",
+    "seed": 42,
+    "refit_validation_roc_auc": 0.7476305100045133,
+    "logged_validation_roc_auc": 0.7476305100045133,
+    "difference": 0.0,
+    "refit_threshold": 0.05560218957947067,
+    "logged_threshold": 0.05560218957947067,
+    "threshold_difference": 0.0
+  },
+  "n_test_evaluations": 18,
+  "zone_transfer_tested": false,
+  "source_roc_auc": 0.7130638776208397,
+  "plots": [
+    "ecoli_ceftriaxone_generalisation_auroc.png"
+  ],
+  "reused_logged_rows": 5,
+  "reuse_logged": [
+    "random"
+  ],
+  "pre_write_checks": {
+    "pre_write_sha256": "33f2faf4b81436b96e2d0db6e56dbf2f08e181492b5b6146ae193eeccef62f6f",
+    "pre_write_rows": 95,
+    "rows_to_append": 18,
+    "expected_rows_after": 113,
+    "checked_against_committed": true,
+    "checked_at": "2026-09-30 17:49:33"
+  },
+  "test_log_sha256": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
   "config": {
     "project": {
       "name": "antibiotic-resistance-ai",

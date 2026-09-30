@@ -1,0 +1,3 @@
+experiment,model,roc_auc,pr_auc,sensitivity,specificity,AUROC tuned_lightgbm minus this
+random,tuned_lightgbm,"0.713 [0.604, 0.818]","0.214 [0.108, 0.376]","0.823 [0.714, 0.923]","0.422 [0.378, 0.465]",-
+random,tuned_lightgbm_cipro_setting,"0.704 [0.602, 0.808]","0.254 [0.138, 0.404]","0.861 [0.761, 0.944]","0.382 [0.341, 0.424]","+0.009 [-0.021, +0.034]"
