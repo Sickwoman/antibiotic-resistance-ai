@@ -448,3 +448,22 @@ split, metric or recorded result.
    that target, and a cut-off chosen on one is reported as unsupported.
 5. **DRIAMS-C stays closed.** Its ceftriaxone labels are the only unused candidate for a future one-time
    evaluation, and opening them needs a separate dated amendment approved by the owner.
+
+### Amendment 10 — 2026-09-30: an uncertainty-aware cut-off rule, on later development periods (Version 1.3)
+
+Recorded before any Version 1.3 code or experiment, together with [the Version 1.3
+plan](v1.3_threshold_plan.md), on the project owner's instruction. It changes no earlier model, threshold,
+split, metric or recorded result, and it adds nothing to the production log.
+
+1. **Development only, and exploratory.** Version 1.3 uses the Version 1.2 development pool. Its later periods
+   (2017) were already evaluated in aggregate by Version 1.2's forward check, so nothing it finds is independent
+   evidence.
+2. **Label availability is part of the design.** At each origin only labels dated at least 7 days earlier may be
+   used — for fitting, calibration, a cut-off or a recalibration — and never a label from the period evaluated.
+3. **A cut-off rule with a stated uncertainty guarantee is compared with the existing rule, and only the rule
+   changes.** The order-statistic rule's 95 % statement holds only under assumptions this design does not meet
+   (exchangeability over time, a scoring function independent of the selection scores, independent patients),
+   so in Version 1.3 it is a heuristic, and no bound is claimed for any later period.
+4. **No specificity floor is presented as operationally justified.** A cut-off with specificity below 0.20 is
+   labelled as flagging nearly everyone; staying above that line does not make a cut-off useful.
+5. **DRIAMS-C stays closed.** Its standing is recorded in `docs/driams_c_status.md`.
