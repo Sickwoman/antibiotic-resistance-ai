@@ -749,3 +749,51 @@ discrimination_audit:
     before: "2018-01-01"              # the pool's period; 2018 is the spent temporal test period
   min_per_class_in_stratum: 15        # within-stratum AUROC only where both classes have at least this many
   report_dir: results/metrics/v1.4/audit
+
+v14_screening:
+  # Version 1.4, recorded before any code (docs/v1.4_screening_plan.md, protocol amendment 11). DEVELOPMENT ONLY and
+  # exploratory: screening isolates are training data only, every evaluation is on the clinical pool, no test part,
+  # no production-log row, no served-model change, DRIAMS-C closed.
+  #   python scripts/build_dataset.py --antibiotic Ceftriaxone --keep-workstation HospitalHygiene \
+  #       --name ecoli_ceftriaxone_with_screening --report-version v1.4
+  #   python scripts/v14_screening.py
+  plan: docs/v1.4_screening_plan.md
+  dataset: ecoli_ceftriaxone
+  screening_dataset: ecoli_ceftriaxone_with_screening
+  screening:
+    workstation: HospitalHygiene
+    before: "2018-01-01"              # nothing dated 2018 or later (the spent temporal test period)
+    expected: {usable: 496, usable_resistant: 486, patient_groups: 260, joining: 70, joining_groups: 27, new: 426,
+               new_resistant: 416, new_groups: 233, new_resistant_groups: 229, excluded_outside_pool: 8}
+  pool_source_split: random
+  spent_splits: [random, temporal, external, external_ab]
+  expected_pool: {spectra: 2421, resistant: 247, fingerprint: 064a4bbbd05847f2}
+  outer_folds: 5                      # Version 1.2's outer partitions, unchanged
+  partition_seeds: [42, 43, 44]
+  primary_partition_seed: 42          # the operating point and the bootstrap secondaries
+  min_resistant_per_heldout_fold: 30
+  inner_folds: 5                      # the Version 0.4 calibration, unchanged
+  inner_seed: 42
+  model_seed: 42
+  calibration: sigmoid
+  threshold:                          # Version 1.2 arm C's cut-off procedure, unchanged
+    rule: min_sensitivity
+    min_sensitivity: 0.90
+    min_resistant_for_support: 50
+  useless_specificity: 0.20           # "flags nearly everyone": a research line, NOT an operational floor
+  forward: {train_before: "2017-01-01", evaluate_from: "2017-01-01", evaluate_before: "2018-01-01"}
+  setting:                            # held fixed: the Version 0.4 ciprofloxacin winner (V1.1 arm F, V1.2 arm C)
+    card: results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json
+    section: second_antibiotic
+    family: lightgbm_cipro_setting
+  reproduce:                          # A0 must reproduce Version 1.2's arm C (the plan's check 4)
+    predictions: models/v1.2/ecoli_ceftriaxone/heldout_predictions.npz
+    arm: C
+    tolerance: 1.0e-12
+  level: 0.95                         # the corrected repeated-CV interval of the primary
+  bootstrap: {resamples: 2000, seed: 42, level: 0.95}
+  budget_seconds: 7200                # hard cap, 2 hours (the plan's section 12)
+  require_clean_tree: true
+  development_log: results/experiments/development_runs.csv   # the same development log; never the production log
+  model_dir: models/v1.4              # git-ignored
+  report_dir: results/metrics/v1.4

@@ -5,6 +5,8 @@ No model is trained. Run from the project root with the virtual environment acti
     python scripts/build_dataset.py                          # primary dataset (I counted as resistant)
     python scripts/build_dataset.py --intermediate-as exclude  # sensitivity dataset (I removed)
     python scripts/build_dataset.py --antibiotic Ceftriaxone --report-version v1.1   # Version 1.1
+    python scripts/build_dataset.py --antibiotic Ceftriaxone --keep-workstation HospitalHygiene \
+        --name ecoli_ceftriaxone_with_screening --report-version v1.4   # Version 1.4 (screening: training only)
 
 Build the primary dataset first: every other dataset reuses its saved splits. A dataset for another
 antibiotic is also checked against it: every spectrum the two share must be byte-identical, or the build stops.
@@ -110,6 +112,9 @@ def main() -> int:
     parser.add_argument("--name", default=None, help="output dataset name")
     parser.add_argument("--antibiotic", default=None,
                         help="override target.preferred_antibiotic (a new dataset, e.g. ecoli_ceftriaxone)")
+    parser.add_argument("--keep-workstation", action="append", default=[], metavar="NAME",
+                        help="include samples of a workstation dataset.exclude_workstations excludes, in a dataset "
+                             "of its own name (Version 1.4: HospitalHygiene screening isolates, training only)")
     parser.add_argument("--report-version", default="v0.2",
                         help="version folder under results/ for the reports (default v0.2)")
     parser.add_argument("--skip-splits", action="store_true",
@@ -127,7 +132,7 @@ def main() -> int:
         seed = int(config["project"]["random_seed"])
         set_seed(seed)
         spec = CohortSpec.from_config(config, intermediate_as=args.intermediate_as, sites=args.sites, name=args.name,
-                                      antibiotic=args.antibiotic)
+                                      antibiotic=args.antibiotic, keep_workstations=args.keep_workstation)
         if not re.fullmatch(r"v\d+(\.\d+)*", args.report_version):
             raise ConfigError(f"--report-version must look like v0.2 or v1.1, not {args.report_version!r}.")
         if args.splits_only and args.skip_splits:
