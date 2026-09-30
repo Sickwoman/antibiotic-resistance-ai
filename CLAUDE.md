@@ -218,7 +218,9 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   (AUROC 0.713, 0.604–0.818) but **not a usable decision rule** (sensitivity 0.823 against 0.90, specificity
   0.422, precision 0.127; Brier 0.083 against 0.084 for the base rate); T against F, the two antibiotics and
   every generalisation gap **not demonstrated**, which is never "equivalent"; DRIAMS-D the weakest (0.651).
-  The published 0.74 is a reference point, never "matched" or "replicated". No ceftriaxone model is served.
+  The published 0.74 is a reference point, never "matched" or "replicated" - and its attribution to ceftriaxone
+  is **unverified** (the Weis et al. abstract gives 0.74 for E. coli without the antibiotic; full text not
+  checked). No ceftriaxone model is served.
   - `ecoli_ceftriaxone` comes from `build_dataset.py --antibiotic Ceftriaxone --report-version v1.1`: the
     primary's preprocessing, splits **derived** from the primary (93 ceftriaxone-only isolates are in no
     split), and every shared spectrum must be byte-identical to the primary's row or the build stops.
@@ -298,6 +300,10 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   - A0 must reproduce Version 1.2's arm C exactly (it did: difference 0). Name both operands: every difference here
     is A1 minus A0.
   - Consensus/semantic-scholar style links carry 32-hex ids that the privacy scan rightly flags; cite by DOI.
+- **The research cycle V0.1-V1.4 is closed by `docs/research_report_v0.1-v1.4.md`** (with `evidence_map.md`,
+  `reproduction_guide.md`, `research_summary.md`, `review_checklist.md`; branch `v1.4-report`). Its section 8 lists
+  the reporting corrections; a pre-specified sensitivity analysis (ciprofloxacin, I excluded) was never run - say so
+  wherever the label policy is discussed. Only tier-1 and tier-2 commands of the reproduction guide may be run.
 - **Test automation must surface failures** (Version 1.3 closure). CI runs every step under `bash` (GitHub:
   `-eo pipefail`); never pipe pytest into `tail`/`tee` before a commit - read pytest's own exit code.
   `tests/conftest.py` fails the whole session if a test changed `results/experiments/test_evaluations.csv` or

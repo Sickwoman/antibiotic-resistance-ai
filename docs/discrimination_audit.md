@@ -94,3 +94,8 @@ plan's stopping rule requires after it, whatever it finds.
 one more (resistant) screening spectrum is excluded: 495 usable (485 resistant) from 259 patient groups, 69 spectra
 of 26 pool patients, 9 excluded. The 233 new patients (229 resistant) are unchanged. The generated tables are kept as
 computed; see the addendum of [the Version 1.4 plan](v1.4_screening_plan.md).
+
+**Correction — 2026-10-01 (research report review).** Section 3, item 5 calls AUROC 0.74 "the published reference
+for this pair". The verified abstract of Weis et al. (2022) gives 0.74 for *E. coli* without naming the antibiotic or
+the classifier, and the full text could not be checked, so the attribution to ceftriaxone is **unverified**; the
+comparison should not be relied on. See the research report, section 8.1.
