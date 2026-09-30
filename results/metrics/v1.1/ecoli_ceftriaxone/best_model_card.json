@@ -1,0 +1,141 @@
+{
+  "format": "amr-model-bundle/1",
+  "model_version": "v1.1.0-tuned_lightgbm-random-seed42",
+  "created": "2026-09-30 16:35:57",
+  "git_commit": "8ee5c97",
+  "code_fingerprint": "870d5c1738479099",
+  "model": "tuned_lightgbm",
+  "model_kind": "lightgbm",
+  "params": {
+    "subsample": 0.7,
+    "reg_lambda": 10.0,
+    "num_leaves": 31,
+    "n_estimators": 600,
+    "min_child_samples": 40,
+    "learning_rate": 0.03,
+    "colsample_bytree": 0.1,
+    "class_weight": null
+  },
+  "seed": 42,
+  "calibration": {
+    "method": "sigmoid",
+    "folds": 5,
+    "fitted_on": "out-of-fold predictions of 5 patient-grouped folds of the training part"
+  },
+  "species": "Escherichia coli",
+  "antibiotic": "Ceftriaxone",
+  "label_map": {
+    "0": "susceptible (S)",
+    "1": "resistant (R or I)"
+  },
+  "threshold": 0.05560218957947067,
+  "threshold_rule": {
+    "rule": "min_sensitivity",
+    "min_sensitivity": 0.9
+  },
+  "preprocessing": {
+    "intensity_transform": "sqrt",
+    "smoothing_method": "savitzky_golay",
+    "half_window_size": 10,
+    "polynomial_order": 3,
+    "baseline_method": "snip",
+    "baseline_iterations": [
+      20,
+      100
+    ],
+    "normalization": "tic",
+    "mz_min": 2000.0,
+    "mz_max": 20000.0,
+    "bin_width": 3.0,
+    "dtype": "float32",
+    "min_raw_points": 100,
+    "spectrum_folder": "raw",
+    "n_bins": 6000
+  },
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "n_features": 6000,
+  "dataset": {
+    "name": "ecoli_ceftriaxone",
+    "row_fingerprint": "fb65868756a623ee",
+    "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+    "sites": [
+      "DRIAMS-A",
+      "DRIAMS-B",
+      "DRIAMS-D"
+    ],
+    "intermediate_as": "resistant"
+  },
+  "split": {
+    "name": "random",
+    "experiment": "random",
+    "train_size": 2966,
+    "dataset_fingerprint": "fb65868756a623ee",
+    "train_sites": [
+      "DRIAMS-A"
+    ]
+  },
+  "selection": {
+    "metric": "roc_auc",
+    "part": "validation",
+    "candidates": {
+      "tuned_lightgbm": 0.7476305100045133,
+      "tuned_lightgbm_cipro_setting": 0.7243117195727395
+    },
+    "rule": "pre-registered primary family 'lightgbm', not chosen on validation"
+  },
+  "metrics": {
+    "validation": {
+      "n": 425,
+      "n_resistant": 34,
+      "prevalence": 0.08,
+      "threshold": 0.05560218957947067,
+      "roc_auc": 0.7476305100045133,
+      "pr_auc": 0.23042396680962485,
+      "brier": 0.07266557080416325,
+      "accuracy": 0.4423529411764706,
+      "balanced_accuracy": 0.6566496163682864,
+      "sensitivity": 0.9117647058823529,
+      "recall": 0.9117647058823529,
+      "specificity": 0.40153452685422,
+      "precision": 0.1169811320754717,
+      "f1": 0.20735785953177258,
+      "tp": 31,
+      "fp": 234,
+      "tn": 157,
+      "fn": 3,
+      "calibration_slope": 0.7399765550581118,
+      "calibration_intercept": -0.35036980027527836
+    },
+    "validation_uncalibrated": {
+      "n": 425,
+      "n_resistant": 34,
+      "prevalence": 0.08,
+      "threshold": 0.015718818933182114,
+      "roc_auc": 0.7476305100045133,
+      "pr_auc": 0.23042396680962485,
+      "brier": 0.07285230714801652,
+      "accuracy": 0.4423529411764706,
+      "balanced_accuracy": 0.6566496163682864,
+      "sensitivity": 0.9117647058823529,
+      "recall": 0.9117647058823529,
+      "specificity": 0.40153452685422,
+      "precision": 0.1169811320754717,
+      "f1": 0.20735785953177258,
+      "tp": 31,
+      "fp": 234,
+      "tn": 157,
+      "fn": 3,
+      "calibration_slope": 0.685043995140749,
+      "calibration_intercept": 0.870836701798764
+    },
+    "test": null
+  },
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0"
+  }
+}

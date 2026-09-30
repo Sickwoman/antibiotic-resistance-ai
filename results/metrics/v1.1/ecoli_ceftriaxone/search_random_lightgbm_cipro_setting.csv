@@ -1,0 +1,2 @@
+setting,class_weight,colsample_bytree,learning_rate,min_child_samples,n_estimators,num_leaves,reg_lambda,subsample,cv_roc_auc_mean,cv_roc_auc_sd,cv_pr_auc_mean,cv_pr_auc_sd,fit_seconds_mean,rank
+0,none,0.3,0.1,10,300,31,10.0,1.0,0.7817733694527214,0.019419055664495075,0.3824446703783646,0.03118670316038427,7.759766578674316,1
