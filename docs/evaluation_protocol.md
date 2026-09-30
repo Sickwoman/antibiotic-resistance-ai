@@ -405,3 +405,24 @@ existed to be replaced.
 entry at the end of this file, never edited where it stands, so that anyone reading the file can tell what
 was decided in advance from what was learned afterwards. The two edits above predate this record; no approved
 text has been edited in place since.
+
+### Amendment 8 — 2026-09-30: a second antibiotic (Version 1.1)
+
+Added before any Version 1.1 code exists, together with [the Version 1.1 plan](v1.1_ceftriaxone_plan.md). It
+changes no earlier model, threshold, split, metric or recorded result.
+
+1. **A second task, next to the first.** Section 1 still defines the main task. Version 1.1 adds *E. coli* +
+   ceftriaxone, with the same label rule (R or I = 1), metrics, threshold rule, bootstrap and reporting rules.
+2. **Test parts are used once per task and final model.** The ceftriaxone test parts hold the same spectra as
+   the ciprofloxacin ones, which have been scored, but only for ciprofloxacin. Their ceftriaxone labels have
+   never informed a model, threshold or choice, so each part may be scored once per final Version 1.1 model.
+   Wherever these results appear, they state that the spectra were scored before, for another antibiotic.
+3. **No ciprofloxacin result is re-scored.** The comparison between the two antibiotics uses the stored
+   Version 0.4 test probabilities, after the check in amendment 2, point 3.
+4. **DRIAMS-C is not scored for any label.** Its protected part was spent once in Version 0.8, and Version 1.1
+   does not reopen it.
+5. **The pair does not meet the pair-selection rule on its cohort** (428 resistant at DRIAMS-A, against a
+   minimum of 500). It proceeds as the benchmark antibiotic designated in Version 0.1, not as a pair the rule
+   selected, and no result may describe it as meeting the rule. The rule is unchanged.
+6. **The cohort is isolates with both results.** The 93 isolates with only a ceftriaxone result, 27 of them
+   resistant, are in no split. Results describe the cohort as it is and are not generalised to them.
