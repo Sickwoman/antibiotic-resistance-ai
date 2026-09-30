@@ -1,0 +1,81 @@
+{
+  "endpoint": "Brier score, B minus C, pooled held-out predictions, partition seed 42",
+  "estimate": 0.00024139129949743432,
+  "low": -0.0023789805806053287,
+  "high": 0.002804438313248939,
+  "verdict": "not demonstrated",
+  "exploratory": true,
+  "repeats": {
+    "42": {
+      "estimate": 0.00024139129949743432,
+      "low": -0.0023789805806053287,
+      "high": 0.002804438313248939
+    },
+    "43": {
+      "estimate": -0.0001691929370618156,
+      "low": -0.00243661092515851,
+      "high": 0.0022341789398850646
+    },
+    "44": {
+      "estimate": 0.0006139766580672834,
+      "low": -0.0011669426702914907,
+      "high": 0.0023566641772762124
+    }
+  },
+  "c_more_stable_descriptive": true,
+  "provenance": {
+    "run_id": "ba4144c",
+    "git_commit": "ba4144c",
+    "plan": "docs/v1.2_calibration_plan.md",
+    "plan_sha256": "f0a7b4e64cb27d39e882fd1cd5d6d206a07bfa875a1c6bbd6770fb9328ee2dc3",
+    "config_section_sha256": "aaea3c0eac7f02aea2eab11308f3a0279b592528b59fa25ac442076c0cd1d6b7",
+    "dataset": "ecoli_ceftriaxone",
+    "dataset_row_fingerprint": "fb65868756a623ee",
+    "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+    "pool_fingerprint": "064a4bbbd05847f2",
+    "pool_spectra": 2421,
+    "pool_resistant": 247,
+    "settings": {
+      "T": {
+        "card": "results/metrics/v1.1/ecoli_ceftriaxone/best_model_card.json",
+        "card_sha256": "f3570b9dab5d890f3ce2a5618f23316906171e5042a3061a2dc41c1e02807b0f",
+        "params": {
+          "subsample": 0.7,
+          "reg_lambda": 10.0,
+          "num_leaves": 31,
+          "n_estimators": 600,
+          "min_child_samples": 40,
+          "learning_rate": 0.03,
+          "colsample_bytree": 0.1,
+          "class_weight": null
+        }
+      },
+      "F": {
+        "card": "results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json",
+        "card_sha256": "d98b53bad6a01ab8dd6e73b1eece5021240a9a4bfc2827838c83ab69ffd27b8f",
+        "params": {
+          "subsample": 1.0,
+          "reg_lambda": 10.0,
+          "num_leaves": 31,
+          "n_estimators": 300,
+          "min_child_samples": 10,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.3,
+          "class_weight": null
+        }
+      }
+    },
+    "production_log_sha256_at_start": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+    "ledger_entries": 96,
+    "seconds": 2550.4,
+    "finished": "2026-09-30 20:39:29",
+    "development_log_pre_write": {
+      "pre_write_sha256": "fc02195bd4704090aebb7e2583857900962f0f6cb488d9178cedcc42b8033675",
+      "pre_write_rows": 0,
+      "rows_to_append": 16,
+      "expected_rows_after": 16,
+      "checked_against_committed": false,
+      "checked_at": "2026-09-30 20:39:30"
+    }
+  }
+}
