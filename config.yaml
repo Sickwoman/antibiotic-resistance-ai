@@ -687,3 +687,45 @@ v12_development:
   development_log: results/experiments/development_runs.csv   # never the production test log
   model_dir: models/v1.2              # git-ignored: held-out predictions
   report_dir: results/metrics/v1.2
+
+v13_threshold:
+  # Version 1.3, recorded before any code (docs/v1.3_threshold_plan.md, protocol amendment 10). DEVELOPMENT
+  # ONLY and exploratory: no test part, no production-log row, no served-model change, DRIAMS-C closed.
+  #   python scripts/v13_threshold.py
+  plan: docs/v1.3_threshold_plan.md
+  dataset: ecoli_ceftriaxone
+  pool_source_split: random           # the Version 1.2 development pool, derived the same way
+  spent_splits: [random, temporal, external, external_ab]
+  expected_pool: {spectra: 2421, resistant: 247, fingerprint: 064a4bbbd05847f2}
+  gap_days: 7                         # a label is available 7 days after acquisition (AST takes up to ~72 h)
+  origins:                            # rolling: each later period is cut by rules chosen before its origin
+    - name: 2017H1
+      origin: "2017-01-01"
+      end: "2017-07-01"
+      recent_from: "2016-07-01"       # the recalibration window: the last six months before the gap
+      expected: {available: 912, available_resistant: 76, selection_resistant: 39, k_star: 1, gap: 3,
+                 later: 730, removed_seen: 0, later_resistant: 68, recent_resistant: 40, recent_resistant_groups: 18}
+    - name: 2017H2
+      origin: "2017-07-01"
+      end: "2018-01-01"
+      recent_from: "2017-01-01"
+      expected: {available: 1627, available_resistant: 141, selection_resistant: 63, k_star: 3, gap: 18,
+                 later: 723, removed_seen: 53, later_resistant: 88, recent_resistant: 65, recent_resistant_groups: 24}
+  target_sensitivity: 0.90
+  confidence: 0.95                    # rule U: P(Binomial(n, 0.10) >= k) >= 0.95
+  useless_specificity: 0.20           # below this a cut-off "flags nearly everyone"; NOT an operational floor
+  recalibration: {min_resistant: 30, min_resistant_groups: 15}
+  setting:                            # held fixed: the Version 0.4 ciprofloxacin winner (Version 1.1 arm F)
+    card: results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json
+    section: second_antibiotic
+    family: lightgbm_cipro_setting
+  inner_folds: 5                      # the Version 0.4 calibration, unchanged
+  inner_seed: 42
+  model_seed: 42
+  calibration: sigmoid
+  bootstrap: {resamples: 2000, seed: 42, level: 0.95}   # two-level: selection and later-period patient groups
+  budget_seconds: 3600
+  require_clean_tree: true
+  development_log: results/experiments/development_runs.csv   # the same development log; never the production log
+  model_dir: models/v1.3
+  report_dir: results/metrics/v1.3
