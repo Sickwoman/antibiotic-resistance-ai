@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 1.1 – complete.** Versions 0.1 (download +
+**Status: Version 1.2 – complete (development only).** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
 time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
@@ -42,6 +42,10 @@ that is not useful decision performance:** at its cut-off it missed the 90 % sen
 (Brier 0.083 against 0.084), it was weakest at the largest external site (DRIAMS-D, 0.651), and retuning
 did not demonstrably beat reusing the ciprofloxacin setting. See
 [Version 1.1](#version-11--a-second-antibiotic-ceftriaxone).
+Version 1.2 studied calibration and the cut-off **on development data only, so every result is
+exploratory**: its primary endpoint was not demonstrated, a cut-off chosen on more data was much steadier
+across patients, and no cut-off held its sensitivity target a year later. See
+[Version 1.2](#version-12--calibration-and-the-cut-off-on-development-data-only-exploratory).
 
 ## The idea in simple words
 
@@ -257,7 +261,7 @@ per spectrum — batching saves round trips, not time.
 
 ## Limitations
 
-Consolidated from the eight per-version limitation lists; nothing from them is dropped. The unfavourable
+Consolidated from the nine per-version limitation lists; nothing from them is dropped. The unfavourable
 scientific findings are in **Results** above, where they belong, not hidden here.
 
 **The evidence is thin in the places that matter most.**
@@ -314,6 +318,12 @@ scientific findings are in **Results** above, where they belong, not hidden here
 18. **No untouched test data remain in the A, B and D cohort, for either antibiotic.** Every test part has
     been scored and its results inspected, and a new random split of those spectra is not a fresh holdout.
     A new confirmatory claim needs data that no version has scored.
+
+**Version 1.2 added one, from development data (exploratory).**
+
+19. **The cut-off does not survive a year.** Fitted before 2017 and applied to 2017, every arm under-predicted
+    resistance, which rose from 8.3 % to 11.4 %, and delivered 0.56–0.79 sensitivity against 0.90 —
+    including a cut-off chosen on enough resistant spectra to support its target.
 
 ## Ethics and intended use
 
@@ -2343,7 +2353,94 @@ python scripts/second_antibiotic_report.py   # tables only: scores nothing
 ![Version 1.1 ROC and precision–recall](results/plots/v1.1/ecoli_ceftriaxone_random_roc_pr.png)
 ![Version 1.1 generalisation](results/plots/v1.1/ecoli_ceftriaxone_generalisation_auroc.png)
 
-## Project structure (Version 1.1)
+## Version 1.2 – calibration and the cut-off, on development data only (exploratory)
+
+Recorded in [`docs/v1.2_calibration_plan.md`](docs/v1.2_calibration_plan.md) (protocol amendment 9) before any
+Version 1.2 code or experiment existed — on the project owner's instruction, without a separate review before
+recording. **Development only: no test part was read, nothing was added to the production log, and every
+result below is exploratory.** No untouched evaluation data exist (Limitation 18), so nothing here confirms
+anything. Numbers are copied from [`tables.md`](results/metrics/v1.2/ecoli_ceftriaxone/tables.md), the
+[development log](results/experiments/development_runs.csv) and
+[`pooled_results.json`](results/metrics/v1.2/ecoli_ceftriaxone/pooled_results.json).
+
+**Why this question.** The cut-off missed its 0.90 sensitivity target on test for both antibiotics (0.827 and
+0.823); Version 1.1's rested on 34 resistant validation spectra, and its probabilities barely beat the base
+rate. Version 1.1 also found the reused ciprofloxacin setting (arm F) no worse than a fresh search (arm T). So
+the question is not which hyperparameters, but whether a simpler model, calibrated and thresholded on more of
+the data it already has, gives better probabilities and a steadier operating point.
+
+**Design.** 2,421 DRIAMS-A spectra from 2015–2017 (247 resistant) that were never in an inspected test part and
+share no patient with one; 5-fold patient-grouped cross-validation over three partitions, plus one
+forward-in-time check. **R0** predicts the training resistance rate (no skill). **B** is the unchanged Version
+1.1 procedure: arm T's setting fitted on 7/8 of each training fold, its cut-off chosen on the remaining 1/8.
+**C** is the candidate: arm F's setting fitted on the whole training fold, its cut-off chosen on that fold's
+cross-fitted predictions. **D1** is a diagnostic: B's setting with C's procedure. A cut-off's 0.90 target counts
+as *supported* only if it was chosen on at least 50 resistant spectra.
+
+**Primary (exploratory): not demonstrated.** Brier score, B minus C, pooled held-out predictions: **+0.0002
+[−0.0024, +0.0028]**; the other two partitions gave −0.0002 and +0.0006. C's probabilities were not demonstrably
+better than B's — and not demonstrably worse, which is not the same as equal.
+
+| Partition 42, pooled | Brier | AUROC | PR-AUC | Calibration slope | Delivered sensitivity | Delivered specificity |
+|---|---|---|---|---|---|---|
+| R0 no-skill | 0.0916 | — | 0.102 | — | — | — |
+| B unchanged Version 1.1 procedure | 0.0802 | 0.780 (0.732–0.822) | 0.324 | 1.00 | 0.842 (0.780–0.896) | 0.481 |
+| C candidate | 0.0800 | 0.767 (0.718–0.811) | 0.324 | 0.92 | 0.895 (0.843–0.938) | 0.369 |
+| D1 diagnostic | 0.0783 | 0.780 (0.729–0.825) | 0.352 | 1.04 | 0.875 (0.819–0.924) | 0.414 |
+
+Within these years every arm was about 12–15 % better than always predicting the base rate (Brier skill B
+0.125, C 0.127, D1 0.146). C minus B: AUROC −0.012 [−0.032, +0.006], PR-AUC +0.000 [−0.034, +0.034].
+
+**The operating point: steadier with C, not solved.**
+
+| Over 15 held-out folds | Cut-offs supported | Resistant per selection set | Delivered sensitivity, mean (SD) and range | Folds ≥ 0.90 | Specificity, mean |
+|---|---|---|---|---|---|
+| B | 0 of 15 | 24–25 | 0.849 (0.151), 0.46–1.00 | 7 | 0.446 |
+| C | 15 of 15 | 197–198 | 0.892 (0.058), 0.78–0.96 | 7 | 0.370 |
+| D1 | 15 of 15 | 197–198 | 0.883 (0.101), 0.66–0.98 | 9 | 0.392 |
+
+B's cut-offs could not tell 0.90 from about 0.75 on their own selection data (Wilson lower bounds 0.74–0.75),
+and one fold delivered 0.46. C's were far steadier — the plan's descriptive rule "more stable" is met — but at
+lower specificity, and even C reached 0.90 in only 7 of 15 folds. The rule "highest cut-off with at least 0.90"
+falls short on new patients about half the time, however many resistant spectra it is chosen on.
+
+**Forward in time, nothing held.** Fitted on 915 spectra from before 2017 (76 resistant) and evaluated once on
+1,506 from 2017 (171 resistant):
+
+| Arm | Brier | AUROC | Calibration intercept | Delivered sensitivity | Delivered specificity |
+|---|---|---|---|---|---|
+| R0 no-skill | 0.1016 | — | — | — | — |
+| B (cut-off unsupported) | 0.0980 | 0.706 | +0.74 | 0.556 | 0.741 |
+| C | 0.0983 | 0.722 | +0.67 | 0.790 | 0.503 |
+| D1 | 0.0992 | 0.690 | +0.81 | 0.567 | 0.677 |
+
+The resistance rate rose from 8.3 % to 11.4 % between the two periods, and every arm under-predicted 2017
+(calibration intercepts +0.67 to +0.81), so fewer resistant isolates crossed cut-offs set on the earlier
+period. No arm came near 0.90, a supported cut-off (D1's, chosen on 76 resistant) was no protection, and the
+Brier scores barely beat the base rate. B minus C on Brier was −0.0003 [−0.0018, +0.0010]. Patients cannot be
+linked across years, so this check is date-separated, not patient-separated.
+
+**Diagnostics (exploratory, unadjusted).** With the setting held fixed, C's procedure improved Brier slightly
+(B minus D1: +0.0020 [+0.0002, +0.0036]); with the procedure held fixed, the simpler setting did not (C minus
+D1: +0.0017 [−0.0002, +0.0035]; AUROC −0.012 [−0.030, +0.005]). B's and D1's setting was selected in Version 1.1
+on these same labels, which flatters both.
+
+**What this shows, and what it does not.** On development data, a cut-off chosen on the cross-fitted
+predictions of about 200 resistant spectra is much steadier across patients than one chosen on about 25, with
+no demonstrated change in probability quality and at a cost in specificity. It does not show that C is better on
+new data, it says nothing about 2018 or another site, and it gives no reason to think any of these cut-offs
+holds its target over time: the forward check says they do not. Every interval treats each fitted model as
+fixed, so the uncertainty of fitting is left out.
+
+**Next.** Under the plan's section 12, C does not qualify for a one-time held-out evaluation, because its
+primary endpoint was not met. DRIAMS-C's ceftriaxone labels, the only unused candidate, stay closed; opening
+them is the owner's decision.
+
+```powershell
+python scripts/v12_development.py   # development only: no test part read, no production-log row
+```
+
+## Project structure (Version 1.2)
 
 ```
 antibiotic-resistance-ai/
@@ -2369,6 +2466,7 @@ antibiotic-resistance-ai/
 │   ├── benchmark_api.py        Version 0.9 measured request latency (durations only)
 │   ├── write_bundle_checksums.py  write or verify the .sha256 sidecar beside each bundle
 │   ├── second_antibiotic_report.py  Version 1.1 tables and the two-antibiotic comparison (scores nothing)
+│   ├── v12_development.py      Version 1.2 development-only study (no test part, own development log)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2385,6 +2483,7 @@ antibiotic-resistance-ai/
 │   ├── explain.py              Version 0.6 contributions, permutation importance, m/z regions
 │   ├── uncertainty.py          Version 0.6 confident / uncertain zones and their intervals
 │   ├── predict.py              saving/loading models, prediction with timing and confidence
+│   ├── development.py          Version 1.2 pool, folds, supported cut-offs, cross-fitted predictions, log
 │   ├── api/                    Version 0.9 serving package, one responsibility per module:
 │   │   ├── app.py              construction, lifespan, routes, handlers (no inference logic)
 │   │   ├── inference_service.py  artifact loading, readiness, the prediction path
@@ -2406,6 +2505,7 @@ antibiotic-resistance-ai/
 ├── docs/v0.9_api_plan.md       the API safety contract (fixed before any endpoint was written)
 ├── docs/v1.0_plan.md           the result page, README and deployment contract
 ├── docs/v1.1_ceftriaxone_plan.md  the second antibiotic (fixed before any Version 1.1 code)
+├── docs/v1.2_calibration_plan.md  the development-only calibration and cut-off study
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
