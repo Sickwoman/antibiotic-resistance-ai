@@ -33,7 +33,7 @@ from src.utils import project_path
 # b6016a3 the pin covered the whole file through amendment 8, approved with the Version 1.1 plan, and since
 # db48bff through amendment 9, recorded with the Version 1.2 plan; each longer pin begins with the earlier
 # one's bytes unchanged, so no earlier guarantee is lost. When a later amendment is recorded, extend the pin
-# to it the same way.
+# to it the same way. Since 2242327 the pin runs through amendment 10 (Version 1.3).
 LOCKED: dict[str, tuple[int, str, str]] = {
     "docs/v0.4_search_plan.md": (
         7109, "df3544c61d2d0ebf97338bcd19866aa673de7e68116c54d76a91f16e3e67d7a5", "ddeae53"),
@@ -53,8 +53,10 @@ LOCKED: dict[str, tuple[int, str, str]] = {
         13983, "c1f8b265ca984178e4b54ea979942ee4acd87333d276a0bd81604b7a0ed7382c", "b6016a3"),
     "docs/v1.2_calibration_plan.md": (
         15384, "f0a7b4e64cb27d39e882fd1cd5d6d206a07bfa875a1c6bbd6770fb9328ee2dc3", "db48bff"),
+    "docs/v1.3_threshold_plan.md": (
+        16104, "ee8be88e641ee31595c1cf9fad51a1708430372b4e40f7f9bcc854be52639151", "2242327"),
     "docs/evaluation_protocol.md": (
-        35101, "0330131d5d25da6a39decb45197da17bbf93cff61ce55c94f5ee7be057330b6b", "db48bff"),
+        36657, "2188a85e0ed1663c7c1951bd4af237c347c55fbaf099176d05dbf3553ddf8f48", "2242327"),
 }
 
 
