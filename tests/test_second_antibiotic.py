@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import importlib
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,9 +26,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
+from sklearn.metrics import roc_auc_score
 
 from src.dataset import CohortSpec, build_dataset, load_dataset
-from src.splits import build_splits
+from src.splits import build_splits, load_splits
 from src.utils import load_config, project_path
 from tests.test_model_scripts_e2e import (
     EXTERNAL_SITE,
@@ -287,3 +289,99 @@ def test_log_lookups_tell_the_two_antibiotics_apart(v11):
 def test_every_earlier_log_row_is_unchanged(v11):
     before, after = v11.logs["decoy"], v11.logs["generalisation"]
     pd.testing.assert_frame_equal(after.iloc[:len(before)].reset_index(drop=True), before.reset_index(drop=True))
+
+
+# ------------------------------------------------------------------------------------------------ the report
+
+def _report_module():
+    return importlib.import_module("second_antibiotic_report")
+
+
+def test_the_paired_resamples_are_the_project_bootstraps_own():
+    """Scored on one label, the report's draws are exactly src.evaluate.bootstrap's, resample for resample."""
+    from src.evaluate import bootstrap
+
+    rng = np.random.default_rng(0)
+    y, groups = (rng.random(300) < 0.3).astype(np.int64), np.repeat(np.arange(150), 2)
+    p = np.clip(0.3 * y + rng.random(300) * 0.7, 0, 1)
+    samples, skipped = bootstrap(y, groups, {"m": p}, {"m": 0.5}, resamples=200, seed=42, metrics=("roc_auc",))
+    got = _report_module().paired_label_difference(y, p, y, p, groups, resamples=200, seed=42, level=0.95)
+    assert skipped == got["skipped"] == 0
+    assert got["difference"] == 0 and (got["low"], got["high"]) == (0.0, 0.0)
+    assert got["a_interval"] == list(np.quantile(samples["m"]["roc_auc"], [0.025, 0.975]))
+
+
+def test_stored_probabilities_are_refused_unless_they_are_what_was_logged(tmp_path):
+    report = _report_module()
+    rng = np.random.default_rng(1)
+    y, rows = (rng.random(100) < 0.3).astype(np.int64), np.arange(100, 200)
+    p = np.clip(0.3 * y + rng.random(100) * 0.7, 0.01, 0.99)
+    np.savez(tmp_path / "p.npz", **{"random__rows": rows, f"random__{T}__seed42": p})
+    logged = pd.DataFrame([{"dataset": "d", "split": "random", "experiment": "random", "model": T, "seed": 42,
+                            "roc_auc": float(roc_auc_score(y, p)),
+                            "brier": float(np.mean((p - y) ** 2))}])
+    kwargs = {"dataset": "d", "split": "random", "model": T, "seed": 42, "y": y}
+    assert np.array_equal(report.verified_probabilities(tmp_path / "p.npz", logged, rows=rows, **kwargs), p)
+    with pytest.raises(report.EvaluationError, match="not the random test part"):
+        report.verified_probabilities(tmp_path / "p.npz", logged, rows=rows[::-1], **kwargs)
+    np.savez(tmp_path / "rescaled.npz", **{"random__rows": rows, f"random__{T}__seed42": p ** 2})  # same AUROC
+    with pytest.raises(report.EvaluationError, match="brier"):
+        report.verified_probabilities(tmp_path / "rescaled.npz", logged, rows=rows, **kwargs)
+    with pytest.raises(report.EvaluationError, match="no random row"):
+        report.verified_probabilities(tmp_path / "p.npz", logged.assign(dataset="other"), rows=rows, **kwargs)
+
+
+@pytest.fixture(scope="module")
+def reference(v11) -> dict[str, np.ndarray]:
+    """The ciprofloxacin side: stored "Version 0.4" probabilities for the primary's random test part, with the
+    log row they must reproduce, appended after the decoy (which has the same keys and wrong numbers)."""
+    out = Path(v11.config["dataset"]["output_dir"])
+    X, meta, _ = load_dataset(out / PRIMARY)
+    del X
+    rows = np.asarray(load_splits(out / PRIMARY / "splits", meta)["random"].test, dtype=np.int64)
+    y = meta["label"].to_numpy().astype(np.int64)[rows]
+    p = np.clip(0.4 * y + np.random.default_rng(2).random(rows.size) * 0.6, 0.01, 0.99)
+    folder = Path(v11.config["tuning"]["model_dir"]) / PRIMARY
+    folder.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(folder / "test_probabilities.npz", **{"random__rows": rows, f"random__{T}__seed42": p})
+    log_path = Path(v11.config["evaluation"]["test_log"])
+    row = pd.read_csv(log_path).iloc[[-1]].copy()
+    for column, value in (("dataset", PRIMARY), ("stage", "v0.4-tuned"), ("split", "random"),
+                          ("experiment", "random"), ("model", T), ("seed", 42),
+                          ("roc_auc", roc_auc_score(y, p)), ("brier", float(np.mean((p - y) ** 2)))):
+        row[column] = value
+    row.to_csv(log_path, mode="a", header=False, index=False, lineterminator="\n")
+    return {"rows": rows, "y": y, "p": p}
+
+
+def test_the_report_compares_the_antibiotics_on_the_same_spectra_and_writes_its_tables(v11, reference):
+    rows, y, p = reference["rows"], reference["y"], reference["p"]
+    run = run_script(_report_module(), SimpleNamespace(root=v11.tmp), "--config", v11.config_path,
+                     "--dataset", DATASET, "--reference-dataset", PRIMARY)
+    assert run.code == 0, run.log.messages
+    comparison = v11.read_json("second_antibiotic", "antibiotic_comparison.json")
+    assert comparison["same_spectra"] and comparison["a"]["n"] == comparison["b"]["n"] == rows.size
+    assert comparison["b_roc_auc"] == pytest.approx(roc_auc_score(y, p))
+    assert comparison["low"] <= comparison["difference"] <= comparison["high"]
+    tables = (v11.report("second_antibiotic") / "tables.md").read_text(encoding="utf-8")
+    for required in ("does not meet the project's pair-selection rule", "isolates with both",
+                     "scored before, for ciprofloxacin", "threshold is coarse", "not re-scored",
+                     "Weis C", "not a comparison", "is not \"no gap\"", "not \"equivalent\""):
+        assert required in tables, required
+    assert "|" in tables and "nan" not in tables.lower()
+
+
+def test_the_report_refuses_reference_probabilities_that_were_not_logged(v11, reference, tmp_path, caplog):
+    folder = Path(v11.config["tuning"]["model_dir"]) / PRIMARY
+    stored = dict(np.load(folder / "test_probabilities.npz"))
+    stored[f"random__{T}__seed42"] = stored[f"random__{T}__seed42"] ** 3         # same AUROC, other Brier
+    config = copy.deepcopy(v11.config)
+    config["tuning"]["model_dir"] = str(tmp_path / "v0.4")
+    (tmp_path / "v0.4" / PRIMARY).mkdir(parents=True)
+    np.savez_compressed(tmp_path / "v0.4" / PRIMARY / "test_probabilities.npz", **stored)
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    with caplog.at_level(logging.ERROR, logger="second_antibiotic"):
+        run = run_script(_report_module(), SimpleNamespace(root=v11.tmp), "--config", path, "--dataset", DATASET,
+                         "--reference-dataset", PRIMARY)
+    assert run.code == 1 and "refusing to use them" in caplog.text
