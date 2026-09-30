@@ -1,0 +1,101 @@
+{
+  "endpoint": "AUROC on held-out clinical spectra, A1 minus A0, per outer fold (3 partitions x 5 folds)",
+  "estimate": -0.006580037784487192,
+  "low": -0.055912993775826265,
+  "high": 0.04275291820685188,
+  "sd": 0.040874443993837814,
+  "se": 0.023001334477337865,
+  "df": 14,
+  "level": 0.95,
+  "folds": 15,
+  "per_fold": [
+    -0.088525,
+    -9.4e-05,
+    0.009477,
+    0.047009,
+    -0.013747,
+    -0.020408,
+    0.039124,
+    -0.032231,
+    0.02449,
+    -0.022713,
+    0.051797,
+    -0.032372,
+    -0.070091,
+    0.026273,
+    -0.01669
+  ],
+  "per_partition_mean": {
+    "42": -0.009176052000332979,
+    "43": -0.002347482085158914,
+    "44": -0.008216579267969681
+  },
+  "exploratory": true,
+  "verdict": "not demonstrated",
+  "reproduction": {
+    "42": {
+      "largest_probability_difference": 0.0,
+      "decisions_identical": true
+    },
+    "43": {
+      "largest_probability_difference": 0.0
+    },
+    "44": {
+      "largest_probability_difference": 0.0
+    },
+    "forward": {
+      "largest_probability_difference": 0.0
+    }
+  },
+  "provenance": {
+    "run_id": "94984b5",
+    "git_commit": "94984b5",
+    "plan": "docs/v1.4_screening_plan.md",
+    "plan_sha256": "9406e7f140a86839140031d1ca517f6fbc4497bd6fcb587904ef4c3bef36fc34",
+    "config_section_sha256": "d5f293197526e6304b4c8ac72e25393a731a2a7559f909cd6d29fcfcd79c642a",
+    "dataset": "ecoli_ceftriaxone",
+    "dataset_row_fingerprint": "fb65868756a623ee",
+    "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+    "screening_dataset": "ecoli_ceftriaxone_with_screening",
+    "screening_dataset_row_fingerprint": "b55a65935f4073bb",
+    "screening_x_sha256": "9761ef586344a5dbfdeda8c3a9b47c4e45802df52c9ff94c08130bd08e5c5ccc",
+    "pool_fingerprint": "064a4bbbd05847f2",
+    "pool_spectra": 2421,
+    "pool_resistant": 247,
+    "screening_counts": {
+      "usable": 495,
+      "usable_resistant": 485,
+      "patient_groups": 259,
+      "joining": 69,
+      "joining_groups": 26,
+      "new": 426,
+      "new_resistant": 416,
+      "new_groups": 233,
+      "new_resistant_groups": 229,
+      "excluded_outside_pool": 9
+    },
+    "card_sha256": "d98b53bad6a01ab8dd6e73b1eece5021240a9a4bfc2827838c83ab69ffd27b8f",
+    "setting": {
+      "subsample": 1.0,
+      "reg_lambda": 10.0,
+      "num_leaves": 31,
+      "n_estimators": 300,
+      "min_child_samples": 10,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.3,
+      "class_weight": null
+    },
+    "production_log_sha256_at_start": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+    "ledger_entries": 43,
+    "seconds": 1821.4,
+    "finished": "2026-10-01 00:47:28",
+    "development_log_pre_write": {
+      "pre_write_sha256": "022339a8612245a6a173faebb8ff004747b44ba4873cb922979d949b0fd57ef3",
+      "pre_write_rows": 25,
+      "rows_to_append": 9,
+      "expected_rows_after": 34,
+      "checked_against_committed": true,
+      "checked_at": "2026-10-01 00:47:28"
+    }
+  }
+}
