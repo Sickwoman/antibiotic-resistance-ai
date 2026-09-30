@@ -467,3 +467,21 @@ split, metric or recorded result, and it adds nothing to the production log.
 4. **No specificity floor is presented as operationally justified.** A cut-off with specificity below 0.20 is
    labelled as flagging nearly everyone; staying above that line does not make a cut-off useful.
 5. **DRIAMS-C stays closed.** Its standing is recorded in `docs/driams_c_status.md`.
+
+### Amendment 11 — 2026-09-30: excluded screening isolates as training data only (Version 1.4)
+
+Recorded before any Version 1.4 code or experiment, together with [the Version 1.4 plan](v1.4_screening_plan.md)
+and after [the discrimination audit](discrimination_audit.md), on the project owner's instruction. It changes no
+earlier model, threshold, split, metric or recorded result, and it adds nothing to the production log.
+
+1. **Development only, and exploratory.** Version 1.4 evaluates on the Version 1.2 development pool only, whose
+   labels have informed earlier decisions; nothing it finds is independent evidence.
+2. **Screening isolates may be training data, never evaluation data.** DRIAMS-A HospitalHygiene isolates stay
+   excluded from every cohort that is evaluated. Version 1.4 may add those dated before 2018 to training only, each
+   joined to its patient's within-year group and left out whenever that patient is held out. The owner's decision
+   to exclude them from the primary cohort stands.
+3. **One candidate, one baseline, and a stop.** The baseline must reproduce Version 1.2's arm C exactly. After this
+   comparison, model iteration on the development pool stops, whatever it finds.
+4. **Ranking is not usefulness.** The primary endpoint is AUROC; no specificity or usefulness requirement is
+   adopted, and "flags nearly everyone" (specificity below 0.20) remains a research line.
+5. **DRIAMS-C stays closed.** Its standing is recorded in `docs/driams_c_status.md`.
