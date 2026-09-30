@@ -1,0 +1,6 @@
+reason,2015,2016,2017,2018
+ambiguous_ast_result,0,8,11,8
+differs_from_driams_binned,0,1,6,4
+excluded_workstation,22,250,242,145
+malformed_spectrum,0,3,4,1
+no_ast_result,54,620,1082,576

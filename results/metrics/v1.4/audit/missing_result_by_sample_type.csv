@@ -1,0 +1,11 @@
+workstation,with_result,without_result,share_without_result
+Urine,1471,169,0.103
+Blood,1178,187,0.137
+DeepTissue,1069,379,0.262
+Respiratory,364,169,0.317
+Varia,173,190,0.523
+Genital,23,325,0.934
+Stool,5,521,0.99
+,0,29,1.0
+HospitalHygiene,0,362,1.0
+PCR,0,1,1.0
