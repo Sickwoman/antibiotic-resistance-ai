@@ -112,8 +112,9 @@ results have been inspected.
   scored once (run `8878bfd`, 26 rows; results `64c6c75`). Gaps use an unpaired second-level bootstrap.
 - **Saved results.** `results/metrics/v0.7/ecoli_ciprofloxacin/tables.md` (+ `tables_ERRATUM.md`). Gaps (random minus
   site): temporal +0.022 [−0.054, +0.094]; B −0.064 [−0.152, +0.030]; D +0.023 [−0.043, +0.085]; a second training
-  site at D −0.016 [−0.034, +0.001]. Zone NPV: later year 0.893 [0.844, 0.937] (below 0.95); saved model at D
-  0.963; at B 0.922 on 51 covered spectra.
+  site at D −0.016 [−0.034, +0.001]. Zone NPV: later year 0.893 [0.844, 0.937] (below 0.95, but on a
+  refitted, recalibrated model — not a clean zone test); saved model at D 0.963; at B 0.922 on 51 covered spectra
+  (not rejected under the plan's criterion, which counts an interval covering 0.95 as transfer).
 - **Limitations.** Temporal = date-separated with incomplete patient linkage; B/D intervals sample-level; the
   seed-spread table had a grouping error (issue #22), corrected by erratum, table preserved.
 - **Status.** Confirmatory (pre-specified gaps, one scoring each); every gap "not demonstrated".

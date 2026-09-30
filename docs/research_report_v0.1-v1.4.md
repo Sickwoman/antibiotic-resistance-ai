@@ -26,7 +26,7 @@ of 2,421 spectra (247 resistant, from 105 resistant patients) whose labels had a
 **Results.** Ciprofloxacin: internal test AUROC 0.751 [0.696, 0.807]. No generalisation gap was demonstrated at the
 later year or either external site, but the intervals were too wide to exclude gaps of practical size. A
 confident-susceptible abstention zone reached NPV 0.948 on the stored test predictions. No confident-resistant zone
-existed, and at DRIAMS-C no arm's zone reached its 0.95 target. Local recalibration was not demonstrated to help;
+existed, and at DRIAMS-C no arm's zone reached its 0.95 target on its point estimate. Local recalibration was not demonstrated to help;
 refitting on A + C improved the Brier score but lost the zone target (verdict "mixed"). Ceftriaxone: test AUROC
 0.713 (0.604–0.818), above chance but not a usable decision rule (sensitivity 0.823 against a 0.90 research target,
 specificity 0.422). Development studies (exploratory) found no demonstrated benefit from a cross-fitted cut-off for
@@ -75,7 +75,8 @@ The A, B and D archives were verified against published checksums (`config.yaml 
 downloaded in a browser from Dryad for Version 0.8.
 
 ### 2.2 Label policy
-Label 1 = R or I (I counted as resistant, following the DRIAMS authors' convention as stated in `config.yaml`), 0 = S.
+Label 1 = R or I (I counted as resistant: a project decision, `config.yaml → labels.intermediate_as`; the comment
+there attributes the convention to Weis et al. 2022, which this review could not check against the full text), 0 = S.
 Bracketed or mixed results (e.g. "R(1), S(1)") are ambiguous and excluded; "-" and empty cells are missing. Labels
 are used as reported; breakpoint changes between 2015 and 2018 are not corrected (protocol section 7). At DRIAMS-A,
 intermediate results make up 64 of the 971 resistant ciprofloxacin labels and 1 of the 439 resistant ceftriaxone
@@ -99,10 +100,11 @@ rows have no result, and the share depends strongly on the workstation: urine 10
 respiratory 32 %, genital 93 %, stool 99 % (`results/metrics/v1.4/audit/missing_result_by_sample_type.csv`). Every
 cohort is therefore "isolates the laboratory tested and reported", dominated by urine, blood and deep tissue.
 
-**Screening isolates.** HospitalHygiene samples (colonisation screening) were excluded from every evaluated cohort
-by an owner decision fixed in Version 0.2; the protocol listed them only as an optional *separate test set*
-(section 8, item 4). Of 659 such ceftriaxone results at A, 645 are resistant. Version 1.4 used them as training data
-only (section 5.6).
+**Screening isolates.** HospitalHygiene samples (colonisation screening) have been excluded from every evaluated
+cohort since the Version 0.2 cohort definition (`dataset.exclude_workstations`), after Version 0.1's exploration found
+them 78 % ciprofloxacin-resistant against 20–32 % for clinical sample types and flagged "a possible shortcut" (README,
+DRIAMS-A notes). The protocol listed them only as an optional *separate test set* (section 8, item 4). Of 659 such
+ceftriaxone results at A, 645 are resistant. Version 1.4 used them as training data only (section 5.6).
 
 **Ceftriaxone cohort selection.** The ceftriaxone cohort is isolates with both a ciprofloxacin and a ceftriaxone
 result, because its splits are derived from the ciprofloxacin primary; 93 ceftriaxone-only isolates (27 resistant,
@@ -165,8 +167,8 @@ All ciprofloxacin results come from once-scored test parts (confirmatory under t
 0.751 [0.696, 0.807] on 856 held-out spectra (197 resistant), PR-AUC 0.556 [0.445, 0.659] against a no-skill 0.230,
 Brier 0.144 [0.120, 0.170]. At its validation cut-off it delivered sensitivity 0.827 [0.760, 0.896] against the 0.90
 target, and specificity 0.458 [0.411, 0.505]. Its improvement over the Version 0.3 random forest (0.726) was
-+0.025 [−0.012, +0.060], not demonstrated; the Version 0.5 MLP scored 0.712 (−0.039 [−0.085, +0.005] against it) and the
-1-D CNN 0.498 [0.440, 0.559]. The patient-overlap check (size-matched `random` minus `within_year`) was −0.006
++0.025 [−0.012, +0.060], not demonstrated; the Version 0.5 MLP scored 0.712 (MLP − V0.4: −0.039 [−0.085, +0.005]) and
+the 1-D CNN 0.498 [0.440, 0.559]. The patient-overlap check (size-matched `random` minus `within_year`) was −0.006
 [−0.117, +0.104]: uninformative.
 
 **Q2 — later year and other sites (Version 0.7).** AUROC 0.728 in 2018 (1,233 / 271), 0.815 at DRIAMS-B (213 / 59)
@@ -177,10 +179,14 @@ the intervals are 0.13–0.18 wide. Adding DRIAMS-B to training changed AUROC at
 **Q3 — abstention.** On validation, probabilities below 0.1026 formed a confident-susceptible zone (NPV 0.955 at 25.8 %
 coverage); on the stored test predictions it reached NPV 0.948 [0.910, 0.981] at 24.9 % coverage (derived, not a new
 scoring). **No confident-resistant zone exists:** the best achievable precision was 0.84 at 5.9 % coverage, so every
-high-probability spectrum is reported "uncertain". Carried unchanged, the zone met its pre-registered transfer
-criterion at DRIAMS-D (saved model, NPV 0.963 [0.939, 0.983]). At DRIAMS-B it could not be judged (0.922 on 51
-covered spectra; the criterion counts an interval covering 0.95 as transfer). In 2018 it failed (0.893 [0.844, 0.937]).
-At DRIAMS-C no arm reached 0.95: NPV 0.935 (saved model), 0.929, 0.926, 0.904.
+high-probability spectrum is reported "uncertain". Carried unchanged, the zone met Version 0.7's pre-registered transfer
+criterion (NPV ≥ 0.95, or an interval covering 0.95) at DRIAMS-D (saved model, NPV 0.963 [0.939, 0.983]). At
+DRIAMS-B it could not be judged (0.922 on 51 covered spectra; not rejected only because its interval covers 0.95).
+In 2018 it fell short (0.893 [0.844, 0.937]), but on a refitted, recalibrated model, because the saved model shares
+848 of those 1,233 spectra; that is not a clean test of the zone. At DRIAMS-C, Version 0.8's stricter criterion
+(point estimate ≥ 0.95, with a coverage floor) was met by no arm: NPV 0.935 (saved model), 0.929, 0.926, 0.904. The
+saved model's interval there (0.869–0.985) covers 0.95, so under Version 0.7's criterion it would not have been
+rejected. The two versions judged the zone differently, and neither result establishes that it holds or fails.
 
 **Q4 — adaptation at a new hospital (Version 0.8; 267 spectra, 71 resistant).**
 
@@ -257,9 +263,11 @@ screening and clinical spectra were separable with AUROC 0.937 (0.912–0.959).
 1. Tuning (V0.4) did not demonstrably beat the Version 0.3 baseline; neural networks (V0.5) did not beat tuning; the
    1-D CNN was at chance.
 2. The 0.90 sensitivity cut-off, chosen on a validation part, missed its target on test for both antibiotics (0.827,
-   0.823) and in every development check of it (V1.2 folds and forward split, V1.3 periods).
-3. No confident-resistant zone could be formed; the confident-susceptible zone failed in the later year and at
-   DRIAMS-C.
+   0.823). In development checks it fell short on average: V1.2's cross-fitted arm averaged 0.892 over 15 folds, 7 of
+   them reaching 0.90; the V1.2 forward split gave 0.556–0.789; V1.3's periods gave 0.794 and 0.830.
+3. No confident-resistant zone could be formed. The confident-susceptible zone reached its target on stored
+   development-hospital test predictions and at DRIAMS-D, but not in 2018 (on a refitted model) and not at DRIAMS-C
+   on its point estimate.
 4. Local recalibration at DRIAMS-C was not demonstrated to help; the refit improved probabilities but lost the zone.
 5. Adding a second training site did not demonstrably help at a third.
 6. Retuning for ceftriaxone did not demonstrably beat reusing the ciprofloxacin setting.
@@ -301,8 +309,10 @@ were not excluded.
 | README "Training" | called the cut-off "the smallest cut-off reaching sensitivity ≥ 0.90"; the code (`threshold_for_sensitivity`) and protocol use the **highest** | corrected in the README |
 | README "Training" | "four Swiss hospitals"; DRIAMS-D is a diagnostic laboratory | corrected: four institutions |
 | README "Training" | "DRIAMS-B, C and D were never used for training; each was opened once" | corrected: the served model never trained on them, but V0.7's `external_ab` trained on A + B and V0.8's A2 on A + C; B and D test parts were scored for ciprofloxacin (V0.7) and for ceftriaxone labels (V1.1) |
-| README "Results" | "a 0.05 AUROC drop … would matter clinically", "effects that would matter clinically" | no clinical threshold was ever justified; reworded as "not excluded" |
+| README "Results" | "a 0.05 AUROC drop … would matter clinically", "effects that would matter clinically" | no clinical threshold was ever justified; reworded as "not excluded" in the consolidated section (the Version 0.8 section keeps its recorded wording, as amendment 6 requires; read it the same way) |
 | README "Results" | "the zone that held at DRIAMS-B and DRIAMS-D" | B's point estimate was 0.922; the pre-registered criterion counts an interval covering 0.95 as transfer, so B is "not rejected, uninformative", not "held" |
+| Zone results across versions | V0.7 judged transfer by "NPV ≥ 0.95 or interval covers 0.95"; V0.8 required the point estimate ≥ 0.95 with a coverage floor. Under V0.7's rule the saved model at DRIAMS-C (0.935, 0.869–0.985) would not have been rejected | both criteria are stated wherever the zone is summarised (section 4, Q3) |
+| V0.7 "later year" zone figure | 0.893 in 2018 came from a refitted, recalibrated model (the saved model shares 848 of the 1,233 spectra) | stated as not a clean test of the zone |
 | V0.7 `tables.md` (preserved) | column "Reaches 0.95" means the pre-registered *transfer* criterion (NPV ≥ 0.95 **or** interval covers 0.95), not a point estimate ≥ 0.95 | clarified here; the committed table is not edited |
 | README "Results", V0.8 table | "paired Δ vs baseline" did not name its operands | now Brier(B1) − Brier(arm); positive favours the arm |
 | V1.1 `tables.md`, `config.yaml` comment, audit document | state that Weis et al. report AUROC 0.74 "for E. coli + ceftriaxone … (LightGBM)" | the verified abstract gives 0.74 for *E. coli* without naming the antibiotic or classifier; the full text was not accessible, so that attribution is **unverified** and not used as a reference point in this report (README and audit document annotated; committed tables kept) |
@@ -340,7 +350,7 @@ have been. The interval should be read as approximate, and not as a guarantee th
 |---|---|---|
 | DRIAMS-A HospitalHygiene *E. coli* rows with a single-category ceftriaxone result | 659 (645) | excluded from every evaluated cohort since V0.2 |
 | minus those dated 2018 or later | 514 (504) remain; 145 dropped | nothing dated 2018+ is used (spent temporal period) |
-| minus spectra of patients with a clinical row outside the pool | 505 remain; 9 dropped | plan section 4 (a within-year patient with any clinical row in a spent part, its patients, or an unsplit ceftriaxone-only isolate) |
+| minus spectra of patients with a clinical row outside the pool | 505 remain; 9 dropped | plan section 4: the patient (within a year folder) has a clinical spectrum outside the pool — in a spent test part, removed with a spent patient, or an unsplit ceftriaxone-only isolate |
 | minus spectra failing the builder's checks | **495 (485)** used; 10 dropped | 3 unreadable, 7 disagree with the published binned file |
 
 The 495 come from 259 patient groups: 69 spectra of 26 patients already in the pool and 426 of 233 new patients
@@ -352,7 +362,7 @@ kept, the expected counts were corrected in a dated addendum (`94984b5`), and th
 screening-inclusive dataset itself holds 649 of the 659 (the 10 failures excluded), including the 145 dated 2018
 that are never used.
 
-### 8.4 Two different test verifications — not the same snapshot
+### 8.4 Test verifications are of different snapshots, and none is a CI run
 | Result | Code snapshot | Environment | Data and models present | Command |
 |---|---|---|---|---|
 | 709 passed, 2 skipped | clean detached checkout of `c5cfb49` (V1.3 closure) | this Windows 11 laptop, Python 3.12.10 venv | **no** (git-ignored; the 2 skips are the saved-bundle tests) | `bash -eo pipefail`, `python -m pytest -q` |
@@ -365,7 +375,18 @@ No GitHub Actions run exists for any commit after `main` (`2f665e1`), because no
 `bash -eo pipefail` (V1.3 closure) has therefore never run on GitHub's runners.
 
 ### 8.5 Verification of the commit containing this report
-FILLED-IN-BELOW
+Both runs are of commit `d326353`, the first commit of this report, on the same laptop, Python venv and command
+(`bash --noprofile --norc -eo pipefail -c "python -m pytest -q"`). The exit code was read directly, not through a pipe.
+
+| Result | Snapshot | Data and models | Exit code | Time |
+|---|---|---|---|---|
+| 729 passed | the working tree committed as `d326353` | present | 0 | 192 s |
+| 727 passed, 2 skipped | clean detached checkout of `d326353` | absent (the 2 skips need the saved model bundles) | 0 | 200 s |
+
+Ruff was clean at the default and `py311` targets. Both logs were byte-identical before and after (production 113
+rows `6528eb2a…`, development 34 rows `dd5f4a74…`). The commit after `d326353` holds proofreading corrections to this
+report, the summary and the README, and this section. It changes documentation only; its own test result is in its
+commit message.
 
 ### 8.6 Pre-specified analyses that were not executed
 - **Protocol section 8, item 1 — headline metrics with intermediate (I) results excluded.** The dataset was built
@@ -419,7 +440,7 @@ FILLED-IN-BELOW
 | The 0.90-sensitivity cut-off delivers 0.90 on new data | **unsupported** | missed on test for both antibiotics and in development checks |
 | The models are usable decision rules | **unsupported** | specificity 0.42–0.46 at the cut-off; no justified operating requirement |
 | A confident-susceptible zone is reliable at the development hospital | supported on stored test predictions (derived) | E0.6 |
-| The zone transfers to other sites and times | **unresolved / partly unsupported** | met at D, uninformative at B, failed in 2018 and at C |
+| The zone transfers to other sites and times | **unresolved** | met at D; uninformative at B; fell short in 2018 on a refitted model; not met at C on its point estimate (interval covers 0.95) |
 | Performance generalises to other sites / later time (no gap) | **unresolved** | no gap demonstrated, none excluded |
 | Ciprofloxacin results are robust to counting I as resistant | **unresolved** | pre-specified analysis never run (8.6) |
 | Local recalibration helps at a new hospital | **unresolved** (not demonstrated) | E0.8 |

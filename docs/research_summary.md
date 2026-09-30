@@ -19,7 +19,8 @@ at all at B–D. Screening (HospitalHygiene) isolates were excluded from all eva
 - **No generalisation gap was demonstrated** in 2018 or at B or D, and none was excluded: the intervals are
   0.13–0.18 wide.
 - A confident-susceptible zone reached NPV 0.948 on the stored test predictions. **No confident-resistant zone
-  exists.** The zone failed in 2018 and at DRIAMS-C.
+  exists.** The zone met its transfer criterion at D, was uninformative at B, and fell short in 2018 (on a refitted
+  model) and at DRIAMS-C (on its point estimate).
 - At DRIAMS-C (267 spectra, 71 resistant), local recalibration was **not demonstrated** to help. Refitting on A + C
   improved the Brier score but lost the zone target: **mixed**.
 

@@ -247,8 +247,8 @@ susceptible; it cannot tell you with confidence when one is resistant.
 (A1) and 0.904 (A2) ([`zone_results.csv`](results/metrics/v0.8/ecoli_ciprofloxacin__site-C/zone_results.csv)).
 **No arm reached 0.95 on its point estimate — including both baselines.** The zone met its pre-registered
 transfer criterion at DRIAMS-D (NPV 0.963), could not be judged at DRIAMS-B (0.922 on 51 covered spectra; the
-criterion counts an interval that covers 0.95 as transfer) and did not reach 0.95 at DRIAMS-C; that is a result about
-the zone, not about adaptation.
+criterion counts an interval that covers 0.95 as transfer) and did not reach 0.95 at DRIAMS-C on its point estimate
+(Version 0.8's stricter criterion); that is a result about the zone, not about adaptation.
 
 **A second antibiotic — better than chance, not a usable decision rule.** Version 1.1 ran the same method
 for ceftriaxone under its own pre-registration and spent its test parts once
