@@ -103,13 +103,16 @@ class CohortSpec:
 
     @classmethod
     def from_config(cls, config: dict[str, Any], *, intermediate_as: str | None = None,
-                    sites: Iterable[str] | None = None, name: str | None = None) -> CohortSpec:
+                    sites: Iterable[str] | None = None, name: str | None = None,
+                    antibiotic: str | None = None) -> CohortSpec:
         d = config["dataset"]
         default_policy = config["labels"]["intermediate_as"]
         policy = intermediate_as or default_policy
         site_list = tuple(sites or d["sites"])
+        preferred = config["target"]["preferred_antibiotic"]
+        target = antibiotic or preferred
         if name is None:  # any non-default choice gets its own folder, so the primary dataset is never overwritten
-            name = d["name"]
+            name = d["name"] if target == preferred else _name_for_antibiotic(d["name"], preferred, target)
             if policy != default_policy:
                 name += f"__intermediate-{policy}"
             if site_list != tuple(d["sites"]):
@@ -117,13 +120,31 @@ class CohortSpec:
         return cls(
             name=name,
             species=config["target"]["species"],
-            antibiotic=config["target"]["preferred_antibiotic"],
+            antibiotic=target,
             sites=site_list,
             intermediate_as=policy,
             exclude_workstations=tuple(d.get("exclude_workstations") or ()),
             require_acquisition_date=bool(d.get("require_acquisition_date", False)),
             flag_duplicate_spectra=bool(d.get("flag_duplicate_spectra", True)),
         )
+
+
+def _name_for_antibiotic(primary_name: str, preferred: str, antibiotic: str) -> str:
+    """The primary dataset's name with its antibiotic swapped: ecoli_ciprofloxacin -> ecoli_ceftriaxone.
+
+    Derived rather than typed so that two antibiotics can never share a folder. A primary name that does not
+    end in its own antibiotic cannot be rewritten safely, so the caller must then choose a name.
+    """
+    def slug(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+    old, new = slug(preferred), slug(antibiotic)
+    if not new:
+        raise DatasetError(f"The antibiotic {antibiotic!r} has no letters or digits to name a dataset after.")
+    if not primary_name.endswith("_" + old):
+        raise DatasetError(f"Cannot derive a dataset name for {antibiotic}: the primary name {primary_name!r} does "
+                           f"not end in '_{old}'. Choose one with --name.")
+    return primary_name[: -len(old)] + new
 
 
 def spectrum_relpath(site: str, folder: str, year: str, code: str) -> str:
@@ -326,6 +347,14 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     root = driams_root(config)
     chunk = max(int(config["dataset"].get("chunk_size", 256)), 1)
 
+    output_root = Path(output_root) if output_root else project_path(config["dataset"]["output_dir"])
+    primary_dir = output_root / config["dataset"]["name"]
+    other_antibiotic = spec.antibiotic != config["target"]["preferred_antibiotic"]
+    if other_antibiotic and not (primary_dir / "X.npy").is_file():
+        raise DatasetError(f"A dataset for {spec.antibiotic} is checked against the primary dataset "
+                           f"{config['dataset']['name']} and reuses its splits, which is not built yet. Build it "
+                           "first: python scripts/build_dataset.py")
+
     available = discover_sites(root, d["id_folder"])
     missing = [s for s in spec.sites if s not in available]
     if missing:
@@ -344,7 +373,6 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     log.info("%s: %d candidate spectra after metadata filtering (%d rows excluded so far)",
              spec.name, n, len(exclusions))
 
-    output_root = Path(output_root) if output_root else project_path(config["dataset"]["output_dir"])
     out_dir = output_root / spec.name
     tmp_dir = output_root / f"{spec.name}.building"
     if tmp_dir.exists():
@@ -405,6 +433,8 @@ def build_dataset(config: dict[str, Any], spec: CohortSpec | None = None, *, out
     summary["row_fingerprint"] = row_fingerprint(meta)
     summary["x_sha256"] = file_sha256(tmp_dir / "X.npy")
     summary["verification_against_driams_binned"] = verification
+    if other_antibiotic:
+        summary["shared_with_primary"] = compare_with_primary(tmp_dir / "X.npy", meta, primary_dir)
     summary["elapsed_seconds"] = round(time.monotonic() - started, 1)
     (tmp_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
@@ -566,6 +596,45 @@ def summarize(meta: pd.DataFrame, exclusions: pd.DataFrame, info: dict[str, Any]
         "exclusion_reason_definitions": EXCLUSION_REASONS,
         "notes": notes,
     }
+
+
+def compare_with_primary(x_path: Path, meta: pd.DataFrame, primary_dir: Path) -> dict[str, Any]:
+    """Check that every spectrum shared with the primary dataset is byte-identical to its row there.
+
+    A dataset for another antibiotic is built from the same raw files with the same stateless preprocessing,
+    and it reuses the primary dataset's splits. So a shared spectrum must come out exactly as before. A
+    difference means the raw data or the preprocessing changed underneath, and pairing the new labels with
+    features other than the ones every earlier version used would make the two tasks incomparable, so any
+    difference stops the build. Spectra are matched as the splits match them: by site, year folder and code.
+    """
+    primary, primary_meta, primary_summary = load_dataset(primary_dir, verify_x=True)
+    X = np.load(x_path, mmap_mode="r")
+    try:
+        if X.shape[1] != primary.shape[1] or X.dtype != primary.dtype:
+            raise DatasetError(f"This dataset's features ({X.shape[1]} x {X.dtype}) are not the primary dataset's "
+                               f"({primary.shape[1]} x {primary.dtype}); it cannot be checked against it.")
+        where = {key: i for i, key in enumerate(sample_keys(primary_meta))}
+        keys = sample_keys(meta)
+        here = np.array([i for i, key in enumerate(keys) if key in where], dtype=np.int64)
+        there = np.array([where[keys[i]] for i in here], dtype=np.int64)
+        differing = 0
+        for start in range(0, here.size, 512):
+            ours = np.asarray(X[here[start:start + 512]])
+            theirs = np.asarray(primary[there[start:start + 512]])
+            differing += int((~(ours.view(np.uint8) == theirs.view(np.uint8)).all(axis=1)).sum())
+    finally:  # release both memory maps, otherwise Windows keeps the files locked
+        del X, primary
+        gc.collect()
+    if differing:
+        raise DatasetError(f"{differing} of {here.size} spectra shared with the primary dataset "
+                           f"{primary_summary['dataset']} differ from their rows there. The raw files or the "
+                           "preprocessing changed since it was built; nothing was published.")
+    return {"primary_dataset": primary_summary["dataset"],
+            "primary_row_fingerprint": primary_summary["row_fingerprint"],
+            "primary_x_sha256": primary_summary["x_sha256"],
+            "shared_spectra": int(here.size), "identical": int(here.size),
+            "only_in_this_dataset": int(len(meta) - here.size),
+            "only_in_primary": int(len(primary_meta) - here.size)}
 
 
 def load_dataset(path: str | Path, *, verify_x: bool = False) -> tuple[np.ndarray, pd.DataFrame, dict[str, Any]]:

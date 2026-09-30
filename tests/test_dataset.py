@@ -66,6 +66,10 @@ SITE_Y_2018 = [
 ]
 SITE_Z = [("z01", "Escherichia coli", "R"), ("z02", "Escherichia coli", "S"), ("z03", "Escherichia coli", "S")]
 PATIENT_HASHES = {P1, P2, P3, P4}
+# Ceftriaxone, for the Version 1.1 tests: the ciprofloxacin value unless listed. y01 flips the label, y03 has no
+# ceftriaxone result (so it is only in the primary dataset), and y04 has only a ceftriaxone result (so it is
+# only in the ceftriaxone dataset).
+CEFTRIAXONE = {"y01": "S", "y03": "-", "y04": "R", "z03": "R"}
 
 
 def _seed(year: str, index: int) -> int:
@@ -95,6 +99,7 @@ def driams(tmp_path):
         id_dir = root / "DRIAMS-Y" / "id" / year
         id_dir.mkdir(parents=True)
         pd.DataFrame([{"code": c, "species": s, "laboratory_species": s, "Ciprofloxacin": cip,
+                       "Ceftriaxone": CEFTRIAXONE.get(c, cip),
                        "acquisition_date": d, "acquisition_time": "10:00:00", "workstation": ws,
                        "patient_no": p, "case_no": pid(p + "case"), "order_no": pid(p + "order")}
                       for c, s, cip, ws, p, d, _ in rows]).to_csv(id_dir / f"{year}_strat.csv", index=False)
@@ -103,7 +108,8 @@ def driams(tmp_path):
                 _write_raw(root / "DRIAMS-Y" / "raw" / year, c, kind, seed=_seed(year, k))
     z_id = root / "DRIAMS-Z" / "id" / "2018"
     z_id.mkdir(parents=True)
-    pd.DataFrame([{"species": s, "code": c, "combined_code": None, "Ciprofloxacin": cip, "ESBL": "1"}
+    pd.DataFrame([{"species": s, "code": c, "combined_code": None, "Ciprofloxacin": cip,
+                   "Ceftriaxone": CEFTRIAXONE.get(c, cip), "ESBL": "1"}
                   for c, s, cip in SITE_Z]).to_csv(z_id / "2018_clean.csv", index=False)
     for k, (c, _, _) in enumerate(SITE_Z):
         _write_raw(root / "DRIAMS-Z" / "raw" / "2018", c, "ok", seed=_seed("9999", k))
@@ -436,3 +442,72 @@ def test_real_spectrum_paths_still_resolve(tmp_path):
     uuid_code = "0a1b2c3d-4e5f-6789-abcd-ef0123456789_3313"       # DRIAMS-D style
     assert resolve_relpath(tmp_path, spectrum_relpath("DRIAMS-D", "binned_6000", "2018", uuid_code)).name.endswith(
         f"{uuid_code}.txt")
+
+
+# ------------------------------------------------------------------ Version 1.1: a second antibiotic
+
+def _primary_with_splits(config, out) -> set[str]:
+    """Build the primary dataset and save its splits, as scripts/build_dataset.py does; return its sample keys."""
+    config["splits"]["temporal"].update(sites=["DRIAMS-Y"], validation_start="2017-06-15")
+    config["splits"]["external"].update(train_sites=["DRIAMS-Y"], test_sites=["DRIAMS-Z"], validation_fraction=0.5)
+    _, _, meta, _ = _build(config)
+    for name, split in build_splits(meta, config, "ecoli_ciprofloxacin", out).items():
+        split.save(out / "ecoli_ciprofloxacin" / "splits" / f"{name}.json", meta)
+    return set(meta["code"] + "@" + meta["year_folder"])
+
+
+def test_another_antibiotic_gets_its_own_dataset_name(driams):
+    config, _ = driams
+    spec = CohortSpec.from_config(config, antibiotic="Ceftriaxone")
+    assert (spec.name, spec.antibiotic) == ("ecoli_ceftriaxone", "Ceftriaxone")
+    assert CohortSpec.from_config(config, antibiotic="Ciprofloxacin").name == "ecoli_ciprofloxacin"
+    assert (CohortSpec.from_config(config, antibiotic="Ceftriaxone", intermediate_as="exclude").name
+            == "ecoli_ceftriaxone__intermediate-exclude")
+    assert (CohortSpec.from_config(config, antibiotic="Amoxicillin-Clavulanic acid").name
+            == "ecoli_amoxicillin-clavulanic-acid")
+    assert CohortSpec.from_config(config, antibiotic="Ceftriaxone", name="chosen").name == "chosen"
+    config["dataset"]["name"] = "primary"            # a name that does not end in its antibiotic
+    with pytest.raises(DatasetError, match="--name"):
+        CohortSpec.from_config(config, antibiotic="Ceftriaxone")
+
+
+def test_a_dataset_for_another_antibiotic_shares_the_primary_spectra_and_splits(driams):
+    config, out = driams
+    primary_keys = _primary_with_splits(config, out)
+    summary, _, meta, exclusions = _build(config, antibiotic="Ceftriaxone")
+    key = meta["code"] + "@" + meta["year_folder"]
+    labels = dict(zip(key, meta["label"], strict=True))
+    assert (summary["dataset"], summary["antibiotic"]) == ("ecoli_ceftriaxone", "Ceftriaxone")
+    assert labels["y01@2017"] == 0                                   # S for ceftriaxone, R for ciprofloxacin
+    assert labels["y04@2017"] == 1                                   # ceftriaxone-only: in this dataset
+    assert reasons(exclusions)["y03@2017"] == "no_ast_result"        # ciprofloxacin-only: not in it
+    assert set(key) == (primary_keys - {"y03@2017"}) | {"y04@2017"}
+    shared = summary["shared_with_primary"]
+    assert shared["primary_dataset"] == "ecoli_ciprofloxacin"
+    assert (shared["shared_spectra"], shared["identical"]) == (10, 10)
+    assert (shared["only_in_this_dataset"], shared["only_in_primary"]) == (1, 1)
+
+    derived = build_splits(meta, config, "ecoli_ceftriaxone", out)
+    assert list(derived) == ["temporal", "external"]
+    y04 = int(meta.loc[key == "y04@2017", "sample_index"].iloc[0])
+    for split in derived.values():                                   # every shared sample keeps its part ...
+        assert split.derived_from["dataset"] == "ecoli_ciprofloxacin"
+        assert all(y04 not in idx for idx in split.parts().values())  # ... and the new one is in no part
+        assert "1 sample(s) are not in ecoli_ciprofloxacin and are left out." in split.notes
+
+
+def test_a_shared_spectrum_that_changed_stops_the_build(driams):
+    config, out = driams
+    _primary_with_splits(config, out)
+    mz, inten = synthetic_spectrum(n=1500, seed=4242)                # y02 is in both datasets
+    write_spectrum(Path(config["paths"]["driams_root"]) / "DRIAMS-Y" / "raw" / "2017" / "y02.txt", mz, inten)
+    with pytest.raises(DatasetError, match="1 of 10 spectra shared with the primary dataset"):
+        _build(config, antibiotic="Ceftriaxone")
+    assert not (out / "ecoli_ceftriaxone").exists()                  # nothing was published
+
+
+def test_another_antibiotic_needs_the_primary_dataset_first(driams):
+    config, out = driams
+    with pytest.raises(DatasetError, match="Build it first"):
+        _build(config, antibiotic="Ceftriaxone")
+    assert not (out / "ecoli_ceftriaxone.building").exists()         # refused before any spectrum was read
