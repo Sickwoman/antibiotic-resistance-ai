@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 1.2 – complete (development only).** Versions 0.1 (download +
+**Status: Version 1.3 – complete (development only).** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
 time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
@@ -46,6 +46,9 @@ Version 1.2 studied calibration and the cut-off **on development data only, so e
 exploratory**: its primary endpoint was not demonstrated, a cut-off chosen on more data was much steadier
 across patients, and in one forward-in-time split no cut-off held its sensitivity target. See
 [Version 1.2](#version-12--calibration-and-the-cut-off-on-development-data-only-exploratory).
+Version 1.3, also development-only and exploratory, found that a cut-off rule with a stated uncertainty
+guarantee raised delivered sensitivity only by flagging about 85 % of isolates. See
+[Version 1.3](#version-13--an-uncertainty-aware-cut-off-over-time-development-only-exploratory).
 
 ## The idea in simple words
 
@@ -261,7 +264,7 @@ per spectrum — batching saves round trips, not time.
 
 ## Limitations
 
-Consolidated from the nine per-version limitation lists; nothing from them is dropped. The unfavourable
+Consolidated from the ten per-version limitation lists; nothing from them is dropped. The unfavourable
 scientific findings are in **Results** above, where they belong, not hidden here.
 
 **The evidence is thin in the places that matter most.**
@@ -326,6 +329,13 @@ scientific findings are in **Results** above, where they belong, not hidden here
     delivered 0.56–0.79 sensitivity against 0.90, including a cut-off chosen on enough resistant spectra to
     support its target. Resistance was also more common in 2017 and every arm under-predicted it on average,
     but neither observation explains the loss on its own.
+
+**Version 1.3 added one, also from development data (exploratory).**
+
+20. **A guarded 90 % sensitivity is not reachable at a useful specificity with this model.** A cut-off rule
+    with a stated uncertainty guarantee reached 0.93 pooled sensitivity in later periods only by flagging 85 %
+    of isolates (specificity 0.16); the empirical rule flagged 58 % and missed the target. The whole
+    development pool holds only 105 resistant patients, and the model's discrimination is modest.
 
 ## Ethics and intended use
 
@@ -2451,7 +2461,76 @@ them is the owner's decision, and their status is **uncertain** — see
 python scripts/v12_development.py   # development only: no test part read, no production-log row
 ```
 
-## Project structure (Version 1.2)
+## Version 1.3 – an uncertainty-aware cut-off over time (development only, exploratory)
+
+Recorded in [`docs/v1.3_threshold_plan.md`](docs/v1.3_threshold_plan.md) (protocol amendment 10) before any
+Version 1.3 code, on the project owner's instruction, without a separate review before recording. **Development
+only and exploratory: no test part was read, nothing entered the production log, and DRIAMS-C was not opened.
+The later periods are 2017 spectra whose outcomes Version 1.2's forward check had already evaluated in aggregate
+— which is what prompted the question — so nothing here is independent evidence.** Numbers are copied from
+[`tables.md`](results/metrics/v1.3/ecoli_ceftriaxone/tables.md).
+
+**The question.** The protocol's cut-off rule **E** — the highest cut-off with selection sensitivity at least
+0.90 — has delivered less than 0.90 every time it has been checked on data it did not choose on. Does a rule that
+accounts for the uncertainty of its selection sample hold the target better in later periods, and at what cost?
+Rule **U** is the order-statistic tolerance rule: with `n` resistant cases it takes the `k*`-th lowest resistant
+score, where `k*` is the largest `k` with `P(Binomial(n, 0.10) ≥ k) ≥ 0.95` — the argument of the Neyman–Pearson
+umbrella algorithm (Tong, Feng & Li, *Science Advances* 2018). The model and calibration were held fixed: the
+Version 0.4 ciprofloxacin setting, never selected on a ceftriaxone label, with the Version 0.4 calibration.
+
+**What the data could support, established before the plan.** The pool's 247 resistant spectra come from only
+**105 resistant patient groups**. Rule U needs at least 29 independent resistant cases to give any cut-off at
+0.90 / 0.95; a separate six-month selection window would have held 18–26, so that design was infeasible. Each
+origin's cut-offs were instead chosen on one cross-fitted prediction per patient group of everything labelled at
+least 7 days before it — 39 and 63 resistant patients — which makes **U's 95 % a heuristic here**: the selection
+scores are not from the model applied, patients cannot be linked across 2016/2017, and the later periods may
+differ from the earlier ones, which is the question. With 39 resistant patients, U's cut-off is the single lowest
+resistant score.
+
+**Result (exploratory): higher sensitivity, but only by flagging nearly everyone.**
+
+| Later period | Rule | Delivered sensitivity | Delivered specificity | Isolates flagged |
+|---|---|---|---|---|
+| 2017 H1 (730 spectra, 68 resistant) | E | 0.794 (0.609–0.987) | 0.544 | 49 % |
+| | U | 0.971 (0.765–1.000) | **0.112 — flags nearly everyone** | 90 % |
+| 2017 H2 (723 spectra, 88 resistant) | E | 0.830 (0.608–0.937) | 0.345 | 68 % |
+| | U | 0.898 (0.756–1.000) | 0.211 | 80 % |
+| Both, pooled (1,453, 156) | E | 0.814 (0.662–0.927) | 0.446 | 58 % |
+| | U | 0.929 (0.822–0.994) | **0.160** | 85 % |
+
+U minus E, pooled sensitivity: **+0.115 [+0.019, +0.248]**; E minus U, pooled specificity: +0.286 [+0.071,
++0.404]. U's precision was 0.118 against a base rate of 0.107: the isolates it flagged were barely more often
+resistant than isolates in general. Under the plan's verdict order the result reads **"higher sensitivity only by
+flagging nearly everyone: unhelpful"** — and no verdict could have been operational success, because no
+operational specificity floor is justified; 0.20 only names a cut-off that flags nearly everyone. E missed 0.90
+in both periods. U reached it in 2017 H1 while flagging 90 % of isolates and fell just short in 2017 H2. In the
+two-level resamples, which hold the fitted models fixed, U's pooled sensitivity reached 0.90 in 75 % of replicates
+and E's in 6 %.
+
+**Recent-data recalibration (separate, exploratory): not demonstrated.** Refitting only the intercept on the six
+months before each gap moved it by −0.03 and +0.16. Brier(uncorrected) minus Brier(recalibrated) was −0.0002
+[−0.0004, +0.0000] and +0.0010 [−0.0002, +0.0023]. The model under-predicted both later periods on average
+(calibration intercepts +0.36 and +0.58), and the recent window did not anticipate it. As in Version 1.2, that is
+an observation, not an explanation. No cut-off decision can change under a monotone correction.
+
+**What this supports, and what it leaves open.** Supported, on development data: the empirical rule falls short
+again — as it will about half the time even without any shift: for exchangeable scores, its chance of a true
+sensitivity of at least 0.90 is P(Binomial(39, 0.10) ≥ 4) = 0.56 at the first origin and
+P(Binomial(63, 0.10) ≥ 7) = 0.44 at the second — and an uncertainty-aware rule does raise delivered sensitivity. But with this
+model's discrimination (AUROC 0.749 and 0.680 in the two periods) and 39–63 resistant patients to choose on, a
+guarded 90 % costs nearly all the specificity. **Not supported:** that any cut-off rule makes this model useful,
+that U's 95 % holds here, or that recent recalibration helps. The limit is the model's discrimination and the
+number of resistant patients, not the rule.
+
+**DRIAMS-C.** None of Version 1.2's candidate, rule E or rule U warrants spending DRIAMS-C's ceftriaxone labels:
+E is known to miss its target, U is unhelpful by the pre-set line, and C's standing is uncertain in any case
+([`docs/driams_c_status.md`](docs/driams_c_status.md)).
+
+```powershell
+python scripts/v13_threshold.py   # development only: no test part read, DRIAMS-C never opened
+```
+
+## Project structure (Version 1.3)
 
 ```
 antibiotic-resistance-ai/
@@ -2479,6 +2558,7 @@ antibiotic-resistance-ai/
 │   ├── second_antibiotic_report.py  Version 1.1 tables and the two-antibiotic comparison (scores nothing)
 │   ├── v12_development.py      Version 1.2 development-only study (no test part, own development log)
 │   ├── v12_report.py           Version 1.2 complete tables from the saved outputs (fits nothing)
+│   ├── v13_threshold.py        Version 1.3 cut-off rules over time (development only)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2496,6 +2576,7 @@ antibiotic-resistance-ai/
 │   ├── uncertainty.py          Version 0.6 confident / uncertain zones and their intervals
 │   ├── predict.py              saving/loading models, prediction with timing and confidence
 │   ├── development.py          Version 1.2 pool, folds, supported cut-offs, cross-fitted predictions, log
+│   ├── threshold_rules.py      Version 1.3 cut-off rules E and U, time windows, label availability
 │   ├── api/                    Version 0.9 serving package, one responsibility per module:
 │   │   ├── app.py              construction, lifespan, routes, handlers (no inference logic)
 │   │   ├── inference_service.py  artifact loading, readiness, the prediction path
@@ -2518,6 +2599,7 @@ antibiotic-resistance-ai/
 ├── docs/v1.0_plan.md           the result page, README and deployment contract
 ├── docs/v1.1_ceftriaxone_plan.md  the second antibiotic (fixed before any Version 1.1 code)
 ├── docs/v1.2_calibration_plan.md  the development-only calibration and cut-off study
+├── docs/v1.3_threshold_plan.md  the development-only study of an uncertainty-aware cut-off
 ├── docs/driams_c_status.md     what has been accessed at DRIAMS-C, by antibiotic, and its standing
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
