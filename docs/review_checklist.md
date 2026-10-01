@@ -1,7 +1,8 @@
 # Review checklist: branches, pull requests, and what to check
 
-Prepared 2026-10-01 and updated the same day after publication. The five branches below are on GitHub as draft pull
-requests #26–#30, stacked A → E. **Nothing has been merged.** Merging and deleting branches are the owner's decisions.
+Prepared 2026-10-01 and updated the same day after publication. The five branches below are on GitHub as pull
+requests #26–#30, opened as drafts and stacked A → E. **Nothing has been merged.** Merging and deleting branches are
+the owner's decisions.
 
 ## 1. Branch dependencies
 

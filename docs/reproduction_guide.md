@@ -18,7 +18,7 @@ first two are meant to be run.
 
 - **Tested platform:** Windows 11 (build 10.0.26200), PowerShell and Git Bash, Python **3.12.10** in a project venv;
   CPU only (no CUDA), 7.7 GB RAM. CI (GitHub Actions) tests Ubuntu and Windows with Python 3.11 and 3.12; on
-  2026-10-01 it ran on the five version branches (draft PRs #26–#30) and passed on each head.
+  2026-10-01 it ran on the five version branches (PRs #26–#30) and passed on each head.
 - **Dependencies:** `requirements.txt` (ranges) for development; **`requirements-lock.txt` (exact pins) to reproduce**:
   `pip install -r requirements-lock.txt --extra-index-url https://download.pytorch.org/whl/cpu`. Key pins: numpy 2.5.3,
   pandas 3.0.5, scikit-learn 1.9.1, scipy 1.18.1, lightgbm 4.7.0, torch 2.14.0+cpu, joblib 1.6.0, pytest 9.1.1,

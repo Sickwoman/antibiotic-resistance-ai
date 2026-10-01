@@ -9,7 +9,7 @@ any experiment. **"Not recorded"** means no committed artifact states it; nothin
 Commit notes. Versions 0.1–1.0 reached `main` through squash merges, so their original commits are not ancestors of
 `main`. Commits of Versions 0.2–0.6 are held by local branches (`v0.2-driams-d`, `v0.3-baselines`,
 `v0.4-improved-ml`, `v0.5-deep-learning`, `v0.6-explainability`) that are not on GitHub. The original Version 0.7
-and 0.8 commits are on no branch (theirs was deleted). Versions 1.1–1.4 are on GitHub as draft PRs #26–#29, not yet
+and 0.8 commits are on no branch (theirs was deleted). Versions 1.1–1.4 are on GitHub as PRs #26–#29, not yet
 merged. Every commit this map cites is on `main` or preserved by an archival ref under `refs/archive/`, published on
 GitHub as an annotated tag of the same name under `research-archive/` (checked 2026-10-01). The
 [review checklist](review_checklist.md), section 5, shows how to fetch the tags and restore a commit.
