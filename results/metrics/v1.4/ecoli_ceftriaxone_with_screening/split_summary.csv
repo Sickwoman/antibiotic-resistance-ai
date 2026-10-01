@@ -1,0 +1,16 @@
+split,part,samples,resistant,susceptible,groups,sites,dates
+random,train,2966,315,2651,1487,{'DRIAMS-A': 2966},2015-11-20 .. 2018-08-31
+random,validation,425,34,391,218,{'DRIAMS-A': 425},2015-12-07 .. 2018-08-30
+random,test,856,79,777,428,{'DRIAMS-A': 856},2015-11-20 .. 2018-08-31
+within_year,train,1279,153,1126,615,{'DRIAMS-A': 1279},2017-01-02 .. 2017-12-30
+within_year,validation,182,21,161,86,{'DRIAMS-A': 182},2017-01-02 .. 2017-12-28
+within_year,test,366,42,324,163,{'DRIAMS-A': 366},2017-01-02 .. 2017-12-30
+temporal,train,2498,237,2261,1249,{'DRIAMS-A': 2498},2015-11-20 .. 2017-09-30
+temporal,validation,464,62,402,238,{'DRIAMS-A': 464},2017-10-02 .. 2017-12-30
+temporal,test,1229,115,1114,646,{'DRIAMS-A': 1229},2018-01-03 .. 2018-08-31
+external,train,3819,390,3429,1915,{'DRIAMS-A': 3819},2015-11-20 .. 2018-08-31
+external,validation,428,38,390,218,{'DRIAMS-A': 428},2015-11-22 .. 2018-08-28
+external,test,2149,226,1923,2149,"{'DRIAMS-B': 213, 'DRIAMS-D': 1936}",None .. None
+external_ab,train,4013,420,3593,2113,"{'DRIAMS-A': 3825, 'DRIAMS-B': 188}",2015-11-20 .. 2018-08-31
+external_ab,validation,447,53,394,233,"{'DRIAMS-A': 422, 'DRIAMS-B': 25}",2015-11-25 .. 2018-08-23
+external_ab,test,1936,181,1755,1936,{'DRIAMS-D': 1936},None .. None

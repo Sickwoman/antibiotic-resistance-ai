@@ -1,0 +1,197 @@
+{
+  "dataset": "ecoli_ceftriaxone_with_screening",
+  "created": "2026-10-01 00:14:32",
+  "git_commit": "153d3e2",
+  "species": "Escherichia coli",
+  "antibiotic": "Ceftriaxone",
+  "sites": [
+    "DRIAMS-A",
+    "DRIAMS-B",
+    "DRIAMS-D"
+  ],
+  "intermediate_as": "resistant",
+  "exclude_workstations": [],
+  "label_definition": {
+    "1": "resistant (R or I)",
+    "0": "susceptible (S)"
+  },
+  "preprocessing": {
+    "intensity_transform": "sqrt",
+    "smoothing_method": "savitzky_golay",
+    "half_window_size": 10,
+    "polynomial_order": 3,
+    "baseline_method": "snip",
+    "baseline_iterations": [
+      20,
+      100
+    ],
+    "normalization": "tic",
+    "mz_min": 2000.0,
+    "mz_max": 20000.0,
+    "bin_width": 3.0,
+    "dtype": "float32",
+    "min_raw_points": 100,
+    "spectrum_folder": "raw",
+    "n_bins": 6000
+  },
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "feature_definition": "bin j = sum of processed intensities with 2000.0 + j*3.0 <= m/z < 2000.0 + (j+1)*3.0 (last bin includes 20000.0)",
+  "n_samples": 7138,
+  "n_features": 6000,
+  "dtype": "float32",
+  "x_shape": [
+    7138,
+    6000
+  ],
+  "x_megabytes": 171.31,
+  "resistant": 1316,
+  "susceptible": 5822,
+  "per_site": {
+    "DRIAMS-A": {
+      "target_species_rows": 7320,
+      "samples": 4932,
+      "resistant": 1074,
+      "susceptible": 3858,
+      "ast_values": {
+        "I": 1,
+        "R": 1073,
+        "S": 3858
+      },
+      "excluded": 2388,
+      "acquisition_date_min": "2015-11-18",
+      "acquisition_date_max": "2018-08-31",
+      "samples_without_acquisition_date": 0,
+      "year_folders": {
+        "2015": 97,
+        "2016": 1370,
+        "2017": 2084,
+        "2018": 1381
+      },
+      "patient_groups": 2435,
+      "samples_without_patient_id": 0,
+      "workstation_column_present": true,
+      "other_spellings_not_included": {
+        "MIX!Escherichia coli": 61
+      }
+    },
+    "DRIAMS-B": {
+      "target_species_rows": 838,
+      "samples": 213,
+      "resistant": 45,
+      "susceptible": 168,
+      "ast_values": {
+        "R": 45,
+        "S": 168
+      },
+      "excluded": 625,
+      "acquisition_date_min": null,
+      "acquisition_date_max": null,
+      "samples_without_acquisition_date": 213,
+      "year_folders": {
+        "2018": 213
+      },
+      "patient_groups": 0,
+      "samples_without_patient_id": 213,
+      "workstation_column_present": false,
+      "other_spellings_not_included": {
+        "MIX!Escherichia coli": 1
+      }
+    },
+    "DRIAMS-D": {
+      "target_species_rows": 2013,
+      "samples": 1993,
+      "resistant": 197,
+      "susceptible": 1796,
+      "ast_values": {
+        "R": 197,
+        "S": 1796
+      },
+      "excluded": 20,
+      "acquisition_date_min": null,
+      "acquisition_date_max": null,
+      "samples_without_acquisition_date": 1993,
+      "year_folders": {
+        "2018": 1993
+      },
+      "patient_groups": 0,
+      "samples_without_patient_id": 1993,
+      "workstation_column_present": false,
+      "other_spellings_not_included": {}
+    }
+  },
+  "excluded_total": 3033,
+  "exclusions_by_reason": {
+    "no_ast_result": {
+      "DRIAMS-A": 2332,
+      "DRIAMS-B": 625,
+      "DRIAMS-D": 19
+    },
+    "ambiguous_ast_result": {
+      "DRIAMS-A": 27
+    },
+    "malformed_spectrum": {
+      "DRIAMS-A": 11
+    },
+    "differs_from_driams_binned": {
+      "DRIAMS-A": 18,
+      "DRIAMS-D": 1
+    }
+  },
+  "excluded_workstations_by_site": {},
+  "raw_points": {
+    "min": 20737.0,
+    "median": 20814.0,
+    "max": 21370.0
+  },
+  "nonzero_bins": {
+    "min": 3313.0,
+    "median": 5997.0,
+    "max": 6000.0
+  },
+  "exclusion_reason_definitions": {
+    "missing_code": "metadata row has no spectrum code",
+    "antibiotic_not_reported": "the site's metadata has no column for the antibiotic",
+    "no_ast_result": "no result for the antibiotic",
+    "ambiguous_ast_result": "result that is not a single category, e.g. 'R(1), S(1)'",
+    "unsupported_ast_result": "value other than R, I, S or a known ambiguous form",
+    "intermediate_excluded": "I result while labels.intermediate_as is 'exclude'",
+    "excluded_workstation": "sample type listed in dataset.exclude_workstations (e.g. HospitalHygiene)",
+    "missing_acquisition_date": "no parseable acquisition_date while dataset.require_acquisition_date is true",
+    "conflicting_duplicate_record": "spectrum code listed more than once at the site with different labels (all copies excluded)",
+    "duplicate_record": "spectrum code listed more than once at the site with the same label (first usable row kept)",
+    "no_spectrum_file": "raw spectrum file not found on disk",
+    "malformed_spectrum": "raw spectrum file unreadable or failed validation",
+    "unusable_spectrum": "spectrum readable but preprocessing left no usable signal",
+    "differs_from_driams_binned": "processed raw file does not match the published DRIAMS binned_6000 file for the same code (the two files hold different measurements)",
+    "duplicate_spectrum": "processed features identical to an earlier sample (first kept)"
+  },
+  "notes": [
+    "patient_no is re-hashed for every DRIAMS-A year folder: patient groups are only valid within a year, so the same person appearing in two years cannot be detected.",
+    "Sites without patient IDs (DRIAMS-B, DRIAMS-D) treat every spectrum as its own group, so repeated isolates of one patient there cannot be detected.",
+    "Sites without a workstation column (DRIAMS-B, DRIAMS-D) cannot be filtered for hospital-hygiene samples.",
+    "Intermediate (I) results are handled as: resistant.",
+    "Only stateless preprocessing is applied; no scaling, PCA or feature selection is fitted here."
+  ],
+  "row_fingerprint": "b55a65935f4073bb",
+  "x_sha256": "9761ef586344a5dbfdeda8c3a9b47c4e45802df52c9ff94c08130bd08e5c5ccc",
+  "verification_against_driams_binned": {
+    "enabled": true,
+    "tolerance": 0.0001,
+    "verified": 7138,
+    "no_reference_file": 0,
+    "unreadable_reference_file": 0,
+    "failed": 19,
+    "max_relative_difference_of_verified": 5.924844593072881e-08,
+    "skipped_reason": null
+  },
+  "shared_with_primary": {
+    "primary_dataset": "ecoli_ciprofloxacin",
+    "primary_row_fingerprint": "151415a4d03dbcc5",
+    "primary_x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+    "shared_spectra": 6396,
+    "identical": 6396,
+    "only_in_this_dataset": 742,
+    "only_in_primary": 14
+  },
+  "elapsed_seconds": 404.3
+}

@@ -1,0 +1,244 @@
+{
+  "random": {
+    "name": "random",
+    "description": "Reused from ecoli_ciprofloxacin. Stratified, patient-grouped random split of ['DRIAMS-A']: test 20.1%, validation 10.0% of the samples (requested 20% / 10%), seed 42.",
+    "notes": [
+      "Same partition as the 'random' split of dataset ecoli_ciprofloxacin: every sample keeps its part.",
+      "[ecoli_ciprofloxacin] Group IDs are only valid within one DRIAMS-A year folder (patient_no is re-hashed per year), so a patient seen in two years can be in two parts; compare with the within_year split.",
+      "742 sample(s) are not in ecoli_ciprofloxacin and are left out.",
+      "2149 sample(s) are not used by the reference split and are left out."
+    ],
+    "dataset_fingerprint": "b55a65935f4073bb",
+    "derived_from": {
+      "dataset": "ecoli_ciprofloxacin",
+      "dataset_fingerprint": "151415a4d03dbcc5"
+    },
+    "train": {
+      "samples": 2966,
+      "resistant": 315,
+      "susceptible": 2651,
+      "sites": {
+        "DRIAMS-A": 2966
+      },
+      "groups": 1487,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 425,
+      "resistant": 34,
+      "susceptible": 391,
+      "sites": {
+        "DRIAMS-A": 425
+      },
+      "groups": 218,
+      "date_min": "2015-12-07",
+      "date_max": "2018-08-30"
+    },
+    "test": {
+      "samples": 856,
+      "resistant": 79,
+      "susceptible": 777,
+      "sites": {
+        "DRIAMS-A": 856
+      },
+      "groups": 428,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    }
+  },
+  "within_year": {
+    "name": "within_year",
+    "description": "Reused from ecoli_ciprofloxacin. Stratified, patient-grouped random split of ['DRIAMS-A'], year folder 2017 only: test 20.0%, validation 10.0% of those samples (requested 20% / 10%), seed 42.",
+    "notes": [
+      "Same partition as the 'within_year' split of dataset ecoli_ciprofloxacin: every sample keeps its part.",
+      "[ecoli_ciprofloxacin] Only year folder 2017 (1833 samples); patient IDs are consistent within it, so patient groups are complete. Differences to the random split estimate how much cross-year patient overlap affects the random split.",
+      "742 sample(s) are not in ecoli_ciprofloxacin and are left out.",
+      "4569 sample(s) are not used by the reference split and are left out."
+    ],
+    "dataset_fingerprint": "b55a65935f4073bb",
+    "derived_from": {
+      "dataset": "ecoli_ciprofloxacin",
+      "dataset_fingerprint": "151415a4d03dbcc5"
+    },
+    "train": {
+      "samples": 1279,
+      "resistant": 153,
+      "susceptible": 1126,
+      "sites": {
+        "DRIAMS-A": 1279
+      },
+      "groups": 615,
+      "date_min": "2017-01-02",
+      "date_max": "2017-12-30"
+    },
+    "validation": {
+      "samples": 182,
+      "resistant": 21,
+      "susceptible": 161,
+      "sites": {
+        "DRIAMS-A": 182
+      },
+      "groups": 86,
+      "date_min": "2017-01-02",
+      "date_max": "2017-12-28"
+    },
+    "test": {
+      "samples": 366,
+      "resistant": 42,
+      "susceptible": 324,
+      "sites": {
+        "DRIAMS-A": 366
+      },
+      "groups": 163,
+      "date_min": "2017-01-02",
+      "date_max": "2017-12-30"
+    }
+  },
+  "temporal": {
+    "name": "temporal",
+    "description": "Reused from ecoli_ciprofloxacin. By acquisition_date at ['DRIAMS-A']: train < 2017-10-01 <= validation < 2018-01-01 <= test.",
+    "notes": [
+      "Same partition as the 'temporal' split of dataset ecoli_ciprofloxacin: every sample keeps its part.",
+      "[ecoli_ciprofloxacin] Removed 0 validation and 56 training sample(s) whose patient group also occurs in a later part.",
+      "[ecoli_ciprofloxacin] Patient groups are only valid within one year folder; cross-year overlap cannot be detected.",
+      "742 sample(s) are not in ecoli_ciprofloxacin and are left out.",
+      "2205 sample(s) are not used by the reference split and are left out."
+    ],
+    "dataset_fingerprint": "b55a65935f4073bb",
+    "derived_from": {
+      "dataset": "ecoli_ciprofloxacin",
+      "dataset_fingerprint": "151415a4d03dbcc5"
+    },
+    "train": {
+      "samples": 2498,
+      "resistant": 237,
+      "susceptible": 2261,
+      "sites": {
+        "DRIAMS-A": 2498
+      },
+      "groups": 1249,
+      "date_min": "2015-11-20",
+      "date_max": "2017-09-30"
+    },
+    "validation": {
+      "samples": 464,
+      "resistant": 62,
+      "susceptible": 402,
+      "sites": {
+        "DRIAMS-A": 464
+      },
+      "groups": 238,
+      "date_min": "2017-10-02",
+      "date_max": "2017-12-30"
+    },
+    "test": {
+      "samples": 1229,
+      "resistant": 115,
+      "susceptible": 1114,
+      "sites": {
+        "DRIAMS-A": 1229
+      },
+      "groups": 646,
+      "date_min": "2018-01-03",
+      "date_max": "2018-08-31"
+    }
+  },
+  "external": {
+    "name": "external",
+    "description": "Reused from ecoli_ciprofloxacin. Train/validation on ['DRIAMS-A'], external test on ['DRIAMS-B', 'DRIAMS-D'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
+    "notes": [
+      "Same partition as the 'external' split of dataset ecoli_ciprofloxacin: every sample keeps its part.",
+      "[ecoli_ciprofloxacin] Patients cannot be linked across hospitals, so cross-site patient overlap is not checked.",
+      "742 sample(s) are not in ecoli_ciprofloxacin and are left out."
+    ],
+    "dataset_fingerprint": "b55a65935f4073bb",
+    "derived_from": {
+      "dataset": "ecoli_ciprofloxacin",
+      "dataset_fingerprint": "151415a4d03dbcc5"
+    },
+    "train": {
+      "samples": 3819,
+      "resistant": 390,
+      "susceptible": 3429,
+      "sites": {
+        "DRIAMS-A": 3819
+      },
+      "groups": 1915,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 428,
+      "resistant": 38,
+      "susceptible": 390,
+      "sites": {
+        "DRIAMS-A": 428
+      },
+      "groups": 218,
+      "date_min": "2015-11-22",
+      "date_max": "2018-08-28"
+    },
+    "test": {
+      "samples": 2149,
+      "resistant": 226,
+      "susceptible": 1923,
+      "sites": {
+        "DRIAMS-B": 213,
+        "DRIAMS-D": 1936
+      },
+      "groups": 2149,
+      "date_min": null,
+      "date_max": null
+    }
+  },
+  "external_ab": {
+    "name": "external_ab",
+    "description": "Reused from ecoli_ciprofloxacin. Train/validation on ['DRIAMS-A', 'DRIAMS-B'], external test on ['DRIAMS-D'] (validation 10.0% of the training-site samples, requested 10%, seed 42).",
+    "notes": [
+      "Same partition as the 'external_ab' split of dataset ecoli_ciprofloxacin: every sample keeps its part.",
+      "[ecoli_ciprofloxacin] Patients cannot be linked across hospitals, so cross-site patient overlap is not checked.",
+      "742 sample(s) are not in ecoli_ciprofloxacin and are left out."
+    ],
+    "dataset_fingerprint": "b55a65935f4073bb",
+    "derived_from": {
+      "dataset": "ecoli_ciprofloxacin",
+      "dataset_fingerprint": "151415a4d03dbcc5"
+    },
+    "train": {
+      "samples": 4013,
+      "resistant": 420,
+      "susceptible": 3593,
+      "sites": {
+        "DRIAMS-A": 3825,
+        "DRIAMS-B": 188
+      },
+      "groups": 2113,
+      "date_min": "2015-11-20",
+      "date_max": "2018-08-31"
+    },
+    "validation": {
+      "samples": 447,
+      "resistant": 53,
+      "susceptible": 394,
+      "sites": {
+        "DRIAMS-A": 422,
+        "DRIAMS-B": 25
+      },
+      "groups": 233,
+      "date_min": "2015-11-25",
+      "date_max": "2018-08-23"
+    },
+    "test": {
+      "samples": 1936,
+      "resistant": 181,
+      "susceptible": 1755,
+      "sites": {
+        "DRIAMS-D": 1936
+      },
+      "groups": 1936,
+      "date_min": null,
+      "date_max": null
+    }
+  }
+}

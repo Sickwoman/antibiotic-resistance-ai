@@ -1,0 +1,7 @@
+partition,arm,pooled,within half-year (weighted by resistant),half-year strata used,within sample type (weighted by resistant),sample type strata used,patient mean score,first spectrum per patient
+42,B,0.78,0.778,4,0.785,4,0.785,0.763
+42,C,0.767,0.764,4,0.771,4,0.779,0.751
+43,B,0.764,0.762,4,0.763,4,0.766,0.742
+43,C,0.765,0.762,4,0.769,4,0.768,0.743
+44,B,0.775,0.774,4,0.78,4,0.771,0.75
+44,C,0.776,0.776,4,0.779,4,0.775,0.748

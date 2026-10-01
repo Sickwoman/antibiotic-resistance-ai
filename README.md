@@ -7,7 +7,10 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 1.3 – complete (development only).** Versions 0.1 (download +
+**Status: Version 1.4 – complete (development only); model iteration on the development data has stopped.**
+The research report covering Versions 0.1–1.4 is [`docs/research_report_v0.1-v1.4.md`](docs/research_report_v0.1-v1.4.md)
+(one-page summary: [`docs/research_summary.md`](docs/research_summary.md); safe reproduction:
+[`docs/reproduction_guide.md`](docs/reproduction_guide.md)). Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
 time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
@@ -50,6 +53,11 @@ Version 1.3, also development-only and exploratory, found that a cut-off rule de
 uncertainty guarantee (only a heuristic in that design) raised delivered sensitivity only by flagging about 85 %
 of isolates; the rules tested did not establish useful performance, which is not a universal limit. See
 [Version 1.3](#version-13--an-uncertainty-aware-cut-off-over-time-development-only-exploratory).
+Version 1.4 followed an audit that found no defect behind the modest discrimination and one concrete constraint,
+only 105 resistant patients to learn from. Adding 495 excluded screening isolates (233 new patients) to training
+**did not demonstrably improve ranking** of clinical isolates (AUROC −0.007 [−0.056, +0.043]); by the rule fixed
+beforehand, model iteration stops there. See
+[Version 1.4](#version-14--screening-isolates-as-training-data-development-only-exploratory).
 
 ## The idea in simple words
 
@@ -112,11 +120,13 @@ and after is in [Version 0.2](#version-02--from-raw-spectrum-to-model-ready-data
 
 ## Training
 
-**The data.** DRIAMS, a public, de-identified MALDI-TOF database from four Swiss hospitals. The project
-model is trained on *Escherichia coli* / ciprofloxacin from DRIAMS-A only — 2,977 training spectra, with 426
-held for validation and 856 for a single test scoring
-([`best_model_card.json`](results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json)). DRIAMS-B, C and D
-were never used for training; each was opened once, for the experiments described under Results.
+**The data.** DRIAMS, a public, de-identified MALDI-TOF database from four Swiss institutions (three hospitals
+and a diagnostic laboratory). The project model is trained on *Escherichia coli* / ciprofloxacin from DRIAMS-A
+only — 2,977 training spectra, with 426 held for validation and 856 for a single test scoring
+([`best_model_card.json`](results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json)). The served model never
+trained on DRIAMS-B, C or D; experimental arms did (Version 0.7's `external_ab` on A + B, Version 0.8's refit on
+A + C's adaptation part). Their test parts were scored in a single run per task: B and D for ciprofloxacin
+(Version 0.7) and again for ceftriaxone labels (Version 1.1), and C's protected part for ciprofloxacin (Version 0.8).
 
 **Splits are by patient, not by spectrum.** Two spectra from one patient are more alike than two spectra from
 two patients, so splitting by spectrum would let the same patient appear on both sides and inflate every
@@ -139,8 +149,8 @@ LightGBM's 0.751 on test, so **the classical model remained the project's model*
 **Calibration and the cut-off.** The winner is probability-calibrated with a sigmoid fitted on out-of-fold
 predictions of five patient-grouped folds, which is why its probabilities can be used at all: calibration
 improved the validation Brier score from 0.153 uncalibrated to 0.139 calibrated. The decision threshold
-**0.14261540693905073** is not 0.5 and was not chosen by hand — it is the smallest cut-off reaching
-sensitivity ≥ 0.90 on the validation part (`threshold_rule: {rule: min_sensitivity, min_sensitivity: 0.9}`),
+**0.14261540693905073** is not 0.5 and was not chosen by hand — it is the highest cut-off whose sensitivity
+on the validation part is at least 0.90 (`threshold_rule: {rule: min_sensitivity, min_sensitivity: 0.9}`),
 because a missed resistant isolate is the more costly error. It has never been re-fitted since.
 
 ![What the Version 0.4 search explored](results/plots/v0.4/ecoli_ciprofloxacin_search_overview.png)
@@ -185,8 +195,8 @@ The saved model, unchanged, scored AUROC 0.809 at DRIAMS-B (n = 213) and 0.704 a
 ([`test_evaluations.csv`](results/experiments/test_evaluations.csv)). **Every interval includes zero, so no
 generalisation gap was demonstrated at any site. That is not evidence that the model generalises, and not
 evidence that no site effect exists.** The intervals are 0.13–0.18 wide: a 0.05 AUROC drop at another
-hospital would matter clinically and sits comfortably inside all three. The experiment was not powered to
-settle the question it asked. DRIAMS-B's higher score is not evidence it works better there — B is the
+hospital sits comfortably inside all three and is not excluded (no threshold of practical importance was ever
+pre-specified). The experiment was not powered to settle the question it asked. DRIAMS-B's higher score is not evidence it works better there — B is the
 smallest site, 59 resistant isolates, and has the widest interval of all.
 
 **Training on two sites did not demonstrably help the third.** Adding DRIAMS-B to the training data changed
@@ -202,7 +212,7 @@ DRIAMS-C's protected 30 % once, 267 spectra with 71 resistant
 [Version 0.8](#version-08--adapting-to-a-new-hospital)). The endpoint is the Brier score, chosen in advance
 because AUROC is mathematically unable to respond to recalibration.
 
-| Arm | Brier | AUROC | paired Δ vs baseline | 95 % interval | p | Holm | Verdict |
+| Arm | Brier | AUROC | Brier(B1) − Brier(arm), paired | 95 % interval | p | Holm | Verdict |
 |---|---|---|---|---|---|---|---|
 | B1 saved model (baseline) | 0.1458 | 0.765 | — | | | | |
 | **A1 recalibration only** | 0.1493 | 0.765 | **−0.0035** | [−0.0161, +0.0085] | 0.576 | not rejected | **NOT DEMONSTRATED** |
@@ -210,7 +220,7 @@ because AUROC is mathematically unable to respond to recalibration.
 
 **Recalibration-only was not demonstrated to help.** The interval includes zero and the point estimate is
 slightly unfavourable. This is **not** a claim of equivalence: with 71 resistant isolates the interval spans
-about ±0.012 on a Brier of ~0.15, so effects that would matter clinically sit inside it.
+about ±0.012 on a Brier of ~0.15, so effects of that size are not excluded.
 
 **The A + C refit is MIXED, not a success.** Its Brier improvement of 0.0187 excludes zero and survives Holm
 correction at the 0.025 level, and it lifted AUROC from 0.765 to 0.820. But the co-primary requirement is a
@@ -235,8 +245,10 @@ susceptible; it cannot tell you with confidence when one is resistant.
 
 **And no arm reached the zone target at the new hospital.** At DRIAMS-C, NPV was 0.935 (B1), 0.929 (B2), 0.926
 (A1) and 0.904 (A2) ([`zone_results.csv`](results/metrics/v0.8/ecoli_ciprofloxacin__site-C/zone_results.csv)).
-**No arm reached 0.95 on its point estimate — including both baselines.** The zone that held at DRIAMS-B and
-DRIAMS-D did not hold at DRIAMS-C, and that is a result about the zone, not about adaptation.
+**No arm reached 0.95 on its point estimate — including both baselines.** The zone met its pre-registered
+transfer criterion at DRIAMS-D (NPV 0.963), could not be judged at DRIAMS-B (0.922 on 51 covered spectra; the
+criterion counts an interval that covers 0.95 as transfer) and did not reach 0.95 at DRIAMS-C on its point estimate
+(Version 0.8's stricter criterion); that is a result about the zone, not about adaptation.
 
 **A second antibiotic — better than chance, not a usable decision rule.** Version 1.1 ran the same method
 for ceftriaxone under its own pre-registration and spent its test parts once
@@ -249,8 +261,9 @@ generalisation gap at the later year, DRIAMS-B or DRIAMS-D — which is not evid
 At its cut-off the model reached sensitivity 0.823 against the 0.90 target, the same shortfall as
 ciprofloxacin's 0.827, with specificity 0.422 and precision 0.127. Its Brier score, 0.083, barely beat
 always predicting the base rate (0.084, a context figure rather than a logged evaluation), and it was
-weakest at DRIAMS-D (0.651, 0.607–0.696). The published 0.74 lies inside T's interval, which is not a
-replication.
+weakest at DRIAMS-D (0.651, 0.607–0.696). Weis et al. (2022) report AUROC 0.74 for *E. coli* in their abstract;
+which antibiotic and classifier produced it could not be verified against the full text in the 2026-10-01 review, so
+it is not used as a reference point for ceftriaxone ([research report](docs/research_report_v0.1-v1.4.md), 8.1).
 
 **Serving performance**, measured over 200 validation spectra against a real server, durations only
 ([`api_timing.json`](results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json); see
@@ -265,7 +278,7 @@ per spectrum — batching saves round trips, not time.
 
 ## Limitations
 
-Consolidated from the ten per-version limitation lists; nothing from them is dropped. The unfavourable
+Consolidated from the eleven per-version limitation lists; nothing from them is dropped. The unfavourable
 scientific findings are in **Results** above, where they belong, not hidden here.
 
 **The evidence is thin in the places that matter most.**
@@ -339,6 +352,15 @@ scientific findings are in **Results** above, where they belong, not hidden here
     missed the target. This is one fixed model at two origins, with 105 resistant patients in the whole
     development pool, not evidence that no better operating point exists. The 0.90 target, like every other
     operating number in this project, is a research criterion, not a clinical standard.
+
+**Version 1.4 added one, also from development data (exploratory).**
+
+21. **More resistant training data from screening isolates did not demonstrably help, and model iteration on the
+    development data has stopped.** 495 screening isolates (233 new patients) added to training left the AUROC on
+    clinical isolates unchanged within a wide interval (−0.007 [−0.056, +0.043]). They carry a strong signature of
+    their source (AUROC 0.937 for telling them apart), so they may not be interchangeable with clinical isolates.
+    The development pool's labels have now informed four versions (1.1–1.4); further work on them would add no
+    independent evidence.
 
 ## Ethics and intended use
 
@@ -620,7 +642,8 @@ Counts are samples with a binned spectrum, before the Version 0.2 exclusions.
 
 - **Resistance rate differs between sites:** it is lower at DRIAMS-D, so external results are reported
   per site.
-- **Benchmark pair** E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168,
+- **Benchmark pair** E. coli + ceftriaxone (published AUROC 0.74; attribution to ceftriaxone unverified, see the
+  [research report](docs/research_report_v0.1-v1.4.md), 8.1): A 1,086 R+I / 3,875 S, B 45 / 168,
   D 198 / 1,796.
 
 ## Version 0.2 – from raw spectrum to model-ready data
@@ -2322,7 +2345,7 @@ AUROC wide, so differences that would matter sit comfortably inside them.
   one small validation part does not carry its sensitivity to new patients. Specificity was low everywhere;
   on the later-year part it was 0.14–0.21 at sensitivity 0.94–0.97.
 - **DRIAMS-D, the largest external set, is the weakest:** 0.651 (0.607–0.696), an interval that lies
-  entirely below the published 0.74. DRIAMS-B scored 0.833 (0.756–0.897) on 45 resistant isolates. The two
+  entirely below the published 0.74 (an attribution that is unverified, see below). DRIAMS-B scored 0.833 (0.756–0.897) on 45 resistant isolates. The two
   sites' intervals do not overlap, but no B-against-D comparison was pre-registered, so no statistical
   conclusion is drawn from it.
 - **Retuning did not help.** T did not beat F on AUROC, and on two metrics that were *not* pre-registered
@@ -2340,6 +2363,9 @@ the abstract and the authors' code before any Version 1.1 table existed). It lie
 but T's point estimate (0.713) and seed mean (0.695) are below it, and the cohorts, splits, exclusions,
 preprocessing, implementation and thresholds differ. It is a reference point — not a replication, and not
 external validation.
+*Note, 2026-10-01 review:* the abstract gives 0.74 for *E. coli* without naming the antibiotic or the classifier,
+and the full text could not be checked, so the attribution to ceftriaxone above is **unverified**
+([research report](docs/research_report_v0.1-v1.4.md), 8.1).
 
 **Research scoring, not deployment readiness.** Version 1.1 changes no served model, API or page, and no
 ceftriaxone model is served. A retrospective research score on a public dataset says nothing about clinical
@@ -2538,7 +2564,58 @@ E is known to miss its target, U is unhelpful by the pre-set line, and C's stand
 python scripts/v13_threshold.py   # development only: no test part read, DRIAMS-C never opened
 ```
 
-## Project structure (Version 1.3)
+## Version 1.4 – screening isolates as training data (development only, exploratory)
+
+**Why.** Before choosing anything, an audit ([`docs/discrimination_audit.md`](docs/discrimination_audit.md))
+checked what could limit the ceftriaxone model's discrimination: labels, missing results, exclusions, repeat
+spectra, preprocessing, fitted transformations, class weights, calibration, time and sample-type shortcuts. It
+found **no defect that affects an earlier conclusion**, and no sign that the model ranks by period or sample type
+(within-stratum AUROC equals pooled AUROC). It verified one constraint: the development pool holds only **105
+resistant patients**. It also found a never-used source: DRIAMS-A's screening (HospitalHygiene) isolates, excluded
+from every cohort because colonisation isolates are not the clinical population, 98 % of them resistant. Before
+2018, 495 of them were usable (485 resistant), 426 from **233 patients new to the pool**.
+
+**The question** ([`docs/v1.4_screening_plan.md`](docs/v1.4_screening_plan.md), protocol amendment 11, recorded
+before any code): does adding them **to training only** improve the ranking of **clinical** isolates? The baseline
+A0 is Version 1.2's arm C, which it had to reproduce exactly (it did: largest probability difference 0). The
+candidate A1 differs only in its training rows. A screening spectrum never trained while its patient was held out
+and was never evaluated. One stated risk in advance: in the added data "screening" and "resistant" coincide, so a
+model could learn the source rather than resistance.
+
+**Result (exploratory): not demonstrated.** Numbers from
+[`tables.md`](results/metrics/v1.4/ecoli_ceftriaxone/tables.md).
+
+| | A0: clinical only | A1: + screening | A1 minus A0 |
+|---|---|---|---|
+| **AUROC, mean over 15 held-out folds** (primary) | | | **−0.007 [−0.056, +0.043]** |
+| Pooled AUROC, partitions 42 / 43 / 44 | 0.767 / 0.765 / 0.776 | 0.761 / 0.763 / 0.770 | |
+| PR-AUC, partition 42 | 0.324 | 0.285 | −0.039 [−0.090, +0.002] |
+| Delivered sensitivity / specificity, partition 42 | 0.895 / 0.369 | 0.895 / 0.396 | specificity +0.026 [+0.004, +0.049] |
+| AUROC, one spectrum per patient | 0.751 | 0.725 | −0.026 [−0.071, +0.018] |
+| AUROC forward in time (fitted before 2017, evaluated on 2017) | 0.722 | 0.722 | +0.001 [−0.046, +0.049] |
+
+The primary interval is a corrected repeated-cross-validation interval, which approximates training-set variability
+(the model seed stays fixed); the others are patient-group bootstraps with the fitted models held fixed. Resistant
+screening and clinical spectra were distinguishable with AUROC 0.937: the added isolates carry a strong signature of
+their source. That is consistent with the stated risk, but it does not show that this is why ranking did not improve.
+The one favourable secondary (specificity, unadjusted) came with a lower PR-AUC and is not evidence of a benefit.
+"Not demonstrated" is not "no effect": the interval admits a gain of about 0.04 as well as a loss of about 0.06.
+
+**What follows, fixed before the run.** Under the plan's stopping rule, **model iteration on this development pool
+stops**: no further settings, weights, representations or data additions are tried on it. The next step is a
+reproducible research report of Versions 0.1–1.4. No procedure warrants a DRIAMS-C evaluation.
+
+A first run stopped before fitting anything, because the plan's expected screening counts (from the audit) counted
+one spectrum that the plan's own exclusion rule removes; the counts were corrected in a dated addendum before the
+rerun, and both runs are in the development log.
+
+```powershell
+python scripts/discrimination_audit.py   # the audit: fits nothing, scores nothing
+python scripts/build_dataset.py --antibiotic Ceftriaxone --keep-workstation HospitalHygiene --name ecoli_ceftriaxone_with_screening --report-version v1.4
+python scripts/v14_screening.py          # development only: clinical evaluation, screening rows train only
+```
+
+## Project structure (Version 1.4)
 
 ```
 antibiotic-resistance-ai/
@@ -2567,6 +2644,8 @@ antibiotic-resistance-ai/
 │   ├── v12_development.py      Version 1.2 development-only study (no test part, own development log)
 │   ├── v12_report.py           Version 1.2 complete tables from the saved outputs (fits nothing)
 │   ├── v13_threshold.py        Version 1.3 cut-off rules over time (development only)
+│   ├── discrimination_audit.py the audit before Version 1.4 (fits nothing, scores nothing)
+│   ├── v14_screening.py        Version 1.4 screening isolates as training-only data (development only)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2585,6 +2664,7 @@ antibiotic-resistance-ai/
 │   ├── predict.py              saving/loading models, prediction with timing and confidence
 │   ├── development.py          Version 1.2 pool, folds, supported cut-offs, cross-fitted predictions, log
 │   ├── threshold_rules.py      Version 1.3 cut-off rules E and U, time windows, label availability
+│   ├── screening.py            Version 1.4 screening-row linkage, fold exclusion, corrected CV interval
 │   ├── api/                    Version 0.9 serving package, one responsibility per module:
 │   │   ├── app.py              construction, lifespan, routes, handlers (no inference logic)
 │   │   ├── inference_service.py  artifact loading, readiness, the prediction path
@@ -2608,6 +2688,8 @@ antibiotic-resistance-ai/
 ├── docs/v1.1_ceftriaxone_plan.md  the second antibiotic (fixed before any Version 1.1 code)
 ├── docs/v1.2_calibration_plan.md  the development-only calibration and cut-off study
 ├── docs/v1.3_threshold_plan.md  the development-only study of an uncertainty-aware cut-off
+├── docs/discrimination_audit.md  what could limit discrimination: defects, hypotheses, unsupported explanations
+├── docs/v1.4_screening_plan.md  the development-only study of screening isolates as training data
 ├── docs/driams_c_status.md     what has been accessed at DRIAMS-C, by antibiotic, and its standing
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)

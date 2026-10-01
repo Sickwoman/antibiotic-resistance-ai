@@ -1,0 +1,5 @@
+antibiotic,class_weight,draws,mean_cv_auroc,best_cv_auroc
+ceftriaxone,balanced,19,0.7711,0.7872
+ceftriaxone,none,11,0.7728,0.7875
+ciprofloxacin,balanced,19,0.7641,0.7764
+ciprofloxacin,none,11,0.7646,0.7769

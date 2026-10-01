@@ -104,26 +104,41 @@ class CohortSpec:
     @classmethod
     def from_config(cls, config: dict[str, Any], *, intermediate_as: str | None = None,
                     sites: Iterable[str] | None = None, name: str | None = None,
-                    antibiotic: str | None = None) -> CohortSpec:
+                    antibiotic: str | None = None, keep_workstations: Iterable[str] = ()) -> CohortSpec:
+        """`keep_workstations` includes samples of workstations the configuration excludes (Version 1.4 builds
+        the screening isolates this way, as training-only data). Such a dataset never takes the name the
+        unchanged cohort would have."""
         d = config["dataset"]
         default_policy = config["labels"]["intermediate_as"]
         policy = intermediate_as or default_policy
         site_list = tuple(sites or d["sites"])
         preferred = config["target"]["preferred_antibiotic"]
         target = antibiotic or preferred
+        excluded = tuple(d.get("exclude_workstations") or ())
+        keep = tuple(keep_workstations or ())
+        not_excluded = [w for w in keep if w not in excluded]
+        if not_excluded:
+            raise DatasetError(f"Workstation(s) {not_excluded} are not excluded by dataset.exclude_workstations, so "
+                               "there is nothing to keep.")
+        unchanged = d["name"] if target == preferred else _name_for_antibiotic(d["name"], preferred, target)
+        if policy != default_policy:
+            unchanged += f"__intermediate-{policy}"
+        if site_list != tuple(d["sites"]):
+            unchanged += "__sites-" + "-".join(s.replace("DRIAMS-", "") for s in site_list)
         if name is None:  # any non-default choice gets its own folder, so the primary dataset is never overwritten
-            name = d["name"] if target == preferred else _name_for_antibiotic(d["name"], preferred, target)
-            if policy != default_policy:
-                name += f"__intermediate-{policy}"
-            if site_list != tuple(d["sites"]):
-                name += "__sites-" + "-".join(s.replace("DRIAMS-", "") for s in site_list)
+            name = unchanged
+            if keep:
+                name += "__with-" + "-".join(re.sub(r"[^a-z0-9]+", "-", w.lower()).strip("-") for w in keep)
+        elif keep and name == unchanged:
+            raise DatasetError(f"A dataset that keeps {list(keep)} may not be named {name!r}: that is the dataset "
+                               "without them, and it would be overwritten.")
         return cls(
             name=name,
             species=config["target"]["species"],
             antibiotic=target,
             sites=site_list,
             intermediate_as=policy,
-            exclude_workstations=tuple(d.get("exclude_workstations") or ()),
+            exclude_workstations=tuple(w for w in excluded if w not in keep),
             require_acquisition_date=bool(d.get("require_acquisition_date", False)),
             flag_duplicate_spectra=bool(d.get("flag_duplicate_spectra", True)),
         )

@@ -218,7 +218,9 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   (AUROC 0.713, 0.604–0.818) but **not a usable decision rule** (sensitivity 0.823 against 0.90, specificity
   0.422, precision 0.127; Brier 0.083 against 0.084 for the base rate); T against F, the two antibiotics and
   every generalisation gap **not demonstrated**, which is never "equivalent"; DRIAMS-D the weakest (0.651).
-  The published 0.74 is a reference point, never "matched" or "replicated". No ceftriaxone model is served.
+  The published 0.74 is a reference point, never "matched" or "replicated" - and its attribution to ceftriaxone
+  is **unverified** (the Weis et al. abstract gives 0.74 for E. coli without the antibiotic; full text not
+  checked). No ceftriaxone model is served.
   - `ecoli_ceftriaxone` comes from `build_dataset.py --antibiotic Ceftriaxone --report-version v1.1`: the
     primary's preprocessing, splits **derived** from the primary (93 ceftriaxone-only isolates are in no
     split), and every shared spectrum must be byte-identical to the primary's row or the build stops.
@@ -282,7 +284,32 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     theoretical (exchangeable scores, a scoring function independent of them), not observed attainment rates; the
     derivation, order-statistic convention and tie handling are in the plan's closure record. Every operating number
     (0.90, 0.95, 0.20, the 7-day gap, 30 / 15 / 50) is a research criterion, never a clinical standard.
-  - **Test automation must surface failures.** CI runs every step under `bash` (GitHub: `-eo pipefail`); never pipe
-    pytest into `tail`/`tee` before a commit - read pytest's own exit code. `tests/conftest.py` fails the whole
-    session if a test changed `results/experiments/test_evaluations.csv` or `development_runs.csv`: every test that
-    runs a script must point both logs into `tmp_path`.
+- **Version 1.4 tested the one hypothesis the discrimination audit supported, and model iteration then stopped**
+  (`docs/discrimination_audit.md`; `docs/v1.4_screening_plan.md`, amendment 11; branch `v1.4-screening`). The audit
+  found no defect behind the modest discrimination; the verified constraint was 105 resistant patients in the pool.
+  Adding 495 excluded screening (HospitalHygiene) isolates to training only: AUROC on clinical isolates A1 minus A0
+  **-0.007 [-0.056, +0.043], not demonstrated**; resistant screening vs clinical spectra are distinguishable (AUROC
+  0.937). Rules to keep:
+  - **Model iteration on the development pool has stopped** (the plan's section 13). Do not try more settings,
+    weights, representations or data on it; the next step is the reproducible research report, and a confirmatory
+    claim needs untouched data plus an owner-approved amendment.
+  - Screening isolates stay **training-only**: `--keep-workstation HospitalHygiene` builds them into their own
+    dataset (`ecoli_ceftriaxone_with_screening`), never under the unchanged name; `src/screening.py` links them to
+    within-year patients, drops a held-out patient's, and excludes any patient with a clinical row outside the pool
+    (including the 15 unsplit ceftriaxone-only isolates of pool patients - the audit's group-based count missed one).
+  - A0 must reproduce Version 1.2's arm C exactly (it did: difference 0). Name both operands: every difference here
+    is A1 minus A0.
+  - Consensus/semantic-scholar style links carry 32-hex ids that the privacy scan rightly flags; cite by DOI.
+- **The research cycle V0.1-V1.4 is closed by `docs/research_report_v0.1-v1.4.md`** (with `evidence_map.md`,
+  `reproduction_guide.md`, `research_summary.md`, `review_checklist.md`; branch `v1.4-report`). Its section 8 lists
+  the reporting corrections; a pre-specified sensitivity analysis (ciprofloxacin, I excluded) was never run - say so
+  wherever the label policy is discussed. Only tier-1 and tier-2 commands of the reproduction guide may be run.
+- **The research history is archived; never move or delete the archive.** 38 refs under `refs/archive/` and, on
+  GitHub, 38 annotated tags `research-archive/…` (same names, same commits) hold every at-risk commit; the bundle
+  `archive/research-history-2026-10-01.bundle` is git-ignored. `research-archive/v1.4-report/tip` is a fixed snapshot
+  at `bf832bd`: later commits on `v1.4-report` do not move it. Fetch and restore as `docs/review_checklist.md`,
+  section 5, shows; a plain `git fetch` does not bring tags whose commits are on no branch.
+- **Test automation must surface failures** (Version 1.3 closure). CI runs every step under `bash` (GitHub:
+  `-eo pipefail`); never pipe pytest into `tail`/`tee` before a commit - read pytest's own exit code.
+  `tests/conftest.py` fails the whole session if a test changed `results/experiments/test_evaluations.csv` or
+  `development_runs.csv`: every test that runs a script must point both logs into `tmp_path`.
