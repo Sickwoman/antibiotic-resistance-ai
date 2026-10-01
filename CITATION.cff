@@ -10,7 +10,8 @@ authors:
   - given-names: Moksh
 repository-code: "https://github.com/Sickwoman/antibiotic-resistance-ai"
 license: MIT
-version: 1.0.0
+version: 1.4.0
+date-released: "2026-10-02"
 keywords:
   - antimicrobial resistance
   - MALDI-TOF
