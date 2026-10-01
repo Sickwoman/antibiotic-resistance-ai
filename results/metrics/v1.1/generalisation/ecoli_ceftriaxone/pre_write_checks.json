@@ -1,0 +1,8 @@
+{
+  "pre_write_sha256": "33f2faf4b81436b96e2d0db6e56dbf2f08e181492b5b6146ae193eeccef62f6f",
+  "pre_write_rows": 95,
+  "rows_to_append": 18,
+  "expected_rows_after": 113,
+  "checked_against_committed": true,
+  "checked_at": "2026-09-30 17:49:33"
+}

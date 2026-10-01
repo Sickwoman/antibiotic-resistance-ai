@@ -13,7 +13,12 @@ and refitted unchanged on each experiment's own training part, so a gap between 
 from the data. Before anything is scored, the refit is proved faithful: the same setting refitted on the
 `random` training part must reproduce the saved model's logged validation AUROC.
 
-Writes (paths from config.yaml -> generalisation):
+Version 1.1 runs the same procedure for ceftriaxone from its own config section, carrying its own winning
+setting instead of Version 0.4's (docs/v1.1_ceftriaxone_plan.md):
+
+    python scripts/measure_generalisation.py --section second_antibiotic_generalisation --dataset ecoli_ceftriaxone
+
+Writes (paths from config.yaml -> generalisation, or the section named by --section):
 - results/metrics/v0.7/<dataset>/* and results/plots/v0.7/*  (committed; no identifiers)
 - models/v0.7/<dataset>/test_probabilities.npz               (git-ignored; lets later versions reuse
                                                               these scores instead of re-scoring)
@@ -39,6 +44,7 @@ from src.dataset import load_dataset  # noqa: E402
 from src.evaluate import (  # noqa: E402
     EvaluationError,
     append_test_log,
+    assert_log_ready_for_append,
     bootstrap,
     choose_threshold,
     classification_metrics,
@@ -95,11 +101,20 @@ def versions() -> dict[str, str]:
 class Context:
     """Everything the run needs, with every provenance check done in the constructor."""
 
-    def __init__(self, config: dict[str, Any], dataset_name: str | None) -> None:
+    def __init__(self, config: dict[str, Any], dataset_name: str | None, section: str = "generalisation") -> None:
         self.config = config
-        self.gc = config["generalisation"]
+        if section not in config:
+            raise ConfigError(f"config.yaml has no {section!r} section.")
+        self.section = section
+        self.gc = config[section]
         self.ev = config["evaluation"]
-        self.tc = config["tuning"]
+        # Version 0.7 wrote these as constants; a later section names its own, so its rows can never be
+        # mistaken for Version 0.7's in the log.
+        self.stage = str(self.gc.get("stage", STAGE))
+        self.reference_stage = str(self.gc.get("reference_stage", REFERENCE_STAGE))
+        self.title = str(self.gc.get("title", "Version 0.7"))
+        self.source_section = self._source_section()
+        self.tc = config[self.source_section]      # folds, seeds and calibration of the search that set it
         self.dataset_name = dataset_name or config["dataset"]["name"]
         self.commit = git_commit()
         self.versions = versions()
@@ -151,6 +166,7 @@ class Context:
             folder.mkdir(parents=True, exist_ok=True)
         self.test_log = project_path(self.ev["test_log"])
         self.test_log_hash = file_hash(self.test_log)
+        self.test_log_bytes = self.test_log.read_bytes() if self.test_log.is_file() else b""
         # src/train.py is not in the key: nothing here goes through it. src/tuning.py is, because
         # fit_calibrated and base_pipeline decide what a refit actually is.
         self.code = code_fingerprint([Path(__file__).resolve().parents[1] / "src" / "tuning.py"])
@@ -169,28 +185,41 @@ class Context:
                              f"({self.bundle['feature_fingerprint']} against "
                              f"{self.summary['feature_fingerprint']}).")
 
-    def _model_card(self) -> dict[str, Any]:
-        """The card of the model whose setting is reused, found through its own config section."""
+    def _source_section(self) -> str:
+        """The config section that searched and saved the model whose setting is reused (by its model_dir)."""
         wanted = str(self.gc["source_model"]).rstrip("/")
         for name, section in self.config.items():
-            if name == "generalisation" or not isinstance(section, dict) or "report_dir" not in section:
+            if name == self.section or not isinstance(section, dict) or "report_dir" not in section:
                 continue
             if str(section.get("model_dir", "")).rstrip("/") == wanted:
-                path = project_path(section["report_dir"]) / self.dataset_name / "best_model_card.json"
-                if not path.is_file():
-                    raise ConfigError(f"{show_path(path)} does not exist, so the setting to reuse cannot "
-                                      "be read. Run that version first.")
-                return json.loads(path.read_text(encoding="utf-8"))
-        raise ConfigError(f"No config section other than 'generalisation' has model_dir {wanted!r}, so the "
+                return name
+        raise ConfigError(f"No config section other than {self.section!r} has model_dir {wanted!r}, so the "
                           "reports of the model whose setting is reused cannot be found.")
 
+    def _model_card(self) -> dict[str, Any]:
+        """The card of the model whose setting is reused, found through its own config section."""
+        path = project_path(self.tc["report_dir"]) / self.dataset_name / "best_model_card.json"
+        if not path.is_file():
+            raise ConfigError(f"{show_path(path)} does not exist, so the setting to reuse cannot "
+                              "be read. Run that version first.")
+        return json.loads(path.read_text(encoding="utf-8"))
+
     def _family_spec(self) -> FamilySpec:
-        """The family of the reused setting, from the section that searched it."""
+        """The family of the reused setting, from the section that searched it.
+
+        Found by the saved model's own name first (`tuned_<family>`), because a section may hold two families
+        of the same kind (Version 1.1's arms T and F are both LightGBM); by kind only as a fallback.
+        """
         kind = str(self.card["model_kind"])
-        for name, cfg in self.tc["families"].items():
+        families = self.tc["families"]
+        named = str(self.card.get("model", "")).removeprefix("tuned_")
+        if named in families and str(families[named].get("kind")) == kind:
+            return FamilySpec.from_config(named, families[named])
+        for name, cfg in families.items():
             if str(cfg.get("kind")) == kind:
                 return FamilySpec.from_config(name, cfg)
-        raise ConfigError(f"No tuning family has kind {kind!r}, so the reused setting cannot be rebuilt.")
+        raise ConfigError(f"No family of {self.source_section!r} has kind {kind!r}, so the reused setting cannot "
+                          "be rebuilt.")
 
     def rows(self, name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         s = self.splits[name]
@@ -217,7 +246,7 @@ class Context:
         return sorted(set(self.meta["site"].to_numpy()[rows].tolist()))
 
     def record(self, status: str, **extra: Any) -> dict[str, Any]:
-        return {"stage": STAGE, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        return {"stage": self.stage, "status": status, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "timezone": time.strftime("%Z%z"), "git_commit": self.commit,
                 "code_fingerprint": self.code, "dataset": self.dataset_name,
                 "rows_fingerprint": self.summary["row_fingerprint"], "x_sha256": self.summary["x_sha256"],
@@ -394,8 +423,10 @@ def stored_source_probabilities(ctx: Context) -> dict[int, np.ndarray]:
         raise EvaluationError(f"{path.name} holds no probabilities for seed {main_seed}, the seed of the "
                               "saved model, so the comparison would have no reference.")
     logged = pd.read_csv(ctx.test_log)
-    row = logged[(logged["split"] == ctx.source_split) & (logged["experiment"] == ctx.source_split)
-                 & (logged["model"] == model) & (logged["seed"] == main_seed)]
+    # By dataset too: once a second antibiotic is logged, the same split, model name and seed exist for both.
+    row = logged[(logged["dataset"] == ctx.dataset_name) & (logged["split"] == ctx.source_split)
+                 & (logged["experiment"] == ctx.source_split) & (logged["model"] == model)
+                 & (logged["seed"] == main_seed)]
     if row.empty:
         raise EvaluationError(f"The test log has no {ctx.source_split} row for {model} seed {main_seed}, so "
                               "the stored probabilities cannot be checked against anything.")
@@ -431,7 +462,8 @@ def logged_reference(ctx: Context) -> pd.DataFrame:
     model = str(ctx.card["model"])
     rows = []
     for name in ctx.reuse_logged:
-        part = logged[(logged["split"] == name) & (logged["model"] == model)]
+        part = logged[(logged["dataset"] == ctx.dataset_name) & (logged["split"] == name)
+                      & (logged["model"] == model)]
         if part.empty:
             log.warning("the test log has no %s row for %s, so it cannot be reused as a reference", name, model)
             continue
@@ -649,16 +681,18 @@ def figures(ctx: Context, refits: list[dict[str, Any]], source_roc_auc: float,
                            "n": e["rows"].size, "n_resistant": int((ctx.y[e["rows"]] == 1).sum())}
                           for e in refits if "low" in e]),
             source_roc_auc, f"{ctx.source_split} split",
-            f"Version 0.7: where the model was not trained ({ctx.card['model_version']})",
+            f"{ctx.title}: where the model was not trained ({ctx.card['model_version']})",
             ctx.plot_dir / f"{stem}_auroc.png")),
-        ("zones", lambda: plot_zone_transfer(
+    ]
+    if ctx.gc.get("zone_transfer"):
+        wanted.append(("zones", lambda: plot_zone_transfer(
             transfer, float(ctx.gc["zone_transfer"]["target_npv"]),
             "Version 0.7: does the Version 0.6 confidence zone still hold elsewhere?",
-            ctx.plot_dir / f"{stem}_zone_transfer.png")),
-        ("region shift", lambda: plot_region_shift(
+            ctx.plot_dir / f"{stem}_zone_transfer.png")))
+    if ctx.gc.get("shift_diagnostic"):
+        wanted.append(("region shift", lambda: plot_region_shift(
             regions, "Version 0.7: how different the regions the model relies on look at each site",
-            ctx.plot_dir / f"{stem}_region_shift.png")),
-    ]
+            ctx.plot_dir / f"{stem}_region_shift.png")))
     for name, draw in wanted:
         try:
             made.append(draw())
@@ -671,8 +705,8 @@ def figures(ctx: Context, refits: list[dict[str, Any]], source_roc_auc: float,
 
 def run(ctx: Context) -> None:
     started = time.perf_counter()
-    ctx.write_status("running")
     before = pd.read_csv(ctx.test_log) if ctx.test_log.is_file() and ctx.test_log.stat().st_size else pd.DataFrame()
+    ctx.write_status("running", log_sha256_at_start=ctx.test_log_hash, log_rows_at_start=int(len(before)))
 
     # Nothing may be scored until the refit is proved to be the saved model in another data regime.
     faithful = prove_the_refit_is_faithful(ctx)
@@ -703,10 +737,10 @@ def run(ctx: Context) -> None:
                 arrays[f"{label}__seed{seed}"] = prob
                 row = {"experiment": label, "split": name, "model": model_name, "seed": seed,
                        "train_size": int(tr.size), "threshold": threshold, **metrics}
-                log_rows.append({**base, "stage": STAGE, **row})
+                log_rows.append({**base, "stage": ctx.stage, **row})
                 report_rows.append({**row, "site": site, "train_sites": "+".join(ctx.sites_of(tr)),
-                                    "setting": "Version 0.4 winning setting, refitted; threshold from "
-                                               "this experiment's own validation part"})
+                                    "setting": f"{ctx.gc.get('setting_label', 'Version 0.4 winning setting')}, "
+                                               "refitted; threshold from this experiment's own validation part"})
                 if seed == main_seed:
                     entries.append({"label": label, "experiment": name, "site": site, "rows": site_rows,
                                     "prob": prob, "threshold": threshold, "roc_auc": metrics["roc_auc"],
@@ -714,7 +748,7 @@ def run(ctx: Context) -> None:
                                     "train_sites": ctx.sites_of(tr), "train_size": int(tr.size)})
         for site, site_rows in per_site(ctx, te):
             row = prevalence_row(ctx, f"{name}__{site}", tr, site_rows)
-            log_rows.append({**base, "stage": REFERENCE_STAGE, **row, "split": name})
+            log_rows.append({**base, "stage": ctx.reference_stage, **row, "split": name})
             report_rows.append({**row, "split": name, "site": site,
                                 "train_sites": "+".join(ctx.sites_of(tr))})
 
@@ -724,7 +758,7 @@ def run(ctx: Context) -> None:
             arrays[f"{name}__saved_model__{site}"] = prob
             _, _, te = ctx.rows(name)
             site_rows = te[ctx.meta["site"].to_numpy()[te] == site]
-            log_rows.append({**base, "stage": REFERENCE_STAGE, **{k: v for k, v in row.items() if k != "site"},
+            log_rows.append({**base, "stage": ctx.reference_stage, **{k: v for k, v in row.items() if k != "site"},
                              "threshold": float(ctx.bundle["threshold"])})
             report_rows.append({**row, "threshold": float(ctx.bundle["threshold"])})
             entries.append({"label": f"{name}__{site}", "experiment": name, "site": site, "rows": site_rows,
@@ -733,8 +767,24 @@ def run(ctx: Context) -> None:
 
     # The log is appended once, before any other output is written, so a crash later cannot leave a
     # scoring unrecorded. It is append-only and the run checks that nothing earlier changed.
+    # A section with `append_gate: strict` (Version 1.1) runs the seven pre-write checks against the log as this
+    # run found it, and writes their result to disk before the log is touched.
+    pre_write = None
+    if ctx.gc.get("append_gate") == "strict":
+        pre_write = assert_log_ready_for_append(ctx.test_log, log_rows, expected_sha256=ctx.test_log_hash,
+                                                expected_rows=int(len(before)),
+                                                committed=before if len(before) else None)
+        (ctx.report_dir / "pre_write_checks.json").write_text(json.dumps(pre_write, indent=2), encoding="utf-8")
+        log.info("pre-write checks passed: log at %s with %d data rows; appending %d new key(s)",
+                 pre_write["pre_write_sha256"][:16], pre_write["pre_write_rows"], pre_write["rows_to_append"])
     append_test_log(ctx.test_log, log_rows, locked=ctx.ev["locked_test_splits"])
     ctx.assert_test_log_only_grew(before)
+    if pre_write:                                  # byte for byte, not only as parsed frames
+        if not ctx.test_log.read_bytes().startswith(ctx.test_log_bytes):
+            raise EvaluationError("The log no longer begins with the exact bytes it had before this append.")
+        if len(pd.read_csv(ctx.test_log)) != pre_write["expected_rows_after"]:
+            raise EvaluationError(f"After appending the log does not hold the {pre_write['expected_rows_after']} "
+                                  "rows expected.")
     log.info("%d test evaluations appended to %s", len(log_rows), show_path(ctx.test_log))
 
     np.savez_compressed(ctx.model_dir / "test_probabilities.npz", **arrays,
@@ -759,16 +809,20 @@ def run(ctx: Context) -> None:
         (ctx.report_dir / "two_sites_versus_one.json").write_text(
             json.dumps(paired if len(paired) > 1 else paired[0], indent=2, default=str), encoding="utf-8")
 
-    zones = load_zones(ctx)
+    # The Version 0.6 zone and the feature-shift diagnostic belong to Version 0.7; a section that does not
+    # configure them (Version 1.1 fits no zone and plans no diagnostic) skips them entirely.
+    zones = load_zones(ctx) if ctx.gc.get("zone_transfer") else None
     transfer = zone_transfer(ctx, zones, entries) if zones else pd.DataFrame()
     if len(transfer):
         write_csv(transfer, ctx.report_dir / "zone_transfer.csv")
 
-    parts = {e["label"]: e["rows"] for e in refits}
-    shift, regions = shift_diagnostic(ctx, parts)
-    write_csv(shift, ctx.report_dir / "shift_diagnostic.csv")
-    if len(regions):
-        write_csv(regions, ctx.report_dir / "region_shift.csv")
+    regions = pd.DataFrame()
+    if ctx.gc.get("shift_diagnostic"):
+        parts = {e["label"]: e["rows"] for e in refits}
+        shift, regions = shift_diagnostic(ctx, parts)
+        write_csv(shift, ctx.report_dir / "shift_diagnostic.csv")
+        if len(regions):
+            write_csv(regions, ctx.report_dir / "region_shift.csv")
 
     _, _, source_rows = ctx.rows(ctx.source_split)
     source_point = classification_metrics(ctx.y[source_rows], source[main_seed],
@@ -783,20 +837,23 @@ def run(ctx: Context) -> None:
                      zone_transfer_tested=bool(len(transfer)),
                      source_roc_auc=source_point, plots=[p.name for p in made],
                      reused_logged_rows=int(len(reused)), reuse_logged=ctx.reuse_logged,
+                     pre_write_checks=pre_write,
                      test_log_sha256=file_hash(ctx.test_log))
-    log.info("Version 0.7 reports written to %s", show_path(ctx.report_dir))
+    log.info("%s reports written to %s", ctx.title, show_path(ctx.report_dir))
     log.info("finished in %.1f minutes", (time.perf_counter() - started) / 60)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Version 0.7: measure generalisation across sites and time.")
+    parser.add_argument("--section", default="generalisation",
+                        help="config section to run (default: generalisation, i.e. Version 0.7)")
     parser.add_argument("--dataset", default=None)
     parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
     try:
         config = load_config(args.config)
         set_seed(int(config["project"]["random_seed"]))
-        ctx = Context(config, args.dataset)
+        ctx = Context(config, args.dataset, args.section)
         with keep_awake():
             run(ctx)
         return 0

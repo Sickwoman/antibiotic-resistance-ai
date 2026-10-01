@@ -1,0 +1,40 @@
+{
+  "comparison": "ecoli_ceftriaxone (arm T) minus ecoli_ciprofloxacin (saved Version 0.4 model), random test part",
+  "a": {
+    "dataset": "ecoli_ceftriaxone",
+    "model": "tuned_lightgbm",
+    "seed": 42,
+    "n": 856,
+    "n_resistant": 79
+  },
+  "b": {
+    "dataset": "ecoli_ciprofloxacin",
+    "model": "tuned_lightgbm",
+    "seed": 42,
+    "n": 856,
+    "n_resistant": 197,
+    "source": "stored Version 0.4 test probabilities, not re-scored"
+  },
+  "same_spectra": true,
+  "a_roc_auc": 0.7130638776208397,
+  "a_interval": [
+    0.6035004282241586,
+    0.8182406747541702
+  ],
+  "b_roc_auc": 0.75086078737974,
+  "b_interval": [
+    0.6928599946576313,
+    0.808870180069139
+  ],
+  "difference": -0.03779690975890038,
+  "low": -0.14599085018475988,
+  "high": 0.060238367855083054,
+  "demonstrated": false,
+  "resamples": 2000,
+  "used": 2000,
+  "skipped": 0,
+  "level": 0.95,
+  "seed": 42,
+  "kind": "paired (same spectra, two labels)",
+  "reading": "how hard the two labels are for one method on the same spectra; not a comparison of models"
+}

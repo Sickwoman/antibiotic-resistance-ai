@@ -7,7 +7,7 @@
 > susceptibility testing (AST) or professional medical decision-making, and it never recommends
 > treatments. All outputs are AI research predictions on a public, de-identified dataset.
 
-**Status: Version 1.0 – complete.** Versions 0.1 (download +
+**Status: Version 1.1 – complete.** Versions 0.1 (download +
 exploration), 0.2 (preprocessing, dataset, splits), 0.3 (baseline models), 0.4 (tuning and calibration),
 0.5 (neural networks), 0.6 (explainability and confidence zones), 0.7 (generalisation across hospitals and
 time), 0.8 (adapting to a new hospital) and 0.9 (the backend API) are complete. Models are evaluated as
@@ -35,6 +35,13 @@ latency, and input limits that did not exist before. It changes no model, no thr
 recorded result. See [Version 0.9](#version-09--the-backend-api).
 The complete README (architecture, training, results, limitations, ethics) is written at Version 1.0,
 once real results exist.
+Version 1.1 then asked whether the method carries to a second antibiotic, ceftriaxone, and spent its
+test parts once. **The model ranks isolates better than chance (AUROC 0.713, interval 0.604–0.818), but
+that is not useful decision performance:** at its cut-off it missed the 90 % sensitivity target on test
+(0.823) while calling 58 % of susceptible isolates resistant, its probabilities barely beat the base rate
+(Brier 0.083 against 0.084), it was weakest at the largest external site (DRIAMS-D, 0.651), and retuning
+did not demonstrably beat reusing the ciprofloxacin setting. See
+[Version 1.1](#version-11--a-second-antibiotic-ceftriaxone).
 
 ## The idea in simple words
 
@@ -223,6 +230,20 @@ susceptible; it cannot tell you with confidence when one is resistant.
 **No arm reached 0.95 on its point estimate — including both baselines.** The zone that held at DRIAMS-B and
 DRIAMS-D did not hold at DRIAMS-C, and that is a result about the zone, not about adaptation.
 
+**A second antibiotic — better than chance, not a usable decision rule.** Version 1.1 ran the same method
+for ceftriaxone under its own pre-registration and spent its test parts once
+([`tables.md`](results/metrics/v1.1/ecoli_ceftriaxone/tables.md); see
+[Version 1.1](#version-11--a-second-antibiotic-ceftriaxone)). Arm T's AUROC was **0.713 (0.604–0.818)**
+on 856 held-out spectra with 79 resistant: above chance, and the only confirmatory endpoint that met its
+rule. The rest were **not demonstrated** — retuning against the reused ciprofloxacin setting +0.009
+[−0.021, +0.034], ceftriaxone against ciprofloxacin on the same spectra −0.038 [−0.146, +0.060], and no
+generalisation gap at the later year, DRIAMS-B or DRIAMS-D — which is not evidence that they are the same.
+At its cut-off the model reached sensitivity 0.823 against the 0.90 target, the same shortfall as
+ciprofloxacin's 0.827, with specificity 0.422 and precision 0.127. Its Brier score, 0.083, barely beat
+always predicting the base rate (0.084, a context figure rather than a logged evaluation), and it was
+weakest at DRIAMS-D (0.651, 0.607–0.696). The published 0.74 lies inside T's interval, which is not a
+replication.
+
 **Serving performance**, measured over 200 validation spectra against a real server, durations only
 ([`api_timing.json`](results/metrics/v0.9/ecoli_ciprofloxacin/api_timing.json); see
 [Version 0.9](#version-09--the-backend-api)): warm request 39.1 ms median, of which 33.2 ms is preprocessing
@@ -236,7 +257,7 @@ per spectrum — batching saves round trips, not time.
 
 ## Limitations
 
-Consolidated from the seven per-version limitation lists; nothing from them is dropped. The unfavourable
+Consolidated from the eight per-version limitation lists; nothing from them is dropped. The unfavourable
 scientific findings are in **Results** above, where they belong, not hidden here.
 
 **The evidence is thin in the places that matter most.**
@@ -282,6 +303,17 @@ scientific findings are in **Results** above, where they belong, not hidden here
 15. **Retrospective data throughout.** No prospective evaluation, and a negative result here does not prove a
     negative in general — Version 0.5's networks were given a small search, so "networks did not win" means
     "not with this budget on this data".
+
+**Version 1.1 added three.**
+
+16. **The ceftriaxone pair misses the project's pair-selection minimum** (428 resistant against 500), and
+    its cohort leaves out 93 ceftriaxone-only isolates that are more often resistant (29.0 % against 10.2 %).
+17. **The threshold rule has under-delivered sensitivity on test twice** — 0.827 for ciprofloxacin and 0.823
+    for ceftriaxone, both against 0.90. A cut-off chosen on one small validation part should not be read as
+    delivering its target on new patients.
+18. **No untouched test data remain in the A, B and D cohort, for either antibiotic.** Every test part has
+    been scored and its results inspected, and a new random split of those spectra is not a fresh holdout.
+    A new confirmatory claim needs data that no version has scored.
 
 ## Ethics and intended use
 
@@ -2186,8 +2218,9 @@ curl.exe -F "file=@<spectrum.txt>" http://127.0.0.1:8000/predict
 curl.exe http://127.0.0.1:8000/model-info
 ```
 
-644 tests pass (483 from earlier versions, none modified, plus the API, uncertainty and result-page tests
-added across 0.9, its patch releases and 1.0, the pre-registration check and the #22 regression tests).
+644 tests passed when Version 1.0 closed (483 from earlier versions, none modified, plus the API,
+uncertainty and result-page tests added across 0.9, its patch releases and 1.0, the pre-registration check
+and the #22 regression tests); Version 1.1 brings the count to 665.
 The API tests fit a small
 synthetic model rather than the saved one, because `models/` is gitignored — so they run in CI with no
 DRIAMS and no bundle, and no test can accidentally depend on a protected split. Among them, the hardening
@@ -2195,10 +2228,122 @@ review added coverage for every spectrum rule through HTTP (duplicate, unsorted 
 negative intensity, `NaN`, infinity, one column, three columns), the point-count ceiling, five hostile
 filenames, temporary-file cleanup on both success and failure, corrupt and non-bundle model files,
 malformed zones, and that `models/` and `results/` are untouched by serving. `models/` and
-`results/experiments/` are byte-unchanged and the append-only log is still 89 rows at
+`results/experiments/` are byte-unchanged and the append-only log was still 89 rows at
 `c395fcb3…76e0c7`.
 
-## Project structure (Version 1.0)
+## Version 1.1 – a second antibiotic: ceftriaxone
+
+Pre-registered in [`docs/v1.1_ceftriaxone_plan.md`](docs/v1.1_ceftriaxone_plan.md) (protocol amendment 8)
+and approved before any Version 1.1 code existed. Its test parts were scored **once**, on 2026-09-30, and
+are now spent. Every number below is copied from
+[`tables.md`](results/metrics/v1.1/ecoli_ceftriaxone/tables.md), which
+`scripts/second_antibiotic_report.py` generates from the logged runs without scoring anything.
+
+**The question.** Does the project's method — the frozen preprocessing, the Version 0.4 LightGBM search and
+the protocol's threshold rule — carry to a second antibiotic on the same species? Ceftriaxone has been the
+named benchmark since Version 0.1 (`config.yaml` → `target.benchmark_antibiotic`) and was never modelled
+before. Two arms: **T** reruns the Version 0.4 search on the ceftriaxone labels; **F** refits the Version
+0.4 ciprofloxacin winning setting unchanged.
+
+**Read this first.**
+
+- **The pair does not meet the project's own pair-selection rule on its cohort:** 428 resistant spectra at
+  DRIAMS-A against a minimum of 500. The Hospital Hygiene exclusion removes 659 DRIAMS-A spectra, 645 of
+  them ceftriaxone-resistant screening isolates. It was run as the designated benchmark, not as a pair the
+  rule selected.
+- **The cohort is isolates with both a ciprofloxacin and a ceftriaxone result** (6,396 spectra). 93
+  isolates with only a ceftriaxone result — 27 of them resistant, 29.0 % against 10.2 % in the cohort — are
+  in no split, and nothing here is claimed for them.
+- **These spectra had been scored before, for ciprofloxacin.** Their ceftriaxone labels had never been used
+  by any model, threshold or choice (amendment 8, point 2).
+- **The cut-off rests on 34 resistant validation spectra**, so one spectrum moves validation sensitivity by
+  2.9 points.
+
+**Confirmatory endpoints** — fixed before scoring, read by the plan's rules as written:
+
+| Endpoint | Estimate | 95 % interval | Verdict under the plan |
+|---|---|---|---|
+| Arm T AUROC, `random` test part (856 / 79 resistant), seed 42 | **0.713** | 0.604–0.818 | **better than chance** (lower bound above 0.5) |
+| T minus F, AUROC, paired on the same spectra | +0.009 | [−0.021, +0.034] | not demonstrated |
+| Ceftriaxone minus ciprofloxacin, AUROC, same 856 spectra | −0.038 | [−0.146, +0.060] | not demonstrated |
+| Gap: `random` minus later year (DRIAMS-A 2018; 1,229 / 115) | −0.002 | [−0.131, +0.125] | not demonstrated |
+| Gap: `random` minus DRIAMS-B (213 / 45) | −0.120 | [−0.249, +0.008] | not demonstrated |
+| Gap: `random` minus DRIAMS-D (1,936 / 181) | +0.062 | [−0.054, +0.177] | not demonstrated |
+
+Intervals are 2,000 bootstrap resamples of patient groups; the gaps are unpaired, because the parts hold
+different spectra.
+
+**Better than chance is not useful decision performance.** "Better than chance" means only that the ranking
+carries some signal: the AUROC interval stays above 0.5. At the pre-registered operating point (cut-off
+0.056, chosen for ≥ 0.90 sensitivity on validation), arm T found 65 of 79 resistant isolates (sensitivity
+**0.823**, interval 0.714–0.923) while calling **58 %** of susceptible isolates resistant (specificity 0.422).
+Its precision was 0.127: about seven of every eight isolates it flagged were susceptible. That is not a
+decision rule anyone should act on.
+
+**"Not demonstrated" is not "the same".** Every comparison except the first has an interval that contains 0.
+That is a failure to show a difference, **not evidence of equivalence**: the gap intervals are 0.23–0.26
+AUROC wide, so differences that would matter sit comfortably inside them.
+
+**Unfavourable results, at the same prominence.**
+
+- **Modest discrimination, wide uncertainty.** 0.713 (0.604–0.818). Across the five pre-registered seeds,
+  AUROC averaged **0.695** (0.681–0.713); the primary seed happened to be the best of the five on this part —
+  and the lowest of the five on the later-year part and at DRIAMS-D. It was fixed in advance, not chosen.
+- **The probabilities barely beat the base rate.** Brier 0.083, against 0.084 for always predicting the
+  training resistance rate (that reference was computed from the test labels after scoring, for context; it
+  is not a logged evaluation). The calibration slope was 0.67. PR-AUC 0.214 against a prevalence of 0.092.
+- **The sensitivity target did not carry to test** — 0.823 against 0.90 (0.73–0.90 across seeds). This is
+  the **second time**: ciprofloxacin in Version 0.4 reached 0.827 against the same target. A cut-off chosen on
+  one small validation part does not carry its sensitivity to new patients. Specificity was low everywhere;
+  on the later-year part it was 0.14–0.21 at sensitivity 0.94–0.97.
+- **DRIAMS-D, the largest external set, is the weakest:** 0.651 (0.607–0.696), an interval that lies
+  entirely below the published 0.74. DRIAMS-B scored 0.833 (0.756–0.897) on 45 resistant isolates. The two
+  sites' intervals do not overlap, but no B-against-D comparison was pre-registered, so no statistical
+  conclusion is drawn from it.
+- **Retuning did not help.** T did not beat F on AUROC, and on two metrics that were *not* pre-registered
+  for this comparison F was better: PR-AUC, T minus F, −0.040 [−0.091, −0.004]; Brier, T minus F, +0.0028
+  [+0.000002, +0.0059] (lower Brier is better).
+
+**Confirmatory and exploratory are kept apart.** The table above is confirmatory. The PR-AUC and Brier
+differences between T and F, the no-skill Brier, the DRIAMS-B against DRIAMS-D contrast and the primary
+seed's rank are exploratory: not pre-registered, not adjusted for multiplicity, reported because they are
+unfavourable to the primary arm or needed to read it, not as findings.
+
+**The published figure is not replicated.** Weis et al. (2022) report AUROC 0.74 for *E. coli* + ceftriaxone
+at DRIAMS-A ([doi:10.1038/s41591-021-01619-9](https://doi.org/10.1038/s41591-021-01619-9); checked against
+the abstract and the authors' code before any Version 1.1 table existed). It lies inside arm T's interval,
+but T's point estimate (0.713) and seed mean (0.695) are below it, and the cohorts, splits, exclusions,
+preprocessing, implementation and thresholds differ. It is a reference point — not a replication, and not
+external validation.
+
+**Research scoring, not deployment readiness.** Version 1.1 changes no served model, API or page, and no
+ceftriaxone model is served. A retrospective research score on a public dataset says nothing about clinical
+utility, time saved in a laboratory, or safety in use; none is claimed, and the project never recommends
+antibiotics.
+
+**How the one scoring was protected.** A 44-check pre-score record was committed before any test row was
+loaded ([`prescore_gate.json`](results/metrics/v1.1/prescore_gate.json), commit `7c26a36`). The gate itself
+found a defect first: the project's pre-write check keyed log rows by (experiment, model, seed) without the
+dataset, so it would have refused 23 of the 24 planned rows as a second scoring. It was fixed before scoring
+(`83df31c`); both scoring runs then passed the strict gate, writing `pre_write_checks.json` before touching
+the log. The log went from 89 to 113 rows, the first 89 byte-identical. Two provenance corrections from
+development are kept in the record: the first dataset build was stamped with a dirty commit and was rebuilt
+from a clean one, byte-identically (`a595b53`); the first saved model carried a stale `v1.0.0` stamp and was
+rerun from cache after the version bump, with identical validation numbers (`2255cb3`). **No Version 1.1
+test part may be scored again.**
+
+```powershell
+python scripts/build_dataset.py --antibiotic Ceftriaxone --report-version v1.1
+python scripts/tune_models.py --section second_antibiotic --dataset ecoli_ceftriaxone          # development
+python scripts/tune_models.py --section second_antibiotic --dataset ecoli_ceftriaxone --evaluate-test   # spent
+python scripts/measure_generalisation.py --section second_antibiotic_generalisation --dataset ecoli_ceftriaxone  # spent
+python scripts/second_antibiotic_report.py   # tables only: scores nothing
+```
+
+![Version 1.1 ROC and precision–recall](results/plots/v1.1/ecoli_ceftriaxone_random_roc_pr.png)
+![Version 1.1 generalisation](results/plots/v1.1/ecoli_ceftriaxone_generalisation_auroc.png)
+
+## Project structure (Version 1.1)
 
 ```
 antibiotic-resistance-ai/
@@ -2208,7 +2353,7 @@ antibiotic-resistance-ai/
 │   ├── download_driams.py      parallel resumable download + checksum verification
 │   ├── extract_driams.py       selective streaming extraction + file manifest
 │   ├── explore_dataset.py      Version 0.1 exploration report
-│   ├── build_dataset.py        Version 0.2 dataset, splits and reports
+│   ├── build_dataset.py        Version 0.2 dataset, splits and reports (--antibiotic: Version 1.1)
 │   ├── train_baselines.py      Version 0.3 baseline models, evaluation and saved model
 │   ├── tune_models.py          search, calibration, evaluation and saved model
 │   │                           (Version 0.4 classical families; --section deep for the networks)
@@ -2223,6 +2368,7 @@ antibiotic-resistance-ai/
 │   ├── serve_api.py            Version 0.9 backend API (localhost; no authentication)
 │   ├── benchmark_api.py        Version 0.9 measured request latency (durations only)
 │   ├── write_bundle_checksums.py  write or verify the .sha256 sidecar beside each bundle
+│   ├── second_antibiotic_report.py  Version 1.1 tables and the two-antibiotic comparison (scores nothing)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2258,6 +2404,8 @@ antibiotic-resistance-ai/
 ├── docs/v0.8_adaptive_plan.md    the adaptation protocol (approved and hashed before DRIAMS-C
 │                               was opened); holds the audit note
 ├── docs/v0.9_api_plan.md       the API safety contract (fixed before any endpoint was written)
+├── docs/v1.0_plan.md           the result page, README and deployment contract
+├── docs/v1.1_ceftriaxone_plan.md  the second antibiotic (fixed before any Version 1.1 code)
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)

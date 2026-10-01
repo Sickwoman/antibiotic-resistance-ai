@@ -3,7 +3,7 @@
 
 project:
   name: antibiotic-resistance-ai
-  version: "1.0.0"
+  version: "1.1.0"
   random_seed: 42
 
 paths:
@@ -566,3 +566,81 @@ api:
   # dataset. Per-request timings are measured live and returned by /predict itself.
   model_timing_dir: results/metrics/v0.4
   report_dir: results/metrics/v0.9
+
+second_antibiotic:
+  # Version 1.1, fixed in docs/v1.1_ceftriaxone_plan.md (protocol amendment 8) before any Version 1.1 code:
+  # E. coli + ceftriaxone, on the dataset built by
+  #   python scripts/build_dataset.py --antibiotic Ceftriaxone --report-version v1.1
+  # and run with the Version 0.4 script:
+  #   python scripts/tune_models.py --section second_antibiotic --dataset ecoli_ceftriaxone [--evaluate-test]
+  # Everything below except the families' second entry, primary_family and the folders is tuning's value,
+  # and a test asserts it: arm T is the Version 0.4 LightGBM search, unchanged, on the new labels.
+  split: random
+  cv_folds: 5
+  cv_seed: 42
+  search_metric: roc_auc
+  calibration: sigmoid
+  seeds: [42, 43, 44, 45, 46]
+  retune_experiments: []              # the patient-overlap check is not repeated (the plan's "Not run")
+  primary_family: lightgbm            # arm T is the Version 1.1 model whatever validation says (the plan)
+  append_gate: strict                 # the seven pre-write checks before the append; no --allow-rescore
+  model_dir: models/v1.1              # git-ignored
+  report_dir: results/metrics/v1.1
+  plot_dir: results/plots/v1.1
+  families:
+    lightgbm:                         # arm T: identical to tuning.families.lightgbm
+      kind: lightgbm
+      n_jobs: 1
+      stochastic: true
+      fixed: {subsample_freq: 1}
+      random_draws: 30
+      space:
+        n_estimators: [100, 300, 600]
+        learning_rate: [0.01, 0.03, 0.1]
+        num_leaves: [7, 15, 31]
+        min_child_samples: [10, 20, 40]
+        colsample_bytree: [0.1, 0.3, 1.0]
+        subsample: [0.7, 1.0]
+        reg_lambda: [0.0, 1.0, 10.0]
+        class_weight: [null, balanced]
+    lightgbm_cipro_setting:
+      # Arm F: the Version 0.4 ciprofloxacin winning setting, exactly as recorded in
+      # results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json -> params (a test compares them),
+      # refitted unchanged on the ceftriaxone training part. Seed 42 only, as the plan says.
+      kind: lightgbm
+      n_jobs: 1
+      stochastic: true                # the model does depend on its seed; `seeds` limits it to one
+      seeds: [42]
+      fixed: {subsample_freq: 1}
+      grid:
+        - n_estimators: [300]
+          learning_rate: [0.1]
+          num_leaves: [31]
+          min_child_samples: [10]
+          colsample_bytree: [0.3]
+          subsample: [1.0]
+          reg_lambda: [10.0]
+          class_weight: [null]
+
+second_antibiotic_generalisation:
+  # Version 1.1: arm T's setting carried to the temporal and external splits exactly as Version 0.7 carried
+  # the Version 0.4 one: refitted unchanged on each split's own training part, thresholded on its own
+  # validation part, and proved faithful first (the refit on the random training part must reproduce T's
+  # logged validation AUROC). The random result is reused from the log and stored probabilities, never
+  # re-scored.
+  #   python scripts/measure_generalisation.py --section second_antibiotic_generalisation --dataset ecoli_ceftriaxone
+  # No saved-model scoring, no confidence zone and no shift diagnostic: the plan names none of them.
+  title: Version 1.1
+  stage: v1.1-generalisation
+  reference_stage: v1.1-reference
+  setting_label: Version 1.1 arm T setting
+  source_model: models/v1.1
+  source_split: random
+  experiments: [temporal, external]
+  reuse_logged: [random]
+  score_saved_model_on: []
+  seeds: [42, 43, 44, 45, 46]         # as Version 0.7: mean and range over seeds, intervals for seed 42
+  append_gate: strict                 # the seven pre-write checks before the append
+  model_dir: models/v1.1/generalisation
+  report_dir: results/metrics/v1.1/generalisation
+  plot_dir: results/plots/v1.1

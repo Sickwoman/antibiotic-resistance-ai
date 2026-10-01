@@ -320,6 +320,19 @@ def test_the_gate_refuses_a_duplicate_or_already_present_key(tmp_path):
         assert_log_ready_for_append(path, twice, expected_sha256=sha, expected_rows=3)
 
 
+def test_the_gate_keys_rows_by_dataset_too(tmp_path):
+    """Version 1.1 logs ceftriaxone rows whose experiment, model and seed repeat the ciprofloxacin ones. They
+    are different evaluations; the same key on the same dataset is still a second scoring."""
+    existing = _log_frame(3).assign(dataset="ecoli_ciprofloxacin")
+    path, sha = _write_log(tmp_path, existing)
+    same_key = {**existing.iloc[0].to_dict()}
+    state = assert_log_ready_for_append(path, [{**same_key, "dataset": "ecoli_ceftriaxone"}],
+                                        expected_sha256=sha, expected_rows=3, committed=existing)
+    assert state["rows_to_append"] == 1
+    with pytest.raises(EvaluationError, match="already exist"):
+        assert_log_ready_for_append(path, [same_key], expected_sha256=sha, expected_rows=3)
+
+
 def test_the_gate_refuses_a_no_op_write(tmp_path):
     existing = _log_frame(3)
     path, sha = _write_log(tmp_path, existing)

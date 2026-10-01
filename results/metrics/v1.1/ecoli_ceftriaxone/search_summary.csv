@@ -1,0 +1,3 @@
+experiment,family,settings,best_setting,cv_roc_auc_mean,cv_roc_auc_sd,cv_pr_auc_mean,search_seconds
+random,lightgbm,30,"{""class_weight"": null, ""colsample_bytree"": 0.1, ""learning_rate"": 0.03, ""min_child_samples"": 40, ""n_estimators"": 600, ""num_leaves"": 31, ""reg_lambda"": 10.0, ""subsample"": 0.7}",0.7875345810427359,0.025868829976392987,0.3658645149332948,1186.4
+random,lightgbm_cipro_setting,1,"{""class_weight"": null, ""colsample_bytree"": 0.3, ""learning_rate"": 0.1, ""min_child_samples"": 10, ""n_estimators"": 300, ""num_leaves"": 31, ""reg_lambda"": 10.0, ""subsample"": 1.0}",0.7817733694527214,0.019419055664495075,0.3824446703783646,38.9

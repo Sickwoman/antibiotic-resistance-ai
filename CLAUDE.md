@@ -23,7 +23,7 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
 
 - Windows 11, PowerShell, Python 3.12 venv in `.venv`, 7.7 GB RAM, no CUDA GPU.
 - DRIAMS data lives outside the repo at `C:\DRIAMS` (`config.yaml` → `paths.driams_root`). Extracted: A, B and
-  D (`id`, `binned_6000`, raw E. coli spectra); DRIAMS-C still needs a browser download from Dryad.
+  D (`id`, `binned_6000`, raw E. coli spectra), and C (downloaded from Dryad in a browser for Version 0.8).
 - Run tests: `.\.venv\Scripts\python.exe -m pytest -q`; lint: `.\.venv\Scripts\python.exe -m ruff check .`
   (both run in CI).
 - Verified data facts are recorded in `config.yaml` comments and `README.md`.
@@ -212,3 +212,26 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   version from `/health` and had to move to `/ready`: check the scripts when the contract changes.
   Still open: `/model-info` naming and breadth (safe), flat layout (#17), zone validation in the serving
   layer rather than the domain model (#16), no bundle sidecars (#18), starlette deprecation (#19).
+- **Version 1.1 is a second antibiotic, E. coli + ceftriaxone** (`docs/v1.1_ceftriaxone_plan.md`, amendment 8).
+  Its test parts were **scored once on 2026-09-30 and are spent**: log 113 rows at `6528eb2a…f3ddba`. Never
+  re-score them and never regenerate its results. Findings as the data supports them: better than chance
+  (AUROC 0.713, 0.604–0.818) but **not a usable decision rule** (sensitivity 0.823 against 0.90, specificity
+  0.422, precision 0.127; Brier 0.083 against 0.084 for the base rate); T against F, the two antibiotics and
+  every generalisation gap **not demonstrated**, which is never "equivalent"; DRIAMS-D the weakest (0.651).
+  The published 0.74 is a reference point, never "matched" or "replicated". No ceftriaxone model is served.
+  - `ecoli_ceftriaxone` comes from `build_dataset.py --antibiotic Ceftriaxone --report-version v1.1`: the
+    primary's preprocessing, splits **derived** from the primary (93 ceftriaxone-only isolates are in no
+    split), and every shared spectrum must be byte-identical to the primary's row or the build stops.
+  - **Every log lookup must include the dataset.** Two antibiotics now share split, model and seed names. The
+    V0.7 lookups and the strict pre-write gate were dataset-blind and were fixed; the gate's old key would have
+    refused 23 of the 24 V1.1 rows as a second scoring. The key is (dataset, experiment, model, seed).
+  - V1.1 runs through config sections of the existing scripts (`second_antibiotic`,
+    `second_antibiotic_generalisation`): a section may have no earlier model, a family may name its own
+    `seeds`, `primary_family` is saved whatever validation says, and `append_gate: strict` runs the seven
+    pre-write checks and writes `pre_write_checks.json` before the log is touched (and refuses
+    `--allow-rescore`). V0.4, V0.5 and V0.7 behave exactly as before.
+  - `project.version` stamps saved models; the API never reads it. Bump it when a version starts.
+  - Provenance kept on record: the first build was stamped `7116e12-dirty` and rebuilt clean,
+    byte-identically; the first model was stamped `v1.0.0` and rerun from cache with identical validation.
+  - A cut-off chosen on one small validation part has missed its sensitivity target on test twice (0.827
+    ciprofloxacin, 0.823 ceftriaxone). Do not describe the 0.90 target as achieved on new patients.

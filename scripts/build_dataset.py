@@ -4,21 +4,25 @@ No model is trained. Run from the project root with the virtual environment acti
 
     python scripts/build_dataset.py                          # primary dataset (I counted as resistant)
     python scripts/build_dataset.py --intermediate-as exclude  # sensitivity dataset (I removed)
+    python scripts/build_dataset.py --antibiotic Ceftriaxone --report-version v1.1   # Version 1.1
 
-Build the primary dataset first: every other dataset reuses its saved splits.
+Build the primary dataset first: every other dataset reuses its saved splits. A dataset for another
+antibiotic is also checked against it: every spectrum the two share must be byte-identical, or the build stops.
 
 Needs the raw E. coli spectra, extracted with:
     python scripts/extract_driams.py --site A --folders raw preprocessed --species "Escherichia coli"
 
 Writes (git-ignored)  data/processed/<name>/{X.npy, metadata.csv, exclusions.csv, summary.json, splits/}
-Writes (committed)    results/metrics/v0.2/<name>/*  (aggregate counts only, no identifiers)
-                      results/plots/v0.2/<name>_example_preprocessing.png
+Writes (committed)    results/metrics/<report version>/<name>/*  (aggregate counts only, no identifiers)
+                      results/plots/<report version>/<name>_example_preprocessing.png
+                      (report version: v0.2 unless --report-version says otherwise)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -104,6 +108,10 @@ def main() -> int:
                         help="override labels.intermediate_as (default: config value)")
     parser.add_argument("--sites", nargs="+", default=None, help="override dataset.sites")
     parser.add_argument("--name", default=None, help="output dataset name")
+    parser.add_argument("--antibiotic", default=None,
+                        help="override target.preferred_antibiotic (a new dataset, e.g. ecoli_ceftriaxone)")
+    parser.add_argument("--report-version", default="v0.2",
+                        help="version folder under results/ for the reports (default v0.2)")
     parser.add_argument("--skip-splits", action="store_true",
                         help="do not create splits (a dataset without splits cannot be used for training)")
     parser.add_argument("--splits-only", action="store_true",
@@ -118,7 +126,10 @@ def main() -> int:
         config = load_config(args.config)
         seed = int(config["project"]["random_seed"])
         set_seed(seed)
-        spec = CohortSpec.from_config(config, intermediate_as=args.intermediate_as, sites=args.sites, name=args.name)
+        spec = CohortSpec.from_config(config, intermediate_as=args.intermediate_as, sites=args.sites, name=args.name,
+                                      antibiotic=args.antibiotic)
+        if not re.fullmatch(r"v\d+(\.\d+)*", args.report_version):
+            raise ConfigError(f"--report-version must look like v0.2 or v1.1, not {args.report_version!r}.")
         if args.splits_only and args.skip_splits:
             raise ConfigError("--splits-only and --skip-splits ask for opposite things.")
         with keep_awake():
@@ -132,7 +143,7 @@ def main() -> int:
             else:
                 build_dataset(config, spec)
             X, meta, summary = load_dataset(out_dir, verify_x=True)
-            report_dir = project_path("results/metrics/v0.2") / spec.name
+            report_dir = project_path("results/metrics") / args.report_version / spec.name
             report_dir.mkdir(parents=True, exist_ok=True)
 
             section(f"Dataset {spec.name}: {spec.species} + {spec.antibiotic}, I -> {spec.intermediate_as}")
@@ -159,6 +170,9 @@ def main() -> int:
                   f"{summary['excluded_workstations_by_site']}")
             print("Check against published DRIAMS binned_6000 files during the build:",
                   json.dumps(summary["verification_against_driams_binned"]))
+            if "shared_with_primary" in summary:
+                print("Spectra shared with the primary dataset (all byte-identical, or the build would have stopped):",
+                      json.dumps(summary["shared_with_primary"]))
             excl.to_csv(report_dir / "exclusion_summary.csv", index=False)
             (report_dir / "dataset_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
@@ -220,7 +234,7 @@ def main() -> int:
                        "read_and_preprocess_ms": round(elapsed_ms, 1)}
             print(json.dumps(example, indent=2))
             (report_dir / "example_preprocessing.json").write_text(json.dumps(example, indent=2), encoding="utf-8")
-            plot_path = project_path("results/plots/v0.2") / f"{spec.name}_example_preprocessing.png"
+            plot_path = project_path("results/plots") / args.report_version / f"{spec.name}_example_preprocessing.png"
             plot_example(config, X, meta, row, plot_path)
             print(f"\nReports: {report_dir}")
             print("No model was trained.")
