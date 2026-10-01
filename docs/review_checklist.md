@@ -1,8 +1,8 @@
 # Review checklist: branches, pull requests, and what to check
 
-Prepared 2026-10-01 and updated the same day after publication. The five branches below are on GitHub as pull
-requests #26–#30, opened as drafts and stacked A → E. **Nothing has been merged.** Merging and deleting branches are
-the owner's decisions.
+Prepared 2026-10-01 and updated the same day after publication and merging. The five branches below were opened as
+pull requests #26–#30, stacked A → E. **All five were merged on 2026-10-01 by squash, not by the merge commits planned
+in section 2**, which records what happened. `main` is now `857b080`. Deleting branches is the owner's decision.
 
 ## 1. Branch dependencies
 
@@ -27,16 +27,27 @@ main (2f665e1, pushed; production log 89 rows)
 | D (#29) | `v1.4-screening` → `v1.3-threshold` | Discrimination audit, the `--keep-workstation` builder option, Version 1.4 | +10 development rows (1 failed run, 9 results) | screening rows are training-only; A0 = V1.2 arm C reproduced exactly; the count addendum |
 | E (#30) | `v1.4-report` → `v1.4-screening` | This report, evidence map, reproduction guide, summary, checklist; README corrections | none | every figure against its cited artifact; reference verification notes |
 
-**Merge method: merge commits, in order A → E (none merged yet).** A merge commit keeps the PR's original commits, so
-the Version 1.1–1.4 commit IDs that plans, records and logs cite (`b6016a3` … `0806e74`) become part of `main`'s
-history. A squash or rebase merge would replace them, and they would then resolve only through the archive
-(section 5). Branches are not deleted on merge, so GitHub does not retarget the stacked PRs. After each merge:
-1. retarget the next PR to `main` (`gh pr edit <number> --base main`); its diff should then list only its own commits;
-2. close and reopen it, because a base change alone does not start the `pull_request` workflow, and wait for CI;
-3. complete section 3, mark it ready, and merge it with a merge commit (`gh pr merge <number> --merge`).
+**How the PRs were merged (2026-10-01; times UTC; every action from the owner's GitHub account).** The plan was
+merge commits, A → E, so that the original commit IDs would enter `main`'s history. What happened instead:
+- **09:03.** E (#30) was squash-merged into its stacked base `v1.4-screening`, not into `main`. The squash commit,
+  `6a866ea`, has the same tree as E's head `5e80cf8`. E's own five commits stayed off that branch. The tags in
+  section 5 keep both the squash commit and E's commits.
+- **12:53–12:57.** A–D (#26–#29) were squash-merged into `main` as `ce6eefa` (#26), `916ece3` (#27), `9a3fee4` (#28)
+  and `857b080` (#29, which carried E's content). There are no merge commits.
+- **Side effects.** Seconds after #26's squash, GitHub retargeted #27 to `main` and force-pushed `v1.2-calibration`,
+  `v1.3-threshold` and `v1.4-screening` with copies of their commits rebased onto `ce6eefa`. `v1.4-screening` was
+  deleted after #29 merged. The rebased copies have new IDs; the originals are kept by the tags.
+- **Verified afterwards.**
+  - Each squash commit's tree equals the head reviewed for its PR: `f4581cf`, `3fc142b`, `c5cfb49`, and E's
+    `5e80cf8` for #29. `main` therefore holds exactly the reviewed content.
+  - Both logs only grew at each step: production 89 → 113 data rows at #26; development 16, 24 and 34 data rows
+    at #27–#29, with headers unchanged.
+  - CI passed on `main` at `ce6eefa` and `857b080`. GitHub started no run for `916ece3` or `9a3fee4`, whose trees
+    equal heads that passed CI before merging.
+  - None of the original V1.1–V1.4 commits is in `main`'s history. They resolve through the tags (section 5).
 
-**Commits that are not green on their own** (expected; with merge commits they enter `main`'s history, so skip them
-when bisecting): the four "Record the protocol" commits (`b6016a3`, `db48bff`, `2242327`, `5600efb`) fail
+**Commits that are not green on their own** (expected; they did not enter `main`, which has one squash commit per
+PR): the four "Record the protocol" commits (`b6016a3`, `db48bff`, `2242327`, `5600efb`) fail
 `test_every_plan_in_docs_is_locked` until the next "Pin" commit; `1a00206` had two failing tests, fixed in `5f833b4`.
 Every branch *tip* passes.
 
@@ -60,6 +71,10 @@ Every branch *tip* passes.
   the owner (branch deletion is not done by the assistant). Their tips are archived as
   `research-archive/v0.9.2/followups-tip` and `research-archive/v1.0/result-page-tip`, so deleting them loses no
   commit.
+- **PR branches after the merge.** `v1.1-ceftriaxone` and `v1.4-report` still hold the original commits, which are
+  tagged. `v1.2-calibration` and `v1.3-threshold` now hold only GitHub's rebased copies, whose content is on `main`.
+  Deleting any of them loses no original commit; that is the owner's decision. Local clones that still have the
+  original branches should not pull the rewritten ones over them.
 - **DRIAMS-C.** No procedure warrants opening its ceftriaxone labels (report, section 12). Any future use needs a
   dated, owner-approved amendment.
 - **Model iteration** on the ceftriaxone development pool has stopped by the Version 1.4 plan's rule. A new study needs
@@ -82,24 +97,33 @@ GitHub was compared with this clone on 2026-10-01: 38 tags, all annotated, none 
 `archive/`, because a tag `archive/x` would share its short name with the ref `refs/archive/x`, which Git would
 resolve ambiguously.
 
-**The refs and tags are fixed snapshots: never move or delete them.** `research-archive/v1.4-report/tip` (like
-`refs/archive/v1.4-report/tip`) points at `bf832bd`, this branch's tip when the archive was made. Later commits on
-this branch, including this correction, are held by the branch and PR #30, not by that tag.
+**A 39th tag, added after E's squash (2026-10-01).** `research-archive/v1.4-report/pr30-head` points at `5e80cf8`,
+E's final head. It keeps that commit and its parent `70978cb`, which the squash left off every merged branch. It has no
+`refs/archive/` counterpart, and neither commit is in the bundle, which predates them.
 
-**Every recorded commit resolves on GitHub through `main` or a tag.** The 84 distinct commits cited by tracked files
-of this branch (plans, records, logs and this report) were checked on 2026-10-01 against a fresh clone: each is
-reachable from `main` or from a `research-archive/…` tag, so deleting any other branch would orphan none of them.
+**A 40th tag (2026-10-02).** `research-archive/v1.4-screening/pr30-squash` points at `6a866ea`, the commit that #30's
+squash created on `v1.4-screening` (section 2). That branch was force-pushed and then deleted, so the commit is on no
+branch. It has no `refs/archive/` counterpart and is not in the bundle.
+
+**The refs and tags are fixed snapshots: never move or delete them.** `research-archive/v1.4-report/tip` (like
+`refs/archive/v1.4-report/tip`) points at `bf832bd`, the report branch's tip when the archive was made. The two later
+commits on that branch, `70978cb` and `5e80cf8`, are kept by the 39th tag.
+
+**Every recorded commit resolves on GitHub through `main` or a tag.** The 91 distinct commits cited by tracked files
+(plans, records, logs and this report) were checked on 2026-10-02 against GitHub's `main` and tags: each is reachable
+from `main` or from a `research-archive/…` tag, so deleting any other branch would orphan none of them. Only 17 are
+reachable from `main` itself, because `main` holds squash commits; the other 74 resolve only through the tags.
 
 **Fetch the tags and restore an archived commit.** Each command was tested on 2026-10-01 in a temporary clone. On
 Windows, deep folders need `core.longpaths` (reproduction guide, section 5).
 
 ```bash
-# A fresh clone gets all 38 tags:
+# A fresh clone gets all 40 tags:
 git clone https://github.com/Sickwoman/antibiotic-resistance-ai.git
-# In an existing clone, a plain `git fetch` brings only the tags whose commits are on a GitHub branch
-# (10 of 38 on 2026-10-01). Fetch all of them:
+# In an existing clone, a plain `git fetch` brings only the tags whose commits are on a GitHub branch,
+# so it misses most of them. Fetch all of them:
 git fetch origin 'refs/tags/research-archive/*:refs/tags/research-archive/*'
-git tag -l 'research-archive/*'          # lists 38 tags
+git tag -l 'research-archive/*'          # lists 40 tags
 
 # Read the Version 0.8 protocol as approved, and compare it with the merged text (report, section 8.8):
 git show research-archive/v0.8/approved-protocol:docs/v0.8_adaptive_plan.md
@@ -127,9 +151,8 @@ git fetch /path/to/research-history-2026-10-01.bundle 'refs/archive/*:refs/archi
 ```
 
 **Why recorded IDs stay valid.**
-- Merging A–E with merge commits (section 2) puts their original commits in `main`'s history. A squash or rebase would
-  not, but the tags would still resolve them. Cited commits of earlier versions, which reached `main` by squash,
-  resolve through the tags either way.
+- A–E were squash-merged (section 2), as earlier versions were, so their original commits are not in `main`'s
+  history. They resolve through the tags, which is why the tags must never be moved or deleted.
 - The protocol pins in `tests/test_preregistration.py` check file **content** (length and SHA-256 of the locked text),
   not commit ancestry, so no merge that leaves a plan's text unchanged can invalidate them. The commit named beside
   each pin is informational and resolves through `main` or the tags.

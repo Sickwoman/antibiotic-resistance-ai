@@ -151,8 +151,9 @@ held-out probabilities with difference 0 in the current environment.
 Version commits, run commits and branches are listed in the [evidence map](evidence_map.md) and the
 [review checklist](review_checklist.md). The original Version 0.7 and 0.8 commits (`96d0425`, `8878bfd`, `64c6c75`,
 `284c0bd`, `4d82a22`, `849cad7`) are on no branch. They are preserved by archival refs under `refs/archive/` and, on
-GitHub, by annotated `research-archive/…` tags, which a plain `git fetch` does not bring. Fetch the tags, and restore
-any archived commit, as the review checklist's section 5 shows.
+GitHub, by annotated `research-archive/…` tags, which a plain `git fetch` does not bring. Versions 1.1–1.4 were
+squash-merged into `main` on 2026-10-01, so their run commits in the table above are not on `main` either. Fetch the
+tags before checking any of them out, and restore any archived commit, as the review checklist's section 5 shows.
 
 ## 5. Known platform limitations
 

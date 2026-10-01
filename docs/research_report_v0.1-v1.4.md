@@ -405,6 +405,11 @@ had been pushed, so the CI change to `bash -eo pipefail` (V1.3 closure) had neve
 GitHub Actions ran Ruff and the test suite under `bash -eo pipefail` on Ubuntu and Windows with Python 3.11 and 3.12,
 for both the push and the pull-request event, and every job passed on each branch head (`f4581cf`, `3fc142b`,
 `c5cfb49`, `0806e74`, `bf832bd`). The rows above remain local runs.
+**Merge record, 2026-10-01:** E (#30) was squash-merged into `v1.4-screening`, and then A–D (#26–#29) were
+squash-merged into `main` as `ce6eefa`, `916ece3`, `9a3fee4` and `857b080`. Each squash commit has the same tree as
+the head reviewed for its PR, so `main` holds exactly the reviewed content. CI passed on `main` at `ce6eefa` and
+`857b080`; GitHub started no run for the two commits in between. The original commits are not in `main`'s history and
+resolve through the archival tags ([review checklist](review_checklist.md), sections 2 and 5).
 
 ### 8.5 Verification of the commit containing this report
 Both runs are of commit `d326353`, the first commit of this report, on the same laptop, Python venv and command
@@ -529,9 +534,10 @@ committed artifacts. The [reproduction guide](reproduction_guide.md) separates r
 fixture-based tests (which write only to temporary folders; a session guard fails any test run that changes a real
 log), and historical commands listed for documentation only. Seeds are 42 throughout (5 seeds, 42–46, where stated);
 exact library versions are in `requirements-lock.txt`; the served model is verified by its SHA-256 sidecar
-(`d59d6d7d…`). Every commit this report cites resolves, and each is held by `main` or by an archival ref: locally
-under `refs/archive/`, and on GitHub by an annotated tag of the same name under `research-archive/`. A verified Git
-bundle outside version control also holds those refs and all local branches; its off-machine copy is pending
+(`d59d6d7d…`). Every commit this report cites resolves, and each is held by `main` or by an archival tag on GitHub
+under `research-archive/` (the original 38 also exist locally as refs of the same names under `refs/archive/`). Since
+the squash merges of Versions 1.1–1.4, most cited commits resolve only through those tags. A verified Git bundle
+outside version control also holds the local refs and all local branches; its off-machine copy is pending
 ([review checklist](review_checklist.md), section 5).
 
 ## 12. Conclusions and requirements for future work
