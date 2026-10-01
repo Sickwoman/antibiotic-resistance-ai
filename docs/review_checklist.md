@@ -29,8 +29,9 @@ main (2f665e1, pushed; production log 89 rows)
 
 **How the PRs were merged (2026-10-01; times UTC; every action from the owner's GitHub account).** The plan was
 merge commits, A → E, so that the original commit IDs would enter `main`'s history. What happened instead:
-- **09:03.** E (#30) was squash-merged into its stacked base `v1.4-screening`, not into `main`. The squash commit has
-  the same tree as E's head `5e80cf8`. E's own five commits stayed off that branch; the tags in section 5 keep them.
+- **09:03.** E (#30) was squash-merged into its stacked base `v1.4-screening`, not into `main`. The squash commit,
+  `6a866ea`, has the same tree as E's head `5e80cf8`. E's own five commits stayed off that branch. The tags in
+  section 5 keep both the squash commit and E's commits.
 - **12:53–12:57.** A–D (#26–#29) were squash-merged into `main` as `ce6eefa` (#26), `916ece3` (#27), `9a3fee4` (#28)
   and `857b080` (#29, which carried E's content). There are no merge commits.
 - **Side effects.** Seconds after #26's squash, GitHub retargeted #27 to `main` and force-pushed `v1.2-calibration`,
@@ -100,25 +101,29 @@ resolve ambiguously.
 E's final head. It keeps that commit and its parent `70978cb`, which the squash left off every merged branch. It has no
 `refs/archive/` counterpart, and neither commit is in the bundle, which predates them.
 
+**A 40th tag (2026-10-02).** `research-archive/v1.4-screening/pr30-squash` points at `6a866ea`, the commit that #30's
+squash created on `v1.4-screening` (section 2). That branch was force-pushed and then deleted, so the commit is on no
+branch. It has no `refs/archive/` counterpart and is not in the bundle.
+
 **The refs and tags are fixed snapshots: never move or delete them.** `research-archive/v1.4-report/tip` (like
 `refs/archive/v1.4-report/tip`) points at `bf832bd`, the report branch's tip when the archive was made. The two later
 commits on that branch, `70978cb` and `5e80cf8`, are kept by the 39th tag.
 
-**Every recorded commit resolves on GitHub through `main` or a tag.** The 90 distinct commits cited by tracked files
-(plans, records, logs and this report) were checked on 2026-10-01 against GitHub's `main` and tags: each is reachable
+**Every recorded commit resolves on GitHub through `main` or a tag.** The 91 distinct commits cited by tracked files
+(plans, records, logs and this report) were checked on 2026-10-02 against GitHub's `main` and tags: each is reachable
 from `main` or from a `research-archive/…` tag, so deleting any other branch would orphan none of them. Only 17 are
-reachable from `main` itself, because `main` holds squash commits; the other 73 resolve only through the tags.
+reachable from `main` itself, because `main` holds squash commits; the other 74 resolve only through the tags.
 
 **Fetch the tags and restore an archived commit.** Each command was tested on 2026-10-01 in a temporary clone. On
 Windows, deep folders need `core.longpaths` (reproduction guide, section 5).
 
 ```bash
-# A fresh clone gets all 39 tags:
+# A fresh clone gets all 40 tags:
 git clone https://github.com/Sickwoman/antibiotic-resistance-ai.git
 # In an existing clone, a plain `git fetch` brings only the tags whose commits are on a GitHub branch,
 # so it misses most of them. Fetch all of them:
 git fetch origin 'refs/tags/research-archive/*:refs/tags/research-archive/*'
-git tag -l 'research-archive/*'          # lists 39 tags
+git tag -l 'research-archive/*'          # lists 40 tags
 
 # Read the Version 0.8 protocol as approved, and compare it with the merged text (report, section 8.8):
 git show research-archive/v0.8/approved-protocol:docs/v0.8_adaptive_plan.md
