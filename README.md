@@ -642,7 +642,8 @@ Counts are samples with a binned spectrum, before the Version 0.2 exclusions.
 
 - **Resistance rate differs between sites:** it is lower at DRIAMS-D, so external results are reported
   per site.
-- **Benchmark pair** E. coli + ceftriaxone (published AUROC 0.74): A 1,086 R+I / 3,875 S, B 45 / 168,
+- **Benchmark pair** E. coli + ceftriaxone (published AUROC 0.74; attribution to ceftriaxone unverified, see the
+  [research report](docs/research_report_v0.1-v1.4.md), 8.1): A 1,086 R+I / 3,875 S, B 45 / 168,
   D 198 / 1,796.
 
 ## Version 0.2 – from raw spectrum to model-ready data
@@ -2344,7 +2345,7 @@ AUROC wide, so differences that would matter sit comfortably inside them.
   one small validation part does not carry its sensitivity to new patients. Specificity was low everywhere;
   on the later-year part it was 0.14–0.21 at sensitivity 0.94–0.97.
 - **DRIAMS-D, the largest external set, is the weakest:** 0.651 (0.607–0.696), an interval that lies
-  entirely below the published 0.74. DRIAMS-B scored 0.833 (0.756–0.897) on 45 resistant isolates. The two
+  entirely below the published 0.74 (an attribution that is unverified, see below). DRIAMS-B scored 0.833 (0.756–0.897) on 45 resistant isolates. The two
   sites' intervals do not overlap, but no B-against-D comparison was pre-registered, so no statistical
   conclusion is drawn from it.
 - **Retuning did not help.** T did not beat F on AUROC, and on two metrics that were *not* pre-registered
@@ -2362,6 +2363,9 @@ the abstract and the authors' code before any Version 1.1 table existed). It lie
 but T's point estimate (0.713) and seed mean (0.695) are below it, and the cohorts, splits, exclusions,
 preprocessing, implementation and thresholds differ. It is a reference point — not a replication, and not
 external validation.
+*Note, 2026-10-01 review:* the abstract gives 0.74 for *E. coli* without naming the antibiotic or the classifier,
+and the full text could not be checked, so the attribution to ceftriaxone above is **unverified**
+([research report](docs/research_report_v0.1-v1.4.md), 8.1).
 
 **Research scoring, not deployment readiness.** Version 1.1 changes no served model, API or page, and no
 ceftriaxone model is served. A retrospective research score on a public dataset says nothing about clinical

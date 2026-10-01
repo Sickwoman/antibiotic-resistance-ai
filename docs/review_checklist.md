@@ -62,13 +62,47 @@ commit; `1a00206` had two failing tests, fixed in `5f833b4`. Every branch *tip* 
 
 ## 4. Other items for the owner
 
-- **Preserve the Version 0.7/0.8 originals.** `96d0425` (V0.7 pre-registration), `8878bfd` (V0.7 run), `64c6c75`,
-  `284c0bd` (V0.8 approval), `4d82a22` (V0.8 run) and `849cad7` are reachable locally only through the reflog, which
-  expires. They are held on GitHub by PR #11's ref. To keep them locally:
-  `git fetch origin refs/pull/11/head:refs/pull/11` (or tag each commit).
+- **Version 0.7–0.9 originals: preserved locally (done 2026-10-01; section 5).** They had been reachable only through
+  the reflog. Their branches are gone, so an off-machine copy of the bundle is still needed.
 - **Old remote branches** `origin/v0.9.2-followups` and `origin/v1.0-result-page` are merged and can be deleted by
   the owner (branch deletion is not done by the assistant).
 - **DRIAMS-C.** No procedure warrants opening its ceftriaxone labels (report, section 12). Any future use needs a
   dated, owner-approved amendment.
 - **Model iteration** on the ceftriaxone development pool has stopped by the Version 1.4 plan's rule. A new study needs
   a new pre-registration and new data (report, section 12).
+
+## 5. Archive, and how recorded commits stay resolvable
+
+**Archival refs (local, created 2026-10-01).** 38 refs under `refs/archive/` point at every research milestone that
+was at risk or held only by a branch pending deletion (the 38th, `refs/archive/v1.4-report/tip`, is set to this
+branch's final commit):
+- the V0.7, V0.8 and V0.9 chains, previously reachable only through the reflog;
+- the pre-rebase V0.2 history;
+- the run and plan commits of V0.2–V0.6;
+- the tips of `v0.9.2-followups`, `v1.0-result-page` and V1.1–V1.4;
+- the report.
+
+List them with `git for-each-ref refs/archive`. Each was checked against its expected commit subject before it was
+written, and no branch was moved. They are not pushed by `git push` or `git push --tags`; publishing them needs an
+explicit refspec such as `git push origin 'refs/archive/*:refs/archive/*'`, which is the owner's decision.
+
+**Bundle.** `archive/research-history-2026-10-01.bundle` (git-ignored; its SHA-256 is in the `.sha256` file beside
+it) holds every branch, remote-tracking ref and archival ref. It survives reflog expiry and accidental branch
+deletion in this clone. **It does not survive loss of this machine**: copy it, with its checksum file, off the machine.
+To restore:
+`git clone --mirror archive/research-history-2026-10-01.bundle restored.git`, or
+`git fetch <bundle> 'refs/archive/*:refs/archive/*'` in an existing clone.
+
+**If PRs are later squash-merged or rebased** (not done here):
+- Commit IDs cited in plans, records, logs and this report keep resolving through the archival refs and the bundle.
+  For GitHub to resolve them too, push the archival refs, or merge with merge commits instead of squashing.
+- The protocol pins in `tests/test_preregistration.py` check file **content** (length and SHA-256 of the locked text),
+  not commit ancestry. A squash or rebase that does not change a plan's text leaves every pin valid. The commit named
+  beside each pin is informational, and resolvable through the archive.
+- The production and development logs record commit IDs as text, so rewriting history never alters them. Only their
+  resolvability depends on the archive.
+
+**Is the five-PR structure coherent? Kept, with one note.** Each PR is one version's pre-registered study, its run,
+and its documentation, in dependency order. Every log append happens in exactly one PR. PR C also carries
+repository-wide test automation (CI shell, session log guard), because the V1.3 closure commit introduced it.
+Splitting it out would rewrite recorded commit IDs, so it stays and is called out in that PR's description.

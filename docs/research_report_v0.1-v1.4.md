@@ -34,11 +34,17 @@ probability quality, an uncertainty-aware cut-off that raised sensitivity only b
 and no demonstrated ranking gain from adding 495 screening isolates to training (AUROC difference −0.007
 [−0.056, +0.043]).
 
-**Conclusions.** Confirmatory evidence supports modest ranking ability for both antibiotics at DRIAMS-A. It does not
-support useful decision performance, demonstrated transfer or demonstrated benefit from any adaptation or
-cut-off intervention tested. Under a stopping rule fixed before the last study, model iteration on the
-ceftriaxone development pool has stopped. Further work needs a new, justified hypothesis and evidence no version has
-used.
+**Conclusions.** Confirmatory evidence supports modest ranking ability for both antibiotics at DRIAMS-A. Across the
+intervention studies (Table 5):
+- Most primary endpoints were not demonstrated. The one met (V1.3's sensitivity gain) came at a specificity that
+  failed its research objective.
+- One confirmatory secondary improved: refitting at DRIAMS-C lowered the Brier score, but its verdict was "mixed".
+- A few exploratory secondaries favoured one arm; these are unadjusted and not claims.
+
+The research objectives of a cut-off that holds 0.90 sensitivity on new data, a confident-resistant output and
+demonstrated transfer were not met. Under a stopping rule fixed before the last study, model iteration on the
+ceftriaxone development pool has stopped. Further confirmation needs a hypothesis frozen before evaluation on data
+that neither the exploration nor any earlier version has used.
 
 ## 1. Research questions and intended use
 
@@ -258,7 +264,26 @@ screening and clinical spectra were separable with AUROC 0.937 (0.912–0.959).
 | V1.3 U − E, pooled sensitivity | ceftriaxone | 1,453 / 156 | +0.115 [+0.019, +0.248] | two-level bootstrap, fits fixed | exploratory |
 | V1.4 A1 − A0, AUROC (15 folds) | ceftriaxone | 2,421 / 247 | −0.007 [−0.056, +0.043] | corrected repeated CV (see 8.2) | exploratory |
 
-## 6. Negative findings and unsuccessful interventions
+## 6. Intervention outcomes, negative findings and unmet objectives
+
+### Table 5. What each intervention study showed, by kind of endpoint
+
+| Study | Primary endpoint (pre-registered) | Confirmatory secondary | Exploratory secondaries with an interval excluding 0 (unadjusted; not claims) | Research objective |
+|---|---|---|---|---|
+| V0.4 tuning (cipro) | AUROC vs V0.3: +0.025 [−0.012, +0.060], not demonstrated | – | – | better ranking: not shown |
+| V0.5 networks (cipro) | MLP − V0.4: −0.039 [−0.085, +0.005], not demonstrated; CNN − V0.4: −0.253 [−0.324, −0.177] (worse) | – | – | not met |
+| V0.7 second training site (cipro) | A + B vs A at D: −0.016 [−0.034, +0.001], not demonstrated | – | – | not shown |
+| V0.8 adaptation at C (cipro) | recalibration, Brier(B1) − Brier(A1): −0.0035 [−0.0161, +0.0085], not demonstrated | **refit A + C, Brier(B1) − Brier(A2): +0.0187 [+0.0086, +0.0290], Holm p 0.001 — improved**; verdict "mixed" because the zone reached NPV 0.904 < 0.95 | – | adaptation with a trustworthy zone: not met |
+| V1.1 retuning (ceftriaxone) | T − F AUROC: +0.009 [−0.021, +0.034], not demonstrated | – | favouring F (reused setting): PR-AUC T − F −0.040 [−0.091, −0.004]; Brier T − F +0.0028 [+0.000002, +0.0059] | retuning needed: not shown |
+| V1.2 cross-fitted cut-off (ceftriaxone, dev) | Brier(B) − Brier(C): +0.0002 [−0.0024, +0.0028], not demonstrated | – | Brier(B) − Brier(D1): +0.0020 [+0.0002, +0.0036] (fitting on 8/8 vs 7/8 of a fold); C's sensitivity steadier (SD 0.058 vs 0.151, descriptive) | better probabilities: not shown |
+| V1.3 uncertainty-aware cut-off (ceftriaxone, dev) | **U − E pooled sensitivity: +0.115 [+0.019, +0.248] — met** | – | – | **not met**: U's specificity 0.160 (flags 85 %), "unhelpful" under the pre-set order |
+| V1.4 screening isolates (ceftriaxone, dev) | A1 − A0 AUROC: −0.007 [−0.056, +0.043], not demonstrated | – | A1 − A0 specificity +0.026 [+0.004, +0.049] at equal sensitivity, alongside lower PR-AUC | better ranking: not shown |
+
+"Not demonstrated" means the interval includes 0. It is never "equivalent" or "no effect". Exploratory secondaries are
+listed because they were computed, not as findings: none was adjusted for multiplicity, and V1.2–V1.4 reuse one
+development pool.
+
+### Negative findings and unmet objectives
 
 1. Tuning (V0.4) did not demonstrably beat the Version 0.3 baseline; neural networks (V0.5) did not beat tuning; the
    1-D CNN was at chance.
@@ -317,6 +342,9 @@ were not excluded.
 | README "Results", V0.8 table | "paired Δ vs baseline" did not name its operands | now Brier(B1) − Brier(arm); positive favours the arm |
 | V1.1 `tables.md`, `config.yaml` comment, audit document | state that Weis et al. report AUROC 0.74 "for E. coli + ceftriaxone … (LightGBM)" | the verified abstract gives 0.74 for *E. coli* without naming the antibiotic or classifier; the full text was not accessible, so that attribution is **unverified** and not used as a reference point in this report (README and audit document annotated; committed tables kept) |
 | V1.4 commit `153d3e2` message | "18 tests" | 17 new tests; already recorded in the V1.4 plan record |
+| This report (first version), summary | "no intervention demonstrated a benefit" | replaced by Table 5, which separates primary endpoints, the confirmatory secondary (V0.8 refit, Brier), exploratory secondaries and unmet research objectives |
+| This report (first version), audit section 5, V1.4 plan section 6 | "about 0.03 (to 0.05) AUROC detectable with 80 % power" | not an adequate power analysis (extrapolated from another comparison's fold noise); withdrawn, replaced by the observed interval widths (section 12); dated notes appended to the audit and the plan |
+| README per-version mentions of the published 0.74 | read as verified | marked unverified in place; `config.yaml`'s comment and the committed V1.1 `tables.md` are left as recorded and covered by this row |
 
 Metric directions were otherwise consistent: every difference in the committed tables names its operands, and the
 denominators checked (sensitivity over resistant, specificity over susceptible, precision over flagged, flag rate over
@@ -408,6 +436,30 @@ commit message.
   ceiling on what spectra can reveal about ceftriaxone resistance. The audit's "biological ceiling" is recorded as an
   untested hypothesis.
 
+### 8.8 Pre-merge history: revised pre-registrations and commits at risk (found 2026-10-01)
+The original Version 0.7, 0.8 and 0.9 commits were held only by this clone's reflog, because their branches were
+deleted after squash merges. They are now preserved (section 11 and the [review checklist](review_checklist.md)).
+Checking them by content, not by message, showed the following.
+- **Recorded results are what those commits wrote.** The V0.7 `tables.md` and `test_metrics.csv` in `64c6c75`, the
+  V0.8 `primary_result.json` and `zone_results.csv` in `849cad7`, and the DRIAMS-C `partition.json` in `18d25a7` are
+  byte-identical to today's files. The V0.9 plan at `57b83fa` is exactly the text the test suite pins.
+- **Two pre-registered plans were revised on their branches after pre-registration.** The 2026-09-29 sweep did not
+  cover this, because it compared against the squash-merged text.
+  - *Version 0.7* (`96d0425`, 23 Sept 09:46): at `553128b` (24 Sept 12:37), **before the run** (`8878bfd`, 13:14), a
+    dated addendum reserving DRIAMS-C ("decided before the run, with no result of it seen") was inserted inside the
+    document. One sentence saying C "is being downloaded" was edited in place.
+  - *Version 0.8* (approved `284c0bd`, 24 Sept 14:13): at `18d25a7` (18:01), **before the run** (`4d82a22`, 18:19),
+    the header row "Configuration hash" was relabelled "Methodology hash". Its value (`e0ceb172…`) is identical before
+    and after. Two provenance rows and a section recording that DRIAMS-C has no patient identifiers were added. At
+    `5f37888` (23:03), **after the results** (`849cad7`, 18:27), a labelled audit note was appended at the end.
+- **Consequences.**
+  - No change touched an analysis choice before its run: the methodology hash is unchanged.
+  - The pins for these two plans (set at `ba7cb3e`) protect the merged text, which includes these revisions and, for
+    Version 0.8, the post-results audit note. They do not protect the text as first pre-registered. That text is
+    recoverable only from the archival refs `refs/archive/v0.7/pre-registration` and
+    `refs/archive/v0.8/approved-protocol`.
+  - The V0.9 pin names `57b83fa`, which had been reachable only through the reflog.
+
 ## 9. Threats to validity
 
 - **Reuse of evaluation data.** The ciprofloxacin `random` test part was scored for three successive versions'
@@ -471,26 +523,48 @@ committed artifacts. The [reproduction guide](reproduction_guide.md) separates r
 fixture-based tests (which write only to temporary folders; a session guard fails any test run that changes a real
 log), and historical commands listed for documentation only. Seeds are 42 throughout (5 seeds, 42–46, where stated);
 exact library versions are in `requirements-lock.txt`; the served model is verified by its SHA-256 sidecar
-(`d59d6d7d…`).
+(`d59d6d7d…`). Every commit this report cites resolves, and each is held by `main` or by a local archival ref under
+`refs/archive/`. Those refs and all branches are also stored in a verified Git bundle outside version control
+([review checklist](review_checklist.md), section 5).
 
 ## 12. Conclusions and requirements for future work
 
-**Defensible conclusions.** For both antibiotics, spectra from DRIAMS-A support modest ranking of isolates by
-resistance (AUROC about 0.71–0.75, confirmatory, single site). None of the interventions tested demonstrated a
-benefit: tuning, networks, a second training site, local recalibration, cut-off rules or screening isolates as
-training data. No generalisation gap was demonstrated, and none could be excluded. The protocol's 0.90-sensitivity
-cut-off did not hold on new data. No result supports clinical use.
+**Defensible conclusions.**
+- For both antibiotics, spectra from DRIAMS-A support modest ranking of isolates by resistance (AUROC about 0.71–0.75,
+  confirmatory, single site).
+- Of the interventions (Table 5), tuning, networks, a second training site, local recalibration, retuning, a
+  cross-fitted cut-off and screening isolates as training data did not meet their primary endpoints.
+- The uncertainty-aware cut-off met its primary endpoint (higher sensitivity) but not its research objective.
+- The refit at DRIAMS-C improved the Brier score (confirmatory secondary) while losing the confidence zone.
+- No generalisation gap was demonstrated, and none could be excluded.
+- The protocol's 0.90-sensitivity cut-off did not hold on new data.
+- No result supports clinical use.
 
-**A future independent study should require:**
-1. **A new, justified hypothesis**, stated before data access, that is not a further tuning of this development
-   pool (for example a representation or data source with a mechanistic or empirical rationale).
-2. **Evidence no version has used**: isolates from new time periods or institutions, collected or released after the
-   hypothesis is recorded, with patient identifiers that allow linkage across time, and the sample type recorded.
-3. **A pre-registered analysis** with a primary endpoint, comparator, interval method (stating whether it includes
-   fitting variability), a sample size justified by the effect of interest (the development pool could detect only
-   AUROC differences of roughly 0.03–0.05), and a stopping rule.
-4. **Any operating requirement** (sensitivity, specificity, abstention level) justified externally before results, or
-   reported explicitly as a research criterion.
+**How precise the comparisons were.** No adequate power analysis exists for any comparison in this project. The
+figure once quoted for Version 1.4 ("about 0.03 detectable with 80 % power") was extrapolated from the fold-to-fold
+noise of a different comparison, two model settings on the same rows (`results/metrics/v1.4/audit/audit.json`), using
+a heuristic variance. It is withdrawn. What the studies actually produced were intervals of these widths:
+- V1.4's primary AUROC difference: −0.056 to +0.043.
+- Its partition-42 bootstrap interval: −0.038 to +0.024.
+- V1.2's C − B AUROC: −0.032 to +0.006.
+- V1.1's T − F AUROC: −0.021 to +0.034.
+- The ciprofloxacin generalisation gaps: 0.13–0.18 wide.
+
+Differences smaller than these widths were not distinguishable from zero in these designs. A future study needs its
+own sample-size justification.
+
+**Exploration and confirmation are different stages, and a future study should keep them apart:**
+1. **Exploration may use any data already available**, this development pool included, to generate and refine
+   hypotheses, provided its results are reported as hypothesis-generating. A hypothesis does not have to be fixed
+   before all data access; it has to be fixed before confirmation.
+2. **Before any confirmatory evaluation, freeze** the hypothesis, the full procedure (data processing, model,
+   threshold rule), the primary endpoint and comparator, the interval method (stating whether it includes fitting
+   variability), a sample-size justification and a stopping rule, in a dated, committed record.
+3. **Confirm on evidence independent of the exploration**: isolates that neither that exploration nor any earlier
+   version has used, from new time periods or institutions, with patient identifiers that allow linkage across time,
+   and the sample type recorded. Further tuning or resplitting of this development pool cannot provide it.
+4. **Any operating requirement** (sensitivity, specificity, abstention level) justified externally before the
+   confirmatory evaluation, or reported explicitly as a research criterion.
 5. **DRIAMS-C's ceftriaxone labels only if** a frozen procedure first earns it on development data and the owner
    approves a dated amendment that settles C's uncertain standing. It should not be opened simply to obtain another
    result.

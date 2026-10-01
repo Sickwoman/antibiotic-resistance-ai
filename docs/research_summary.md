@@ -35,7 +35,9 @@ at all at B–D. Screening (HospitalHygiene) isolates were excluded from all eva
 
 **What the evidence supports.**
 - Modest ranking signal for both antibiotics at one hospital.
-- No intervention tested demonstrated a benefit.
+- No intervention met its research objective. Most primary endpoints were not demonstrated. V1.3's primary
+  (higher sensitivity) was met at an unhelpful specificity. V0.8's refit improved the Brier score (a confirmatory
+  secondary) but lost the confidence zone. A few exploratory secondaries are listed, not claimed (report, Table 5).
 - The 0.90-sensitivity cut-off does not hold on new data.
 
 **What it does not support.** Clinical use, transfer to other sites or times, equivalence of any compared methods,
@@ -55,11 +57,16 @@ Further analysis could still inform description or new hypotheses, but not confi
 - The attribution of the published AUROC 0.74 to ceftriaxone could not be verified against the paper's full text.
 - The Version 1.4 interval is an approximate correction for dependent folds (fixed model seed; extrapolated from its
   validation setting), though its "not demonstrated" verdict is robust to widening.
-- The original V0.7/V0.8 commits survive only in the reflog and PR refs.
+- The V0.7 and V0.8 plans were revised on their branches after pre-registration: before their runs, plus one
+  labelled post-results note. The original texts and the V0.7–V0.9 commits are now in local archival refs and a Git
+  bundle; an off-machine copy is still needed.
 
 **Requirements for a future independent study.**
-1. A new hypothesis, justified and recorded before data access.
-2. Data no version has used, with cross-time patient linkage and sample type recorded.
-3. A pre-registered endpoint, comparator, interval method and sample size.
+1. Exploration of any available data may generate hypotheses. The hypothesis, procedure and analysis must be frozen
+   in a dated record before the confirmatory evaluation.
+2. Confirmation on data that neither that exploration nor any earlier version has used, with cross-time patient
+   linkage and sample type recorded.
+3. A pre-registered endpoint, comparator, interval method and a sample-size justification. No adequate power
+   analysis exists here; the observed intervals are the only precision evidence.
 4. Externally justified operating requirements.
 5. DRIAMS-C only through an amendment, and only for a procedure that first earns it on development data.
