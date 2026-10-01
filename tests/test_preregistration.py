@@ -33,8 +33,8 @@ from src.utils import project_path
 # b6016a3 the pin covered the whole file through amendment 8, approved with the Version 1.1 plan, and since
 # db48bff through amendment 9, recorded with the Version 1.2 plan; each longer pin begins with the earlier
 # one's bytes unchanged, so no earlier guarantee is lost. When a later amendment is recorded, extend the pin
-# to it the same way. Since 2242327 the pin runs through amendment 10 (Version 1.3), and since 5600efb through
-# amendment 11 (Version 1.4).
+# to it the same way. Since 2242327 the pin runs through amendment 10 (Version 1.3), since 5600efb through
+# amendment 11 (Version 1.4), and since 186a9d1 through amendment 12 (Version 2.0).
 LOCKED: dict[str, tuple[int, str, str]] = {
     "docs/v0.4_search_plan.md": (
         7109, "df3544c61d2d0ebf97338bcd19866aa673de7e68116c54d76a91f16e3e67d7a5", "ddeae53"),
@@ -58,8 +58,10 @@ LOCKED: dict[str, tuple[int, str, str]] = {
         16104, "ee8be88e641ee31595c1cf9fad51a1708430372b4e40f7f9bcc854be52639151", "2242327"),
     "docs/v1.4_screening_plan.md": (
         18244, "9c7ab5cfda3ce33cffa2f594388d6792743cddb448a555e9feed59c2670c032b", "5600efb"),
+    "docs/v2.0_marisma_plan.md": (
+        15422, "d49189da36112e6ed131a8be549dded56c0c80d9f0c7441107bf25ff56d12859", "186a9d1"),
     "docs/evaluation_protocol.md": (
-        38155, "093deec943a6dc26a54eb96d72fbf6f2bb283d7d44803970375d87528d751985", "5600efb"),
+        39768, "94de3fe0f58bb9c356999377c4d359a54a1ab17ea0f3ebc91ed302259b62438d", "186a9d1"),
 }
 
 
