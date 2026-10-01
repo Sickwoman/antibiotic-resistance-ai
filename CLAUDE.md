@@ -304,6 +304,11 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   `reproduction_guide.md`, `research_summary.md`, `review_checklist.md`; branch `v1.4-report`). Its section 8 lists
   the reporting corrections; a pre-specified sensitivity analysis (ciprofloxacin, I excluded) was never run - say so
   wherever the label policy is discussed. Only tier-1 and tier-2 commands of the reproduction guide may be run.
+- **The research history is archived; never move or delete the archive.** 38 refs under `refs/archive/` and, on
+  GitHub, 38 annotated tags `research-archive/…` (same names, same commits) hold every at-risk commit; the bundle
+  `archive/research-history-2026-10-01.bundle` is git-ignored. `research-archive/v1.4-report/tip` is a fixed snapshot
+  at `bf832bd`: later commits on `v1.4-report` do not move it. Fetch and restore as `docs/review_checklist.md`,
+  section 5, shows; a plain `git fetch` does not bring tags whose commits are on no branch.
 - **Test automation must surface failures** (Version 1.3 closure). CI runs every step under `bash` (GitHub:
   `-eo pipefail`); never pipe pytest into `tail`/`tee` before a commit - read pytest's own exit code.
   `tests/conftest.py` fails the whole session if a test changed `results/experiments/test_evaluations.csv` or

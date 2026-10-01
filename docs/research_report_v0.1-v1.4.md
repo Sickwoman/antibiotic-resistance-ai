@@ -399,8 +399,12 @@ that are never used.
 | 729 passed (670 s) | working tree with the content of `0806e74` (staged) | same | yes | same |
 | see 8.5 | the commit containing this report | same | both, see 8.5 | same |
 
-No GitHub Actions run exists for any commit after `main` (`2f665e1`), because nothing has been pushed; the CI change to
-`bash -eo pipefail` (V1.3 closure) has therefore never run on GitHub's runners.
+When this section was written, no GitHub Actions run existed for any commit after `main` (`2f665e1`), because nothing
+had been pushed, so the CI change to `bash -eo pipefail` (V1.3 closure) had never run on GitHub's runners.
+**Update, 2026-10-01 (after publication):** the five branches were then pushed and opened as draft PRs #26–#30.
+GitHub Actions ran Ruff and the test suite under `bash -eo pipefail` on Ubuntu and Windows with Python 3.11 and 3.12,
+for both the push and the pull-request event, and every job passed on each branch head (`f4581cf`, `3fc142b`,
+`c5cfb49`, `0806e74`, `bf832bd`). The rows above remain local runs.
 
 ### 8.5 Verification of the commit containing this report
 Both runs are of commit `d326353`, the first commit of this report, on the same laptop, Python venv and command
@@ -438,7 +442,8 @@ commit message.
 
 ### 8.8 Pre-merge history: revised pre-registrations and commits at risk (found 2026-10-01)
 The original Version 0.7, 0.8 and 0.9 commits were held only by this clone's reflog, because their branches were
-deleted after squash merges. They are now preserved (section 11 and the [review checklist](review_checklist.md)).
+deleted after squash merges. They are now preserved, locally and on GitHub (section 11 and the
+[review checklist](review_checklist.md)).
 Checking them by content, not by message, showed the following.
 - **Recorded results are what those commits wrote.** The V0.7 `tables.md` and `test_metrics.csv` in `64c6c75`, the
   V0.8 `primary_result.json` and `zone_results.csv` in `849cad7`, and the DRIAMS-C `partition.json` in `18d25a7` are
@@ -456,9 +461,10 @@ Checking them by content, not by message, showed the following.
   - No change touched an analysis choice before its run: the methodology hash is unchanged.
   - The pins for these two plans (set at `ba7cb3e`) protect the merged text, which includes these revisions and, for
     Version 0.8, the post-results audit note. They do not protect the text as first pre-registered. That text is
-    recoverable only from the archival refs `refs/archive/v0.7/pre-registration` and
-    `refs/archive/v0.8/approved-protocol`.
-  - The V0.9 pin names `57b83fa`, which had been reachable only through the reflog.
+    recoverable only from the archive: the tags `research-archive/v0.7/pre-registration` and
+    `research-archive/v0.8/approved-protocol` on GitHub, or the local refs of the same names under `refs/archive/`.
+  - The V0.9 pin names `57b83fa`, which had been reachable only through the reflog; it is now archived as
+    `research-archive/v0.9/pre-registration`.
 
 ## 9. Threats to validity
 
@@ -523,8 +529,9 @@ committed artifacts. The [reproduction guide](reproduction_guide.md) separates r
 fixture-based tests (which write only to temporary folders; a session guard fails any test run that changes a real
 log), and historical commands listed for documentation only. Seeds are 42 throughout (5 seeds, 42–46, where stated);
 exact library versions are in `requirements-lock.txt`; the served model is verified by its SHA-256 sidecar
-(`d59d6d7d…`). Every commit this report cites resolves, and each is held by `main` or by a local archival ref under
-`refs/archive/`. Those refs and all branches are also stored in a verified Git bundle outside version control
+(`d59d6d7d…`). Every commit this report cites resolves, and each is held by `main` or by an archival ref: locally
+under `refs/archive/`, and on GitHub by an annotated tag of the same name under `research-archive/`. A verified Git
+bundle outside version control also holds those refs and all local branches; its off-machine copy is pending
 ([review checklist](review_checklist.md), section 5).
 
 ## 12. Conclusions and requirements for future work

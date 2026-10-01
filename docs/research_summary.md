@@ -58,8 +58,8 @@ Further analysis could still inform description or new hypotheses, but not confi
 - The Version 1.4 interval is an approximate correction for dependent folds (fixed model seed; extrapolated from its
   validation setting), though its "not demonstrated" verdict is robust to widening.
 - The V0.7 and V0.8 plans were revised on their branches after pre-registration: before their runs, plus one
-  labelled post-results note. The original texts and the V0.7–V0.9 commits are now in local archival refs and a Git
-  bundle; an off-machine copy is still needed.
+  labelled post-results note. The original texts and the V0.7–V0.9 commits are preserved by archival refs, published
+  on GitHub as `research-archive/…` tags, and in a Git bundle whose off-machine copy is pending.
 
 **Requirements for a future independent study.**
 1. Exploration of any available data may generate hypotheses. The hypothesis, procedure and analysis must be frozen

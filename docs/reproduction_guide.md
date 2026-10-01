@@ -17,8 +17,8 @@ first two are meant to be run.
 ## 0. Environment, inputs and access
 
 - **Tested platform:** Windows 11 (build 10.0.26200), PowerShell and Git Bash, Python **3.12.10** in a project venv;
-  CPU only (no CUDA), 7.7 GB RAM. CI (GitHub Actions) tests Ubuntu and Windows with Python 3.11 and 3.12, but no CI
-  run exists for any commit after `2f665e1` (nothing on the version branches has been pushed).
+  CPU only (no CUDA), 7.7 GB RAM. CI (GitHub Actions) tests Ubuntu and Windows with Python 3.11 and 3.12; on
+  2026-10-01 it ran on the five version branches (draft PRs #26–#30) and passed on each head.
 - **Dependencies:** `requirements.txt` (ranges) for development; **`requirements-lock.txt` (exact pins) to reproduce**:
   `pip install -r requirements-lock.txt --extra-index-url https://download.pytorch.org/whl/cpu`. Key pins: numpy 2.5.3,
   pandas 3.0.5, scikit-learn 1.9.1, scipy 1.18.1, lightgbm 4.7.0, torch 2.14.0+cpu, joblib 1.6.0, pytest 9.1.1,
@@ -149,9 +149,10 @@ held-out probabilities with difference 0 in the current environment.
 ## 4. Commits
 
 Version commits, run commits and branches are listed in the [evidence map](evidence_map.md) and the
-[review checklist](review_checklist.md). Note that the original Version 0.7 and 0.8 commits (`96d0425`, `8878bfd`,
-`64c6c75`, `284c0bd`, `4d82a22`, `849cad7`) are held by no current local ref; they are preserved on GitHub by
-PR #11's ref and locally only by the reflog until it expires.
+[review checklist](review_checklist.md). The original Version 0.7 and 0.8 commits (`96d0425`, `8878bfd`, `64c6c75`,
+`284c0bd`, `4d82a22`, `849cad7`) are on no branch. They are preserved by archival refs under `refs/archive/` and, on
+GitHub, by annotated `research-archive/…` tags, which a plain `git fetch` does not bring. Fetch the tags, and restore
+any archived commit, as the review checklist's section 5 shows.
 
 ## 5. Known platform limitations
 
