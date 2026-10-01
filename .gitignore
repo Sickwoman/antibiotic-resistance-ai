@@ -69,3 +69,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# --- Local archives (git bundles, review packages): kept beside the repository, never committed ---
+/archive/
