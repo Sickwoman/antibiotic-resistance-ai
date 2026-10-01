@@ -262,3 +262,27 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     predictions reproduce the calibrator, and `assert_same_scale` that they share the model's scale.
   - Under the plan's section 12, C does not qualify for a held-out evaluation (its primary was not met).
     DRIAMS-C's ceftriaxone labels are the only unused candidate; opening them needs an owner-approved amendment.
+- **Version 1.3 is a development-only study of an uncertainty-aware cut-off** (`docs/v1.3_threshold_plan.md`,
+  amendment 10; branch `v1.3-threshold`; `python scripts/v13_threshold.py`). Exploratory: its 2017 later periods
+  were already evaluated in aggregate by V1.2. Result: rule U reached 0.929 pooled sensitivity against E's 0.814,
+  but **only by flagging 85 % of isolates** (specificity 0.160; precision 0.118 against a 0.107 base rate), so
+  under the pre-set verdict order it is "unhelpful". E missed 0.90 in both periods. No operational specificity
+  floor exists; 0.20 only names "flags nearly everyone". Recent intercept recalibration: not demonstrated.
+  - Rule U (`src/threshold_rules.py`): `k* = max{k : P(Binomial(n, 0.10) >= k) >= 0.95}`, the `k*`-th lowest
+    resistant score; **infeasible below 29 resistant**. Its 95 % holds only for exchangeable resistant scores from
+    a scoring function that did not see them; cross-fitted selection scores make it a heuristic. A confidence
+    bound computed after a free search over cut-offs is not a guarantee - never describe one as such.
+  - **Count patients, not spectra:** the pool's 247 resistant spectra are 105 resistant patient groups. Select
+    cut-offs on one spectrum per patient group; resample whole groups.
+  - Time: only labels dated at least 7 days before an origin; later-period spectra of patients already seen
+    that year are removed; patients cannot be linked across years.
+  - **No frozen procedure so far (V1.2's C, E, U) warrants a DRIAMS-C evaluation.** The rules tested did not
+    establish useful performance with this model. That is **not** a universal limit and not proof that
+    discrimination is the constraint: never write "the limit is ...". The 0.56 / 0.44 for rule E are
+    theoretical (exchangeable scores, a scoring function independent of them), not observed attainment rates; the
+    derivation, order-statistic convention and tie handling are in the plan's closure record. Every operating number
+    (0.90, 0.95, 0.20, the 7-day gap, 30 / 15 / 50) is a research criterion, never a clinical standard.
+  - **Test automation must surface failures.** CI runs every step under `bash` (GitHub: `-eo pipefail`); never pipe
+    pytest into `tail`/`tee` before a commit - read pytest's own exit code. `tests/conftest.py` fails the whole
+    session if a test changed `results/experiments/test_evaluations.csv` or `development_runs.csv`: every test that
+    runs a script must point both logs into `tmp_path`.
