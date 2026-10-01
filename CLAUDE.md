@@ -235,3 +235,30 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
     byte-identically; the first model was stamped `v1.0.0` and rerun from cache with identical validation.
   - A cut-off chosen on one small validation part has missed its sensitivity target on test twice (0.827
     ciprofloxacin, 0.823 ceftriaxone). Do not describe the 0.90 target as achieved on new patients.
+- **Version 1.2 is a development-only study** (`docs/v1.2_calibration_plan.md`, amendment 9; branch
+  `v1.2-calibration`). No test part was read, the production log is untouched (113 rows), and **every V1.2
+  result is exploratory** - no untouched evaluation data exist. It runs on a derived pool: `ecoli_ceftriaxone`'s
+  `random` training + validation rows minus every row, and every patient group, of an inspected test part
+  (2,421 spectra, 247 resistant). `python scripts/v12_development.py`; results go to the separate development
+  log `results/experiments/development_runs.csv`, which `DevelopmentLog` refuses to point at the production log.
+  - Findings, as the data supports them: primary (Brier, B minus C) **not demonstrated**, +0.0002 [-0.0024,
+    +0.0028]; C's cut-off far steadier across folds (sensitivity SD 0.058 against 0.151) at lower specificity
+    (0.370 against 0.446), reaching 0.90 in 7 of 15 folds; **in the one forward split no arm held its target**
+    (0.56-0.79). Resistance was higher in 2017 (11.4 % against 8.3 %) and every arm under-predicted on average
+    (intercepts +0.67 to +0.81), but **never write that this explains the loss**: a prevalence change alone
+    leaves sensitivity at a fixed cut-off unchanged, and label shift was not established.
+  - Brier(B) minus Brier(D1) = +0.0020 is the effect of fitting on 8/8 instead of 7/8 of a fold (no cut-off
+    enters Brier), not of the cross-fitted cut-off. Name both operands of every difference.
+  - `results/metrics/v1.2/ecoli_ceftriaxone/tables_complete.md` (from `scripts/v12_report.py`, saved outputs
+    only) is the complete V1.2 report; the run's own `tables.md` omits three secondaries and is kept as written.
+  - DRIAMS-C's standing, by antibiotic, is in `docs/driams_c_status.md`: ciprofloxacin spent; ceftriaxone
+    **uncertain** (labels never used by a model, but their aggregate counts were seen on 2026-09-30, the
+    spectra were used for ciprofloxacin, and there are no patient IDs). Never open C labels without an
+    owner-approved amendment.
+  - A cut-off chosen on fewer than 50 resistant spectra is **unsupported**: report it, never describe it as
+    targeting 0.90. The Version 1.1 procedure's slice holds about 25.
+  - **A `CalibratedClassifierCV` calibrator works on the pipeline's `decision_function` (LightGBM's raw margin),
+    not on `predict_proba`.** Map anything through it on that scale; `cross_fitted_probabilities` proves its
+    predictions reproduce the calibrator, and `assert_same_scale` that they share the model's scale.
+  - Under the plan's section 12, C does not qualify for a held-out evaluation (its primary was not met).
+    DRIAMS-C's ceftriaxone labels are the only unused candidate; opening them needs an owner-approved amendment.

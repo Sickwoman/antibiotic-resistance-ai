@@ -644,3 +644,46 @@ second_antibiotic_generalisation:
   model_dir: models/v1.1/generalisation
   report_dir: results/metrics/v1.1/generalisation
   plot_dir: results/plots/v1.1
+
+v12_development:
+  # Version 1.2, recorded before any code (docs/v1.2_calibration_plan.md, protocol amendment 9). DEVELOPMENT
+  # ONLY: no test part, no production-log row, no served-model change; every result is exploratory.
+  #   python scripts/v12_development.py
+  plan: docs/v1.2_calibration_plan.md
+  dataset: ecoli_ceftriaxone
+  pool_source_split: random           # the pool: its training + validation rows ...
+  spent_splits: [random, temporal, external, external_ab]   # ... minus every row, and patient group, of these test parts
+  expected_pool: {spectra: 2421, resistant: 247}             # the plan's audit; the run stops if the pool differs
+  outer_folds: 5
+  partition_seeds: [42, 43, 44]
+  primary_partition_seed: 42
+  inner_folds: 5                      # the Version 0.4 inner folds, calibration and seed, unchanged
+  inner_seed: 42
+  model_seed: 42
+  calibration: sigmoid
+  validation_slice_denominator: 8     # arm B: a 1/8 validation slice, as Version 1.1's 425 of 3,391
+  min_resistant_per_heldout_fold: 30  # fewer is a design failure (the plan's section 9)
+  threshold:
+    rule: min_sensitivity             # unchanged: the highest cut-off with selection sensitivity >= 0.90
+    min_sensitivity: 0.90
+    min_resistant_for_support: 50     # fewer resistant in the selection set: the target is not supported
+  forward:                            # fit before 2017, evaluate once on 2017 (patients unlinkable across years)
+    train_before: "2017-01-01"
+    evaluate_from: "2017-01-01"
+    evaluate_before: "2018-01-01"
+    min_resistant: 50
+  settings:                           # read from the saved model cards, never re-searched
+    T:                                # Version 1.1 arm T (the Version 0.4 search on ceftriaxone)
+      card: results/metrics/v1.1/ecoli_ceftriaxone/best_model_card.json
+      section: second_antibiotic
+      family: lightgbm
+    F:                                # the Version 0.4 ciprofloxacin winner (Version 1.1 arm F)
+      card: results/metrics/v0.4/ecoli_ciprofloxacin/best_model_card.json
+      section: second_antibiotic
+      family: lightgbm_cipro_setting
+  arms: {B: T, C: F, D1: T}           # R0, the no-skill reference, needs no setting
+  budget_seconds: 10800               # hard cap, 3 hours (the plan's section 10)
+  require_clean_tree: true
+  development_log: results/experiments/development_runs.csv   # never the production test log
+  model_dir: models/v1.2              # git-ignored: held-out predictions
+  report_dir: results/metrics/v1.2

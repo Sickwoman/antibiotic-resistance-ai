@@ -30,9 +30,10 @@ from src.utils import project_path
 # The evaluation protocol was first pinned at e8d13fb, the last version before the 2026-09-29 record: two
 # in-place edits made before then (at d3d4d9e and e8d13fb) corrected approved text and are disclosed in that
 # record rather than reverted, since reverting would reinstate wording already found to be wrong. Since
-# b6016a3 the pin covers the whole file through amendment 8, approved with the Version 1.1 plan; that text
-# begins with the earlier pin's 13,417 bytes unchanged, so the earlier guarantee still holds. When a later
-# amendment is approved, extend the pin to it the same way.
+# b6016a3 the pin covered the whole file through amendment 8, approved with the Version 1.1 plan, and since
+# db48bff through amendment 9, recorded with the Version 1.2 plan; each longer pin begins with the earlier
+# one's bytes unchanged, so no earlier guarantee is lost. When a later amendment is recorded, extend the pin
+# to it the same way.
 LOCKED: dict[str, tuple[int, str, str]] = {
     "docs/v0.4_search_plan.md": (
         7109, "df3544c61d2d0ebf97338bcd19866aa673de7e68116c54d76a91f16e3e67d7a5", "ddeae53"),
@@ -50,8 +51,10 @@ LOCKED: dict[str, tuple[int, str, str]] = {
         12030, "4ba8075eb5258c310ae78961d0518f1fd67f5a94aa190ce93efa9f98df22c3a0", "d1718cc"),
     "docs/v1.1_ceftriaxone_plan.md": (
         13983, "c1f8b265ca984178e4b54ea979942ee4acd87333d276a0bd81604b7a0ed7382c", "b6016a3"),
+    "docs/v1.2_calibration_plan.md": (
+        15384, "f0a7b4e64cb27d39e882fd1cd5d6d206a07bfa875a1c6bbd6770fb9328ee2dc3", "db48bff"),
     "docs/evaluation_protocol.md": (
-        33439, "fb85b7a304b1025413e745c3fab284e1802df4b789adb61604a7d79fd811a812", "b6016a3"),
+        35101, "0330131d5d25da6a39decb45197da17bbf93cff61ce55c94f5ee7be057330b6b", "db48bff"),
 }
 
 
