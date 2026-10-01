@@ -485,3 +485,23 @@ earlier model, threshold, split, metric or recorded result, and it adds nothing 
 4. **Ranking is not usefulness.** The primary endpoint is AUROC; no specificity or usefulness requirement is
    adopted, and "flags nearly everyone" (specificity below 0.20) remains a research line.
 5. **DRIAMS-C stays closed.** Its standing is recorded in `docs/driams_c_status.md`.
+
+### Amendment 12 — 2026-10-02: external validation of the frozen models on MARISMa (Version 2.0)
+
+Recorded before any Version 2.0 code, download or experiment, together with
+[the Version 2.0 plan](v2.0_marisma_plan.md). The project owner chose the data source (MARISMa) and the design (both
+frozen models, with a multiplicity correction) on 2026-10-02. This amendment changes no earlier model, threshold,
+split, metric or recorded result. Its scoring will append rows to the production log, once.
+
+1. **A public external dataset, scored once.** MARISMa version 2.0.0 is the evaluation data: Hospital General
+   Universitario Gregorio Marañón, Madrid, 2018–2024. Nothing is fitted on it.
+2. **Frozen models only.** They are used exactly as saved: the served Version 0.4 ciprofloxacin model and Version
+   1.1's arm T ceftriaxone model, with their thresholds, and the Version 0.6 zone for ciprofloxacin.
+3. **Isolate-level units where no patient linkage exists.** MARISMa keeps one identifier per isolate, so intervals
+   resample isolates. Every result states that repeat isolates from one patient cannot be detected. This deviates
+   from the research report's requirement of patient linkage, by the owner's decision.
+4. **Two primary hypotheses, Holm-corrected.** AUROC > 0.5 for each antibiotic, at a family-wise α of 0.05.
+5. **Labels sealed until scoring.** Before scoring, only the names of the antibiotic fields and the number of
+   non-missing interpretations may be read.
+6. **The I-excluded sensitivity analysis is executed** this time, whatever the primary result.
+7. **DRIAMS-C stays closed.**
