@@ -505,3 +505,18 @@ split, metric or recorded result. Its scoring will append rows to the production
    non-missing interpretations may be read.
 6. **The I-excluded sensitivity analysis is executed** this time, whatever the primary result.
 7. **DRIAMS-C stays closed.**
+
+#### Amendment 12, note A — 2026-10-02: pre-data clarifications (recorded before any MARISMa file is downloaded)
+
+Recorded with amendment A of [the Version 2.0 plan](v2.0_marisma_plan.md), which governs where the two differ. The
+note is proposed, and nothing in it is approved. Amendment 12 above stays exactly as recorded, and this note is pinned
+separately.
+
+1. **Item 3 corrected.** Acceptance of the patient-linkage deviation is pending; it was not given by the owner's choice
+   of data source. It is recorded only when the owner gives it, in a later dated entry, and never backdated.
+2. **Item 5 made precise.** Before scoring, only the restricted schema reader (plan amendment A2) may open `AMR.csv`.
+   - It may match isolates, list antibiotic names and count non-missing interpretations.
+   - It may expose no outcome category, prevalence, MIC value, raw row or outcome-bearing log.
+3. **Item 4's test.** Each primary hypothesis is tested by a one-sided Brunner–Munzel test, with Holm over the fixed
+   two-hypothesis family (plan amendment A3). An antibiotic that is dropped, or falls below the minimums, enters with
+   p = 1.
