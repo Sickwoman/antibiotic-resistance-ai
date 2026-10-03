@@ -100,12 +100,15 @@ def test_the_check_would_notice_an_edit():
 # Dated amendments recorded after a document's locked text are pinned separately, so that the earlier pin stays
 # exactly as it was locked: path -> [(start, length, SHA-256, commit), ...] in file order. The first amendment starts
 # where the locked text ends, and each later one where the previous amendment ends. Since 873aed5: Version 2.0 plan
-# amendment A and protocol amendment 12, note A (pre-data clarifications; their approval is pending).
+# amendment A and protocol amendment 12, note A; since 886076a: plan amendment B and note B (pre-data
+# clarifications; their approval is pending).
 LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
     "docs/v2.0_marisma_plan.md": [
-        (15422, 19573, "f8cee0a947f7ba15cec6ebdb1040f8fbc44b52aaf84ebf0e22384d5d3e3589dd", "873aed5")],
+        (15422, 19573, "f8cee0a947f7ba15cec6ebdb1040f8fbc44b52aaf84ebf0e22384d5d3e3589dd", "873aed5"),
+        (34995, 5652, "c8204365e7c9b84f23fd07f65132a11cefb20d27e61047d30394c81e8d9c1ca5", "886076a")],
     "docs/evaluation_protocol.md": [
-        (39768, 1142, "e7e09fd41721eded12b019e42455358c7593a8a771fdda0728d7aa0fd3c8c197", "873aed5")],
+        (39768, 1142, "e7e09fd41721eded12b019e42455358c7593a8a771fdda0728d7aa0fd3c8c197", "873aed5"),
+        (40910, 1216, "68e495810e09ae281ecbb15f9c8508f1dc69446a72f7fd9b2ae872ecef871969", "886076a")],
 }
 AMENDMENT_CASES = [(path, i) for path in sorted(LOCKED_AMENDMENTS) for i in range(len(LOCKED_AMENDMENTS[path]))]
 
