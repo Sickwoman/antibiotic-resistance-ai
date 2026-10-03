@@ -8,8 +8,10 @@ from src.bruker import BrukerReadError
 from src.marisma_cohort import (
     NO_PASSING_REPLICATE,
     NO_REPLICATE_FOLDER,
+    SpectrumFolder,
     exclusion_summary,
     folder_order,
+    parse_spectrum_member,
     pause_check,
     select_first_passing,
 )
@@ -82,3 +84,35 @@ def test_summary_and_pause_threshold():
     assert p["share"] == pytest.approx(0.05) and p["pause"] is False   # exactly 5 % does not exceed 5 %
     sel2 = sel + [select_first_passing({"1": {"1": "bad"}}, reader({"bad": "empty"}))]
     assert pause_check(sel2)["pause"] is True                  # 2 / 21 > 5 %
+
+
+def test_a_fid_member_is_placed_in_the_layout():
+    name = "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1/1SLin/fid"
+    assert parse_spectrum_member(name) == SpectrumFolder(
+        "2021", "Escherichia", "Coli", "ab12cd34", "0_A10", "1", "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1/1SLin")
+
+
+@pytest.mark.parametrize("name", [
+    "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1/1SLin/fid (2)",     # a copy, not a spectrum
+    "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1/1SLin/acqu",
+    "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1/1Ref/fid",          # not the linear spectrum folder
+    "MARISMa/2021/Escherichia/Coli/ab12cd34/0_A10/1SLin/fid",           # a level missing
+    "Other/2021/Escherichia/Coli/ab12cd34/0_A10/1/1SLin/fid",
+    "MARISMa/2021/Escherichia//ab12cd34/0_A10/1/1SLin/fid",
+])
+def test_members_outside_the_layout_are_not_spectra(name):
+    assert parse_spectrum_member(name) is None
+
+
+def test_layout_folders_come_from_directory_components_only():
+    from src.marisma_cohort import layout_folders
+    names = ["MARISMa/2021/Escherichia/Coli/iso1/0_A1/1/1SLin/fid",
+             "MARISMa/2021/Escherichia/Coli/iso1/0_A1/1/1SLin/acqu",
+             "MARISMa/2021/Escherichia/Coli/iso2/0_B3/1/",            # a replicate folder without a spectrum
+             "MARISMa/2021/Escherichia/Coli/iso3/",                   # an isolate folder without replicates
+             "MARISMa/2021/Escherichia/Coli/iso3/.DS_Store",          # a file, not a replicate folder
+             "MARISMa/2021/Escherichia/Coli/.DS_Store"]
+    isolates, replicates = layout_folders(names)
+    assert isolates == {("2021", "Escherichia", "Coli", i) for i in ("iso1", "iso2", "iso3")}
+    assert {(r.isolate, r.biological, r.technical, r.folder.rsplit("/", 1)[-1]) for r in replicates} == {
+        ("iso1", "0_A1", "1", "1SLin"), ("iso2", "0_B3", "1", "1SLin")}

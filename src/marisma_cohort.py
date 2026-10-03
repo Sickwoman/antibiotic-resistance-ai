@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 from src.bruker import BrukerReadError
 
@@ -79,3 +79,57 @@ def pause_check(selections: Iterable[Selection], threshold: float = 0.05) -> dic
     share = numerator / denominator if denominator else float("nan")
     return {"numerator": numerator, "denominator": denominator, "share": share, "threshold": threshold,
             "pause": bool(denominator) and share > threshold}
+
+
+class SpectrumFolder(NamedTuple):
+    year: str
+    genus: str
+    species: str
+    isolate: str
+    biological: str
+    technical: str
+    folder: str                         # the archive folder holding `fid` (no trailing slash)
+
+
+ROOT_FOLDER = "MARISMa"
+SPECTRUM_FOLDER = "1SLin"
+
+
+def parse_spectrum_member(name: str) -> SpectrumFolder | None:
+    """Place a `fid` member in MARISMa 2.0.0's layout, or return None if it lies outside it.
+
+    The layout, read from the archive's member names on 2026-10-03 (every one of its 241,980 `fid` files follows it):
+    MARISMa/<year>/<genus>/<species>/<isolate>/<biological replicate>/<technical replicate>/1SLin/fid, where the
+    isolate folder is MARISMa's identifier, a biological replicate is a target position such as "0_A1", and technical
+    replicates are numbered. Only a file named exactly "fid" counts, as in readBrukerFlexData, so copies named
+    "fid (2)" are not spectra here.
+    """
+    parts = name.split("/")
+    if len(parts) != 9 or parts[0] != ROOT_FOLDER or parts[7] != SPECTRUM_FOLDER or parts[8] != "fid":
+        return None
+    if any(not p for p in parts):
+        return None
+    year, genus, species, isolate, biological, technical = parts[1:7]
+    return SpectrumFolder(year, genus, species, isolate, biological, technical, "/".join(parts[:8]))
+
+
+def layout_folders(names: Iterable[str]) -> tuple[set[tuple[str, str, str, str]], set[SpectrumFolder]]:
+    """Isolate folders, as (year, genus, species, isolate), and technical-replicate folders, from member names.
+
+    Only directory components count, so a file such as ".DS_Store" is never taken for a folder. A technical-replicate
+    folder's `folder` is where its spectrum belongs (<...>/<technical>/1SLin), whether or not a `fid` is there: a
+    missing spectrum is then a reader failure ("missing_files"), and an isolate folder with no technical-replicate
+    folder at all is counted as having no replicate folder (amendment A6.4).
+    """
+    isolates: set[tuple[str, str, str, str]] = set()
+    replicates: set[SpectrumFolder] = set()
+    for name in names:
+        dirs = name.split("/")[:-1]          # "a/b/" -> ["a", "b"]; "a/b/file" -> ["a", "b"]
+        if len(dirs) < 5 or dirs[0] != ROOT_FOLDER or not all(dirs):
+            continue
+        isolates.add((dirs[1], dirs[2], dirs[3], dirs[4]))
+        if len(dirs) >= 7:
+            year, genus, species, isolate, biological, technical = dirs[1:7]
+            replicates.add(SpectrumFolder(year, genus, species, isolate, biological, technical,
+                                          "/".join([*dirs[:7], SPECTRUM_FOLDER])))
+    return isolates, replicates
