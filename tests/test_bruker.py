@@ -1,0 +1,179 @@
+"""The Bruker flex reader (src/bruker.py), on synthetic spectra written by these tests: no research data is read.
+
+The central check is independent of how the conversion is implemented: every converted mass must satisfy the
+calibration's inverse, tof = ML2 + ML3*m + sqrt(1e12/ML1)*sqrt(m) (readBrukerFlexData's .tof2mass, solved for tof).
+"""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import pytest
+
+from src.bruker import BrukerReadError, acqu_values, apply_hpc, hpc_coefficients, read_spectrum
+
+ML1, ML2, ML3, DELAY, DW, TD = 3.19e6, 1000.0, 0.0025, 25000.0, 2.0, 28750   # covers about 1,830-21,140 Da
+
+
+def write_spectrum(folder, *, td=TD, delay=DELAY, dw=DW, ml=(ML1, ML2, ML3), bytorda=0, intensities=None,
+                   acqu_name="acqu", extra=(), omit=()):
+    folder.mkdir(parents=True, exist_ok=True)
+    fields = {"TD": td, "DELAY": delay, "DW": dw, "ML1": ml[0], "ML2": ml[1], "ML3": ml[2], "BYTORDA": bytorda}
+    lines = ["##TITLE= synthetic", "##JCAMPDX= 5.0"]
+    lines += [f"##${k}= {v}" for k, v in fields.items() if k not in omit]
+    lines += list(extra)
+    (folder / acqu_name).write_text("\n".join(lines) + "\n", encoding="latin-1")
+    if intensities is None:
+        intensities = 100 + (np.arange(td) % 50)
+    np.asarray(intensities, dtype=">i4" if bytorda == 1 else "<i4").tofile(folder / "fid")
+    return folder
+
+
+def test_masses_satisfy_the_inverse_calibration(tmp_path):
+    s = read_spectrum(write_spectrum(tmp_path / "s"))
+    tof = DELAY + np.arange(TD) * DW
+    implied = ML2 + ML3 * s.mz + math.sqrt(1e12 / ML1) * np.sqrt(s.mz)
+    assert np.allclose(implied, tof, rtol=1e-12, atol=1e-6)
+    assert s.calibration == "tof2mass"
+    assert s.mz[0] < 2000 < 20000 < s.mz[-1]
+
+
+def test_the_linear_branch_when_ml3_is_zero(tmp_path):
+    s = read_spectrum(write_spectrum(tmp_path / "s", ml=(ML1, ML2, 0.0), td=34000))
+    tof = DELAY + np.arange(34000) * DW
+    assert np.allclose(ML2 + math.sqrt(1e12 / ML1) * np.sqrt(s.mz), tof, rtol=1e-12)
+
+
+def test_byte_order_follows_bytorda(tmp_path):
+    values = (np.arange(TD) % 997) - 100          # includes negative values
+    little = read_spectrum(write_spectrum(tmp_path / "le", bytorda=0, intensities=values))
+    big = read_spectrum(write_spectrum(tmp_path / "be", bytorda=1, intensities=values))
+    assert np.array_equal(little.intensity, big.intensity)
+    assert np.array_equal(little.intensity, np.clip(values, 0, None).astype(float))   # negatives set to 0
+
+
+def test_acqu_is_preferred_and_acqus_is_the_fallback(tmp_path):
+    folder = write_spectrum(tmp_path / "s", acqu_name="acqus")
+    only_acqus = read_spectrum(folder)
+    write_spectrum(folder, acqu_name="acqu", ml=(ML1 * 1.01, ML2, ML3))   # a different calibration in acqu
+    both = read_spectrum(folder)
+    assert not np.allclose(only_acqus.mz, both.mz)
+    assert np.allclose(ML2 + ML3 * both.mz + math.sqrt(1e12 / (ML1 * 1.01)) * np.sqrt(both.mz),
+                       DELAY + np.arange(TD) * DW, rtol=1e-12)
+
+
+def test_a_short_fid_is_truncated_as_in_the_reference(tmp_path):
+    s = read_spectrum(write_spectrum(tmp_path / "s", td=TD + 500, intensities=100 + np.zeros(TD)))
+    assert s.mz.size == TD
+
+
+def test_values_are_parsed_as_the_reference_does():
+    lines = ["##$DW= 2,5", "##$NTBCal= <abc def>", "##$PATH= <x=y>"]
+    assert acqu_values(lines, "DW") == ["2,5"]
+    assert acqu_values(lines, "NTBCal") == ["abc def"]
+    assert acqu_values(lines, "PATH") == ["y"]          # greedy up to the last '=', as R's gsub
+
+
+def test_a_decimal_comma_is_read_as_a_point(tmp_path):
+    s = read_spectrum(write_spectrum(tmp_path / "s", extra=("##$DW= 2,0",), omit=("DW",)))
+    assert np.allclose(np.diff(DELAY + np.arange(TD) * 2.0), 2.0)
+    assert s.mz.size == TD
+
+
+def hpc_lines(coefficients: str):
+    return ("##$HPClUse= yes", "##$HPClBLo= 5000", "##$HPClBHi= 15000", "##$HPClOrd= 2",
+            f"##$HPCStr= <V1.0VectorDouble 3 {coefficients} c2 0.0>")
+
+
+def test_hpc_is_applied_only_inside_its_limits(tmp_path):
+    plain = read_spectrum(write_spectrum(tmp_path / "a"))
+    hpc = read_spectrum(write_spectrum(tmp_path / "b", extra=hpc_lines("0.05 1e-6 0.0")))   # a sub-Da correction
+    inside = (plain.mz >= 5000) & (plain.mz <= 15000)
+    assert hpc.calibration == "tof2mass+hpc"
+    assert np.allclose(hpc.mz[inside], plain.mz[inside] - (0.05 + 1e-6 * plain.mz[inside]))
+    assert np.array_equal(hpc.mz[~inside], plain.mz[~inside])
+
+
+def test_an_hpc_correction_that_breaks_the_axis_is_refused(tmp_path):
+    # The reference subtracts the correction only inside its window, so a correction larger than the point spacing
+    # makes the axis step backwards at the window's edge. The reader's check refuses such a spectrum.
+    with pytest.raises(BrukerReadError) as e:
+        read_spectrum(write_spectrum(tmp_path / "s", extra=hpc_lines("0.5 0.001 0.0")))
+    assert e.value.reason == "axis_not_increasing"
+
+
+def test_hpc_is_ignored_unless_all_its_conditions_hold(tmp_path):
+    extra = ("##$HPClUse= no",) + hpc_lines("0.05 1e-6 0.0")[1:]
+    assert read_spectrum(write_spectrum(tmp_path / "s", extra=extra)).calibration == "tof2mass"
+
+
+def test_hpc_helpers():
+    assert np.allclose(hpc_coefficients("x V1.0VectorDouble 2 1.5 -2e-3 c2 7"), [1.5, -2e-3])
+    with pytest.raises(BrukerReadError) as e:
+        hpc_coefficients("no coefficients here")
+    assert e.value.reason == "invalid_hpc"
+    m = np.array([100.0, 200.0, 300.0])
+    assert np.allclose(apply_hpc(m, 150, 250, np.array([1.0, 0.01])), [100.0, 200.0 - 3.0, 300.0])
+
+
+@pytest.mark.parametrize(("kwargs", "reason"), [
+    ({"extra": ("##$NTBCal= <V1.0CTOF2CalibrationConstants 48 0.25 3884 1164156 6.16 -0.06 -34.3 2 "
+                "V1.0CTOF2CalibrationConstants>",)}, "unsupported_calibration_ctof2"),
+    ({"extra": ("##$SPType= 2",)}, "lift_spectrum"),
+    ({"extra": ("##$Lift1= 1.5", "##$Lift2= 2.5")}, "lift_spectrum"),
+    ({"extra": ("##$TLift= 3",)}, "lift_spectrum"),
+    ({"omit": ("ML1",)}, "no_calibration"),
+    ({"ml": (-1.0, ML2, ML3)}, "no_calibration"),
+    ({"omit": ("TD",)}, "unreadable"),
+    ({"omit": ("BYTORDA",)}, "unreadable"),
+    ({"intensities": np.zeros(TD)}, "empty"),
+    ({"td": 2000}, "range_not_covered"),
+    ({"dw": -2.0, "delay": 82500.0}, "axis_not_increasing"),
+])
+def test_refusals_carry_a_reason_and_no_data(tmp_path, kwargs, reason):
+    with pytest.raises(BrukerReadError) as e:
+        read_spectrum(write_spectrum(tmp_path / "s", **kwargs))
+    assert e.value.reason == reason
+    assert str(e.value) == reason            # the message is the reason code only: no path, no value
+
+
+def test_a_bruker_spectrum_gives_the_frozen_feature_layout(tmp_path):
+    from src.preprocessing import PreprocessingConfig, preprocess_arrays
+    cfg = PreprocessingConfig()
+    assert cfg.fingerprint() == "347cbd6d5d956ff9"          # the fingerprint both frozen bundles store
+    tof = DELAY + np.arange(TD) * DW
+    mz = ((-math.sqrt(1e12 / ML1) + np.sqrt(1e12 / ML1 - 4 * ML3 * (ML2 - tof))) / (2 * ML3)) ** 2
+    peaks = sum(5000 * np.exp(-0.5 * ((mz - c) / 4.0) ** 2) for c in (2500, 4365, 6255, 9000, 15000))
+    intensities = np.round(200 + peaks).astype(int)
+    s = read_spectrum(write_spectrum(tmp_path / "s", intensities=intensities))
+    features, info = preprocess_arrays(s.mz, s.intensity, cfg)
+    assert features.shape == (6000,) and np.isfinite(features).all()
+    assert info.nonzero_bins > 0
+
+
+def test_missing_files_are_refused(tmp_path):
+    (tmp_path / "s").mkdir()
+    with pytest.raises(BrukerReadError) as e:
+        read_spectrum(tmp_path / "s")
+    assert e.value.reason == "missing_files"
+
+
+def test_a_spectrum_read_from_a_zip_equals_the_same_spectrum_read_from_disk(tmp_path):
+    import zipfile
+
+    from src.bruker import read_spectrum_from_zip
+    folder = write_spectrum(tmp_path / "s" / "0_A1" / "1" / "1SLin", acqu_name="acqus", extra=hpc_lines("0.05 1e-6 0"))
+    archive_path = tmp_path / "a.zip"
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(folder.iterdir()):
+            z.write(f, f"2020/s/0_A1/1/1SLin/{f.name}")
+    with zipfile.ZipFile(archive_path) as z:
+        names = set(z.namelist())
+        from_zip = read_spectrum_from_zip(z, "2020/s/0_A1/1/1SLin", names)
+        with pytest.raises(BrukerReadError) as e:
+            read_spectrum_from_zip(z, "2020/s/0_A1/2/1SLin", names)
+    from_disk = read_spectrum(folder)
+    assert np.array_equal(from_zip.mz, from_disk.mz) and np.array_equal(from_zip.intensity, from_disk.intensity)
+    assert from_zip.calibration == from_disk.calibration == "tof2mass+hpc"
+    assert e.value.reason == "missing_files"
