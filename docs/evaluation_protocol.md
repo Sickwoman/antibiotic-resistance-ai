@@ -535,3 +535,18 @@ note is proposed, and nothing in it is approved. Note A stays exactly as recorde
 3. **Conclusion wording.** A rejected hypothesis is reported only as "Evidence of above-chance ranking on MARISMa under
    the isolate-independence assumption". This is never read as clinical utility, or as internal performance
    maintained.
+
+#### Amendment 12, note C — 2026-10-03T15:21:12Z: approval of steps 1–3
+
+The owner approved all 17 decisions of the Version 2.0 approval statement (PR #35 at commit
+`462a00aa0542991a37f17634469d63ac28bd115f`, including plan amendments A and B and notes A and B). In doing so, the owner
+explicitly accepted:
+- the missing-patient-linkage limitation;
+- the conditional statistical interpretation;
+- the non-estimable primary-test rule.
+
+This authorises steps 1–3 of [the Version 2.0 plan](v2.0_marisma_plan.md) only: download, metadata cohort, restricted
+schema inspection, reader and frozen features.
+
+It does not authorise model scoring, unrestricted outcome access, fitting, recalibration, deployment, or merging
+PR #35. The approval record in the plan quotes the owner's words. Notes A and B stand as recorded.
