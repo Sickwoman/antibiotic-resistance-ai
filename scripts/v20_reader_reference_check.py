@@ -30,7 +30,6 @@ import math
 import sys
 import tempfile
 import textwrap
-import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -40,7 +39,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.bruker import BrukerReadError, _double, read_spectrum, read_spectrum_from_zip, tof2mass  # noqa: E402
+from src.bruker import BrukerReadError, _double, convert, read_spectrum, tof2mass  # noqa: E402
+from src.zip_index import iter_members, read_member  # noqa: E402
 
 PARAMETERS = ("TD", "DELAY", "DW", "ML1", "ML2", "ML3", "BYTORDA")
 
@@ -93,19 +93,22 @@ def main(argv: list[str] | None = None) -> int:
                              "maldi_nn_mz_within_1e-9_da": 0, "maldi_nn_intensity_equal": 0, "hpc_applied": 0,
                              "mz_equals_tof2mass_outside_hpc": 0}
     worst = {"maldi_nn_max_abs_mz_difference_da": 0.0, "inverse_calibration_max_abs_residual": 0.0}
-    with zipfile.ZipFile(provenance["zip"]) as archive, tempfile.TemporaryDirectory() as tmp:
-        names = set(archive.namelist())
+    wanted = {f"{f}/{m}" for f in rows["spectrum_folder"] for m in ("fid", "acqu", "acqus")}
+    members = {name: member for name, member in iter_members(provenance["zip"]) if name in wanted}
+    with open(provenance["zip"], "rb") as fh, tempfile.TemporaryDirectory() as tmp:
         for k, row in enumerate(rows.itertuples(index=False)):
             folder = Path(tmp) / str(k)
             folder.mkdir()
-            for member in ("fid", "acqu", "acqus"):
-                name = f"{row.spectrum_folder}/{member}"
-                if name in names:
-                    (folder / member).write_bytes(archive.read(name))
+            for part in ("fid", "acqu", "acqus"):
+                name = f"{row.spectrum_folder}/{part}"
+                if name in members:
+                    (folder / part).write_bytes(read_member(fh, members[name]))
             tally["checked"] += 1
             try:
-                ours = read_spectrum(folder)
-                from_zip = read_spectrum_from_zip(archive, row.spectrum_folder, names)
+                ours = read_spectrum(folder)       # from the extracted files, as readBrukerFlexData reads a folder
+                acqu_name = "acqu" if (folder / "acqu").is_file() else "acqus"
+                from_zip = convert((folder / acqu_name).read_text(encoding="latin-1").splitlines(),
+                                   read_member(fh, members[f"{row.spectrum_folder}/fid"]))
             except BrukerReadError:
                 tally["reader_refused"] += 1          # a selected spectrum should never be refused here
                 continue

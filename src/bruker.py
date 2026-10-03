@@ -30,8 +30,6 @@ from __future__ import annotations
 
 import math
 import re
-import zipfile
-from collections.abc import Container
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -138,21 +136,6 @@ def read_spectrum(folder: str | Path) -> BrukerSpectrum:
     try:
         return convert(acqu.read_text(encoding="latin-1").splitlines(), fid.read_bytes())
     except OSError as exc:
-        raise BrukerReadError("unreadable") from exc
-
-
-def read_spectrum_from_zip(archive: zipfile.ZipFile, folder: str, names: Container[str]) -> BrukerSpectrum:
-    """The same, for a spectrum folder inside an open zip archive, without extracting anything.
-
-    `folder` is the member path without a trailing slash; `names` holds the archive's member names (the caller builds
-    it once, since listing a large archive for every spectrum would be slow).
-    """
-    fid, acqu = f"{folder}/fid", f"{folder}/acqu" if f"{folder}/acqu" in names else f"{folder}/acqus"
-    if fid not in names or acqu not in names:
-        raise BrukerReadError("missing_files")
-    try:
-        return convert(archive.read(acqu).decode("latin-1").splitlines(), archive.read(fid))
-    except (OSError, zipfile.BadZipFile) as exc:
         raise BrukerReadError("unreadable") from exc
 
 

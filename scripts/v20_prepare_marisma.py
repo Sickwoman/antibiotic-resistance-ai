@@ -37,10 +37,10 @@ import hashlib
 import json
 import sys
 import time
-import zipfile
+import zlib
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import numpy as np
 import pandas as pd
@@ -64,6 +64,7 @@ from src.predict import load_bundle  # noqa: E402
 from src.preprocessing import PreprocessingConfig, PreprocessingError, preprocess_arrays  # noqa: E402
 from src.splits import load_splits  # noqa: E402
 from src.utils import get_logger, git_commit, keep_awake, load_config  # noqa: E402
+from src.zip_index import Member, ZipIndexError, iter_members, read_member  # noqa: E402
 
 FEATURE_FINGERPRINT = "347cbd6d5d956ff9"
 N_FEATURES = 6000
@@ -192,25 +193,29 @@ def build_cohort(names: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str,
 # --- 4-5. Selection and features ---
 
 class ArchiveReader:
-    """Reads one spectrum folder from the open archive, and keeps, for every attempt, its batch and outcome."""
+    """Reads one spectrum folder from the archive, and keeps, for every attempt, its batch and outcome.
 
-    def __init__(self, archive: zipfile.ZipFile, names: set[str]):
-        self.archive, self.names = archive, names
+    `members` maps member names to their place in the archive (src/zip_index.py); each read is checked against the
+    member's CRC-32. As in readBrukerFlexData, `acqu` is used if present, otherwise `acqus`.
+    """
+
+    def __init__(self, fh: BinaryIO, members: dict[str, Member]):
+        self.fh, self.members = fh, members
         self.attempts: list[dict[str, Any]] = []
         self.year = ""
 
     def __call__(self, folder: str) -> BrukerSpectrum:
-        fid, acqu = f"{folder}/fid", f"{folder}/acqu" if f"{folder}/acqu" in self.names else f"{folder}/acqus"
+        fid, acqu = f"{folder}/fid", f"{folder}/acqu" if f"{folder}/acqu" in self.members else f"{folder}/acqus"
         attempt: dict[str, Any] = {"year": self.year, "acquisition_month": "", "instrument": "", "reason": "",
                                    "acqu_file": acqu.rsplit("/", 1)[-1]}
         self.attempts.append(attempt)
-        if fid not in self.names or acqu not in self.names:
+        if fid not in self.members or acqu not in self.members:
             attempt["reason"] = "missing_files"
             raise BrukerReadError("missing_files")
         try:
-            lines = self.archive.read(acqu).decode("latin-1").splitlines()
-            fid_bytes = self.archive.read(fid)
-        except (OSError, zipfile.BadZipFile, EOFError):
+            lines = read_member(self.fh, self.members[acqu]).decode("latin-1").splitlines()
+            fid_bytes = read_member(self.fh, self.members[fid])
+        except (OSError, ZipIndexError, zlib.error):
             attempt["reason"] = "unreadable"
             raise BrukerReadError("unreadable") from None
         attempt["acquisition_month"] = _text(lines, "AQ_DATE")[:7]   # "YYYY-MM": a batch, not an identifier
@@ -230,7 +235,7 @@ class ArchiveReader:
         return spectrum
 
 
-def select_and_featurise(cohort: dict[str, dict[str, Any]], archive: zipfile.ZipFile, names: set[str],
+def select_and_featurise(cohort: dict[str, dict[str, Any]], fh: BinaryIO, members: dict[str, Member],
                          pcfg: PreprocessingConfig, work: Path
                          ) -> tuple[pd.DataFrame, list[Selection], list[dict[str, Any]], np.ndarray]:
     """Amendment A6.2 for every isolate, in isolate order; features of each selected spectrum go to X_all.npy."""
@@ -239,7 +244,7 @@ def select_and_featurise(cohort: dict[str, dict[str, Any]], archive: zipfile.Zip
                                   shape=(len(isolates), N_FEATURES))
     records, outcomes = [], []
     started = time.perf_counter()
-    reader = ArchiveReader(archive, names)
+    reader = ArchiveReader(fh, members)
     for i, isolate in enumerate(isolates):
         year, replicates = cohort[isolate]["year"], cohort[isolate]["replicates"]
         reader.year = year
@@ -374,23 +379,26 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     pcfg = frozen_preprocessing()
     result["feature_fingerprint"] = pcfg.fingerprint()
 
-    log.info("indexing the archive's member names")
-    with zipfile.ZipFile(args.zip) as archive:
-        names = archive.namelist()
-        result["archive"] = {"members": len(names)}
-        cohort, counts, folders = build_cohort(names)
-        prefixes = tuple(f"MARISMa/{y}/{SPECIES[0]}/{SPECIES[1]}/" for y in YEARS)
-        ecoli_names = {n for n in names if n.startswith(prefixes)}
-        del names
-        folders.to_csv(args.work / "replicate_folders.csv", index=False, lineterminator="\n")
-        result["cohort_rules"] = counts
-        result["source_rule"] = {
-            "applied": False,
-            "status": "blocked: the source field is not in the archive, and amendment A2 lets no code read a "
-                      "non-antibiotic field of AMR.csv, so the dated addendum cannot be written"}
+    log.info("indexing the archive's central directory")
+    prefixes = tuple(f"MARISMa/{y}/{SPECIES[0]}/{SPECIES[1]}/" for y in YEARS)
+    names, members = [], {}
+    for name, member in iter_members(args.zip):
+        names.append(name)
+        if name.startswith(prefixes):
+            members[name] = member            # only the E. coli members' places are kept
+    result["archive"] = {"members": len(names)}
+    cohort, counts, folders = build_cohort(names)
+    del names
+    folders.to_csv(args.work / "replicate_folders.csv", index=False, lineterminator="\n")
+    result["cohort_rules"] = counts
+    result["source_rule"] = {
+        "applied": False,
+        "status": "blocked: the source field is not in the archive, and amendment A2 lets no code read a "
+                  "non-antibiotic field of AMR.csv, so the dated addendum cannot be written"}
 
-        log.info("selecting one spectrum per isolate for %d isolates", len(cohort))
-        selection, outcomes, attempts, X = select_and_featurise(cohort, archive, ecoli_names, pcfg, args.work)
+    log.info("selecting one spectrum per isolate for %d isolates", len(cohort))
+    with open(args.zip, "rb") as fh:
+        selection, outcomes, attempts, X = select_and_featurise(cohort, fh, members, pcfg, args.work)
     selection.to_csv(args.work / "selection.csv", index=False, lineterminator="\n")
     pd.DataFrame(attempts).to_csv(args.work / "attempts.csv", index=False, lineterminator="\n")
     result["exclusions"] = exclusion_summary(outcomes)

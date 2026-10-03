@@ -158,22 +158,3 @@ def test_missing_files_are_refused(tmp_path):
         read_spectrum(tmp_path / "s")
     assert e.value.reason == "missing_files"
 
-
-def test_a_spectrum_read_from_a_zip_equals_the_same_spectrum_read_from_disk(tmp_path):
-    import zipfile
-
-    from src.bruker import read_spectrum_from_zip
-    folder = write_spectrum(tmp_path / "s" / "0_A1" / "1" / "1SLin", acqu_name="acqus", extra=hpc_lines("0.05 1e-6 0"))
-    archive_path = tmp_path / "a.zip"
-    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for f in sorted(folder.iterdir()):
-            z.write(f, f"2020/s/0_A1/1/1SLin/{f.name}")
-    with zipfile.ZipFile(archive_path) as z:
-        names = set(z.namelist())
-        from_zip = read_spectrum_from_zip(z, "2020/s/0_A1/1/1SLin", names)
-        with pytest.raises(BrukerReadError) as e:
-            read_spectrum_from_zip(z, "2020/s/0_A1/2/1SLin", names)
-    from_disk = read_spectrum(folder)
-    assert np.array_equal(from_zip.mz, from_disk.mz) and np.array_equal(from_zip.intensity, from_disk.intensity)
-    assert from_zip.calibration == from_disk.calibration == "tof2mass+hpc"
-    assert e.value.reason == "missing_files"

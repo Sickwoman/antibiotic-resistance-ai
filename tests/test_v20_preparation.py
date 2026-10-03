@@ -65,7 +65,7 @@ def write_spectrum_files(ml1=3.19e6, td=28750, intensities=None, extra=()):
     return ("\n".join(lines) + "\n").encode("latin-1"), np.asarray(intensities, dtype="<i4").tobytes()
 
 
-def test_selection_and_features_on_a_synthetic_archive(tmp_path, monkeypatch):
+def test_selection_and_features_on_a_synthetic_archive(tmp_path):
     prep = load(PREPARATION)
     good, bad = write_spectrum_files(), write_spectrum_files(td=2000)          # bad: does not reach 20,000 Da
     layout = {("iso1", "b1", "1"): good, ("iso2", "b1", "1"): bad, ("iso2", "b2", "1"): good,
@@ -79,13 +79,14 @@ def test_selection_and_features_on_a_synthetic_archive(tmp_path, monkeypatch):
         z.writestr("MARISMa/2021/Klebsiella/Pneumoniae/iso5/b1/1/1SLin/fid", fid)  # another species
         z.writestr("MARISMa/2021/Escherichia/Coli/iso5/b1/1/1SLin/fid", fid)       # ... and E. coli: inconsistent
     from src.preprocessing import PreprocessingConfig
-    with zipfile.ZipFile(archive) as z:
-        names = z.namelist()
-        cohort, counts, folders = prep.build_cohort(names)
-        assert sorted(cohort) == ["iso1", "iso2", "iso3", "iso4"]
-        assert counts["species_consistency_rule"]["excluded_identifiers"] == 1
-        assert counts["replicate_folders"]["isolates_without_any"] == 1
-        selection, outcomes, attempts, X = prep.select_and_featurise(cohort, z, set(names), PreprocessingConfig(),
+    from src.zip_index import iter_members
+    members = dict(iter_members(archive))
+    cohort, counts, folders = prep.build_cohort(list(members))
+    assert sorted(cohort) == ["iso1", "iso2", "iso3", "iso4"]
+    assert counts["species_consistency_rule"]["excluded_identifiers"] == 1
+    assert counts["replicate_folders"]["isolates_without_any"] == 1
+    with open(archive, "rb") as fh:
+        selection, outcomes, attempts, X = prep.select_and_featurise(cohort, fh, members, PreprocessingConfig(),
                                                                       tmp_path)
     assert selection["status"].tolist() == ["selected", "selected", "no_passing_replicate", "no_replicate_folder"]
     assert selection["biological"].tolist() == ["b1", "b2", "", ""]
