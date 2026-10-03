@@ -520,3 +520,18 @@ separately.
 3. **Item 4's test.** Each primary hypothesis is tested by a one-sided Brunner–Munzel test, with Holm over the fixed
    two-hypothesis family (plan amendment A3). An antibiotic that is dropped, or falls below the minimums, enters with
    p = 1.
+
+#### Amendment 12, note B — 2026-10-03: final pre-data clarifications (recorded before any MARISMa file is downloaded)
+
+Recorded with amendment B of [the Version 2.0 plan](v2.0_marisma_plan.md), which governs where the two differ. The
+note is proposed, and nothing in it is approved. Note A stays exactly as recorded, and this note is pinned separately.
+
+1. **A non-finite test is not estimable.** If the Brunner–Munzel statistic or its p-value is not finite, the primary
+   test is reported as "not estimable", and the antibiotic enters the fixed Holm family with p = 1. No fallback test is
+   run. Descriptive metrics are kept wherever they are defined.
+2. **Error control.** "Brunner–Munzel inference is approximate and assumes independent isolates. Holm adjustment does
+   not repair invalid component p-values. Missing patient linkage leaves actual error control uncertain." The
+   family-wise α of 0.05 in item 4 is the nominal design level, not a guarantee.
+3. **Conclusion wording.** A rejected hypothesis is reported only as "Evidence of above-chance ranking on MARISMa under
+   the isolate-independence assumption". This is never read as clinical utility, or as internal performance
+   maintained.
