@@ -7,7 +7,8 @@ documentation pass rewrote a row of the locked-items table. Nothing caught it, b
 
 This test checks. Each document's locked text is pinned by its length and SHA-256, and the file on disk must
 still begin with exactly those bytes. Anything may be added *after* the locked text — that is what addenda
-are — but a change anywhere inside it fails here.
+are — but a change anywhere inside it fails here. An addendum can in turn be pinned as its own segment
+(LOCKED_AMENDMENTS), so recording it never changes the earlier pin.
 
 Pinned by digest rather than by `git show <commit>:path` on purpose: CI checks the repository out shallowly,
 so the commits these baselines come from are not present there, and a history-based test would fail in CI
@@ -33,8 +34,8 @@ from src.utils import project_path
 # b6016a3 the pin covered the whole file through amendment 8, approved with the Version 1.1 plan, and since
 # db48bff through amendment 9, recorded with the Version 1.2 plan; each longer pin begins with the earlier
 # one's bytes unchanged, so no earlier guarantee is lost. When a later amendment is recorded, extend the pin
-# to it the same way. Since 2242327 the pin runs through amendment 10 (Version 1.3), and since 5600efb through
-# amendment 11 (Version 1.4).
+# to it the same way. Since 2242327 the pin runs through amendment 10 (Version 1.3), since 5600efb through
+# amendment 11 (Version 1.4), and since 186a9d1 through amendment 12 (Version 2.0).
 LOCKED: dict[str, tuple[int, str, str]] = {
     "docs/v0.4_search_plan.md": (
         7109, "df3544c61d2d0ebf97338bcd19866aa673de7e68116c54d76a91f16e3e67d7a5", "ddeae53"),
@@ -58,8 +59,10 @@ LOCKED: dict[str, tuple[int, str, str]] = {
         16104, "ee8be88e641ee31595c1cf9fad51a1708430372b4e40f7f9bcc854be52639151", "2242327"),
     "docs/v1.4_screening_plan.md": (
         18244, "9c7ab5cfda3ce33cffa2f594388d6792743cddb448a555e9feed59c2670c032b", "5600efb"),
+    "docs/v2.0_marisma_plan.md": (
+        15422, "d49189da36112e6ed131a8be549dded56c0c80d9f0c7441107bf25ff56d12859", "186a9d1"),
     "docs/evaluation_protocol.md": (
-        38155, "093deec943a6dc26a54eb96d72fbf6f2bb283d7d44803970375d87528d751985", "5600efb"),
+        39768, "94de3fe0f58bb9c356999377c4d359a54a1ab17ea0f3ebc91ed302259b62438d", "186a9d1"),
 }
 
 
@@ -92,3 +95,45 @@ def test_the_check_would_notice_an_edit():
     text = bytearray(locked_prefix("docs/v1.0_plan.md", length))
     text[length // 2] ^= 0x01
     assert hashlib.sha256(bytes(text)).hexdigest() != digest
+
+
+# Dated amendments recorded after a document's locked text are pinned separately, so that the earlier pin stays
+# exactly as it was locked: path -> [(start, length, SHA-256, commit), ...] in file order. The first amendment starts
+# where the locked text ends, and each later one where the previous amendment ends. Since 873aed5: Version 2.0 plan
+# amendment A and protocol amendment 12, note A; since 886076a: plan amendment B and note B (pre-data
+# clarifications; their approval is pending).
+LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
+    "docs/v2.0_marisma_plan.md": [
+        (15422, 19573, "f8cee0a947f7ba15cec6ebdb1040f8fbc44b52aaf84ebf0e22384d5d3e3589dd", "873aed5"),
+        (34995, 5652, "c8204365e7c9b84f23fd07f65132a11cefb20d27e61047d30394c81e8d9c1ca5", "886076a")],
+    "docs/evaluation_protocol.md": [
+        (39768, 1142, "e7e09fd41721eded12b019e42455358c7593a8a771fdda0728d7aa0fd3c8c197", "873aed5"),
+        (40910, 1216, "68e495810e09ae281ecbb15f9c8508f1dc69446a72f7fd9b2ae872ecef871969", "886076a")],
+}
+AMENDMENT_CASES = [(path, i) for path in sorted(LOCKED_AMENDMENTS) for i in range(len(LOCKED_AMENDMENTS[path]))]
+
+
+def locked_segment(path: str, start: int, length: int) -> bytes:
+    data = project_path(path).read_bytes().replace(b"\r\n", b"\n")
+    assert len(data) >= start + length, f"{path} is shorter than its pinned amendments: something was deleted from it"
+    return data[start:start + length]
+
+
+@pytest.mark.parametrize(("path", "index"), AMENDMENT_CASES)
+def test_each_pinned_amendment_is_unchanged(path: str, index: int):
+    start, length, digest, commit = LOCKED_AMENDMENTS[path][index]
+    actual = hashlib.sha256(locked_segment(path, start, length)).hexdigest()
+    assert actual == digest, (
+        f"{path} no longer holds, from byte {start}, the amendment pinned at {commit}. An amendment, like the text "
+        f"it amends, may only be followed by a later dated entry, never edited in place.")
+
+
+def test_pinned_amendments_follow_the_locked_text():
+    """Each pinned amendment starts exactly where the locked text, or the amendment before it, ends."""
+    for path, segments in LOCKED_AMENDMENTS.items():
+        assert path in LOCKED, f"{path} has a pinned amendment but no locked text"
+        end = LOCKED[path][0]
+        for start, length, _, _ in segments:
+            assert start == end, (
+                f"{path}: an amendment pinned at byte {start} does not start where the text before it ends")
+            end = start + length
