@@ -13,11 +13,12 @@ project and are never imported by it:
 A third check needs no code from anyone: every converted mass must satisfy the calibration's inverse,
 tof = ML2 + ML3*m + sqrt(1e12/ML1)*sqrt(m), the equation readBrukerFlexData documents.
 
-The spectra checked are a seeded sample of the spectra selected for the cohort. Their folders are extracted one at a
-time to a temporary folder outside the repository and deleted afterwards. The output holds aggregate counts and
-deviations only: no identifier and no path.
+The sample is seeded and drawn from all of the cohort's replicate folders, so it includes spectra the registered
+checks refuse: the decoding (`decode`) is compared for every spectrum, and whether `convert` accepts it is counted.
+Folders are extracted one at a time to a temporary folder outside the repository and deleted afterwards. The output
+holds aggregate counts and deviations only: no identifier and no path.
 
-    python scripts/v20_reader_reference_check.py --work C:/DRIAMS/MARISMa_v2.0.0_work --references <folder>
+    python scripts/v20_reader_reference_check.py --references <folder>
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ import math
 import sys
 import tempfile
 import textwrap
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -39,10 +41,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.bruker import BrukerReadError, _double, convert, read_spectrum, tof2mass  # noqa: E402
+from src.bruker import BrukerReadError, _double, _text, convert, decode, tof2mass  # noqa: E402
+from src.utils import load_config  # noqa: E402
 from src.zip_index import iter_members, read_member  # noqa: E402
 
 PARAMETERS = ("TD", "DELAY", "DW", "ML1", "ML2", "ML3", "BYTORDA")
+CHECKS = ("zip_equals_disk", "parameters_equal", "fid_equal", "maldi_nn_mz_within_1e-9_da",
+          "maldi_nn_intensity_equal", "mz_equals_tof2mass_outside_hpc")
 
 
 def maldi_nn_reference(spectrum_py: Path):
@@ -68,12 +73,58 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def compare(folder: Path, streamed_fid: bytes, ngb, Reference) -> tuple[dict[str, bool], dict[str, float], str, str]:
+    """One spectrum: which checks agree, the deviations, the instrument, and whether `convert` accepts it."""
+    acqu = folder / "acqu" if (folder / "acqu").is_file() else folder / "acqus"
+    lines = acqu.read_text(encoding="latin-1").splitlines()
+    fid = (folder / "fid").read_bytes()
+    ours = decode(lines, fid)
+    try:
+        convert(lines, fid)
+        verdict = "accepted"
+    except BrukerReadError as exc:
+        verdict = exc.reason
+    from_zip = decode(lines, streamed_fid)
+    ok = {"zip_equals_disk": np.array_equal(ours.mz, from_zip.mz) and np.array_equal(ours.intensity,
+                                                                                      from_zip.intensity)}
+    worst = {}
+    td, delay, dw, ml1, ml2, ml3, bytorda = (_double(lines, p) for p in PARAMETERS)
+
+    dic = ngb.read_jcamp(str(acqu))
+    theirs = [float(dic[p]) for p in PARAMETERS]
+    _, raw = ngb.read_binary(str(folder / "fid"), shape=(-1,), cplex=False, big=bytorda == 1, isfloat=False)
+    ok["parameters_equal"] = theirs == [td, delay, dw, ml1, ml2, ml3, bytorda]
+    raw = np.asarray(raw).ravel()[: int(td)].astype(np.float64)
+    raw[raw < 0] = 0
+    ok["fid_equal"] = np.array_equal(raw, ours.intensity)
+
+    tof = delay + np.arange(ours.mz.size) * dw
+    base = tof2mass(tof, ml1, ml2, ml3)
+    implied = ml2 + ml3 * base + math.sqrt(1e12 / ml1) * np.sqrt(base)
+    worst["inverse_calibration_max_abs_residual"] = float(np.max(np.abs(implied - tof)))
+    if ours.calibration == "tof2mass+hpc":
+        lo, hi = _double(lines, "HPClBLo"), _double(lines, "HPClBHi")
+        outside = (base < lo) | (base > hi)
+        ok["mz_equals_tof2mass_outside_hpc"] = np.array_equal(ours.mz[outside], base[outside])
+    else:
+        ok["mz_equals_tof2mass_outside_hpc"] = np.array_equal(ours.mz, base)
+
+    ref = Reference.from_bruker(str(acqu), str(folder / "fid"))
+    ref_mz, ref_intensity = np.asarray(ref.mz, dtype=np.float64), np.asarray(ref.intensity, dtype=np.float64)
+    same_shape = ref_mz.shape == base.shape and ref_intensity.shape == ours.intensity.shape
+    worst["maldi_nn_max_abs_mz_difference_da"] = float(np.max(np.abs(ref_mz - base))) if same_shape else math.inf
+    ok["maldi_nn_mz_within_1e-9_da"] = same_shape and worst["maldi_nn_max_abs_mz_difference_da"] <= 1e-9
+    ok["maldi_nn_intensity_equal"] = same_shape and np.array_equal(ref_intensity, ours.intensity)
+    return ok, worst, _text(lines, "INSTRUM"), verdict
+
+
 def main(argv: list[str] | None = None) -> int:
+    data_root = Path(load_config()["paths"]["driams_root"])
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--work", type=Path, required=True, help="the step-3 work folder (outside the repository)")
+    parser.add_argument("--work", type=Path, default=data_root / "MARISMa_v2.0.0_work")
     parser.add_argument("--references", type=Path, required=True,
                         help="folder holding the unpacked nmrglue 0.12 and maldi-nn 0.2.5 wheels")
-    parser.add_argument("--n", type=int, default=300)
+    parser.add_argument("--n", type=int, default=400)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out", type=Path, default=ROOT / "results/metrics/v2.0/reader_reference_check.json")
     args = parser.parse_args(argv)
@@ -82,94 +133,48 @@ def main(argv: list[str] | None = None) -> int:
     import nmrglue.fileio.bruker as ngb  # noqa: PLC0415 - third-party reference, from --references only
 
     Reference = maldi_nn_reference(args.references / "maldi_nn/spectrum.py")
-    provenance = json.loads((args.work / "inputs.json").read_text(encoding="utf-8"))
-    selected = pd.read_csv(args.work / "selection.csv", dtype=str, keep_default_na=False)
-    selected = selected[selected["status"] == "selected"].sort_values("isolate").reset_index(drop=True)
+    zip_path = json.loads((args.work / "inputs.json").read_text(encoding="utf-8"))["zip"]
+    frame = pd.read_csv(args.work / "replicate_folders.csv", dtype=str, keep_default_na=False)
+    frame = frame.sort_values("folder").reset_index(drop=True)
     rng = np.random.default_rng(args.seed)
-    rows = selected.iloc[np.sort(rng.choice(len(selected), size=min(args.n, len(selected)), replace=False))]
+    rows = frame.iloc[np.sort(rng.choice(len(frame), size=min(args.n, len(frame)), replace=False))]
 
-    tally: dict[str, int] = {"checked": 0, "reader_refused": 0, "zip_equals_disk": 0, "nmrglue_error": 0,
-                             "parameters_equal": 0, "fid_equal": 0, "maldi_nn_error": 0, "maldi_nn_compared": 0,
-                             "maldi_nn_mz_within_1e-9_da": 0, "maldi_nn_intensity_equal": 0, "hpc_applied": 0,
-                             "mz_equals_tof2mass_outside_hpc": 0}
-    worst = {"maldi_nn_max_abs_mz_difference_da": 0.0, "inverse_calibration_max_abs_residual": 0.0}
-    wanted = {f"{f}/{m}" for f in rows["spectrum_folder"] for m in ("fid", "acqu", "acqus")}
-    members = {name: member for name, member in iter_members(provenance["zip"]) if name in wanted}
-    with open(provenance["zip"], "rb") as fh, tempfile.TemporaryDirectory() as tmp:
-        for k, row in enumerate(rows.itertuples(index=False)):
+    wanted = {f"{f}/{m}" for f in rows["folder"] for m in ("fid", "acqu", "acqus")}
+    members = {name: member for name, member in iter_members(zip_path) if name in wanted}
+    per_group: dict[str, Counter] = defaultdict(Counter)
+    worst: dict[str, float] = defaultdict(float)
+    errors: Counter = Counter()
+    with open(zip_path, "rb") as fh, tempfile.TemporaryDirectory() as tmp:
+        for k, folder_name in enumerate(rows["folder"]):
             folder = Path(tmp) / str(k)
             folder.mkdir()
             for part in ("fid", "acqu", "acqus"):
-                name = f"{row.spectrum_folder}/{part}"
-                if name in members:
-                    (folder / part).write_bytes(read_member(fh, members[name]))
-            tally["checked"] += 1
+                if f"{folder_name}/{part}" in members:
+                    (folder / part).write_bytes(read_member(fh, members[f"{folder_name}/{part}"]))
             try:
-                ours = read_spectrum(folder)       # from the extracted files, as readBrukerFlexData reads a folder
-                acqu_name = "acqu" if (folder / "acqu").is_file() else "acqus"
-                from_zip = convert((folder / acqu_name).read_text(encoding="latin-1").splitlines(),
-                                   read_member(fh, members[f"{row.spectrum_folder}/fid"]))
-            except BrukerReadError:
-                tally["reader_refused"] += 1          # a selected spectrum should never be refused here
+                ok, deviations, instrument, verdict = compare(
+                    folder, read_member(fh, members[f"{folder_name}/fid"]), ngb, Reference)
+            except Exception as exc:                  # noqa: BLE001 - any failure is counted, never hidden
+                errors[type(exc).__name__] += 1
                 continue
-            tally["zip_equals_disk"] += int(np.array_equal(ours.mz, from_zip.mz)
-                                             and np.array_equal(ours.intensity, from_zip.intensity))
-            acqu = folder / "acqu" if (folder / "acqu").is_file() else folder / "acqus"
-            lines = acqu.read_text(encoding="latin-1").splitlines()
-            td, delay, dw, ml1, ml2, ml3, bytorda = (_double(lines, p) for p in PARAMETERS)
+            finally:
+                for f in folder.iterdir():
+                    f.unlink()
+                folder.rmdir()
+            group = f"{instrument} / {'accepted' if verdict == 'accepted' else 'refused: ' + verdict}"
+            per_group[group]["spectra"] += 1
+            for check, agreed in ok.items():
+                per_group[group][check] += int(agreed)
+            for key, value in deviations.items():
+                worst[key] = max(worst[key], value)
 
-            # nmrglue: parameter parsing, byte order and integer decoding
-            try:
-                dic = ngb.read_jcamp(str(acqu))
-                theirs = [float(dic[p]) for p in PARAMETERS]
-                _, raw = ngb.read_binary(str(folder / "fid"), shape=(-1,), cplex=False, big=bytorda == 1,
-                                         isfloat=False)
-            except Exception:                         # noqa: BLE001 - any failure of the reference is counted
-                tally["nmrglue_error"] += 1
-            else:
-                tally["parameters_equal"] += int(theirs == [td, delay, dw, ml1, ml2, ml3, bytorda])
-                raw = np.asarray(raw).ravel()[: int(td)].astype(np.float64)
-                raw[raw < 0] = 0
-                tally["fid_equal"] += int(np.array_equal(raw, ours.intensity))
-
-            # the documented equation, and maldi-nn's port of readBrukerFlexData (which has no HPC)
-            tof = delay + np.arange(ours.mz.size) * dw
-            base = tof2mass(tof, ml1, ml2, ml3)
-            implied = ml2 + ml3 * base + math.sqrt(1e12 / ml1) * np.sqrt(base)
-            worst["inverse_calibration_max_abs_residual"] = max(worst["inverse_calibration_max_abs_residual"],
-                                                                float(np.max(np.abs(implied - tof))))
-            if ours.calibration == "tof2mass+hpc":
-                tally["hpc_applied"] += 1
-                lo, hi = _double(lines, "HPClBLo"), _double(lines, "HPClBHi")
-                outside = (base < lo) | (base > hi)
-                tally["mz_equals_tof2mass_outside_hpc"] += int(np.array_equal(ours.mz[outside], base[outside]))
-            else:
-                tally["mz_equals_tof2mass_outside_hpc"] += int(np.array_equal(ours.mz, base))
-            try:
-                ref = Reference.from_bruker(str(acqu), str(folder / "fid"))
-                ref_mz = np.asarray(ref.mz, dtype=np.float64)
-                ref_intensity = np.asarray(ref.intensity, dtype=np.float64)
-            except Exception:                         # noqa: BLE001 - any failure of the reference is counted
-                tally["maldi_nn_error"] += 1
-            else:
-                tally["maldi_nn_compared"] += 1
-                if ref_mz.shape == base.shape and ref_intensity.shape == ours.intensity.shape:
-                    diff = float(np.max(np.abs(ref_mz - base)))
-                    worst["maldi_nn_max_abs_mz_difference_da"] = max(worst["maldi_nn_max_abs_mz_difference_da"],
-                                                                     diff)
-                    tally["maldi_nn_mz_within_1e-9_da"] += int(diff <= 1e-9)
-                    tally["maldi_nn_intensity_equal"] += int(np.array_equal(ref_intensity, ours.intensity))
-                else:
-                    worst["maldi_nn_max_abs_mz_difference_da"] = float("inf")
-            for f in folder.iterdir():
-                f.unlink()
-            folder.rmdir()
-
+    checked = sum(c["spectra"] for c in per_group.values())
+    all_agree = not errors and all(c[check] == c["spectra"] for c in per_group.values() for check in CHECKS)
     result = {
-        "what": "Version 2.0 step 3: the Bruker reader against independent implementations, on real MARISMa "
-                "spectra (spectra only; no label, no outcome file, no model).",
-        "sample": {"from": "spectra selected for the cohort", "n": int(tally["checked"]), "seed": args.seed,
-                   "of": int(len(selected))},
+        "what": "Version 2.0 step 3: the Bruker reader's decoding against independent implementations, on real "
+                "MARISMa spectra (spectra only; no label, no outcome file, no model).",
+        "sample": {"from": "all of the cohort's replicate folders (accepted and refused by the registered checks)",
+                   "n": int(len(rows)), "of": int(len(frame)), "seed": args.seed, "compared": checked},
         "references": {
             "nmrglue": {"version": "0.12", "licence": "BSD", "used": "fileio.bruker.read_jcamp, read_binary",
                         "bruker_py_sha256": sha256(args.references / "nmrglue/fileio/bruker.py")},
@@ -177,19 +182,16 @@ def main(argv: list[str] | None = None) -> int:
                          "spectrum_py_sha256": sha256(args.references / "maldi_nn/spectrum.py")},
             "documented_equation": "tof = ML2 + ML3*m + sqrt(1e12/ML1)*sqrt(m) (readBrukerFlexData .tof2mass)",
         },
-        "counts": tally,
-        "worst": worst,
+        "checks": list(CHECKS),
+        "by_instrument_and_verdict": {g: dict(c) for g, c in sorted(per_group.items())},
+        "worst": dict(worst),
+        "errors": dict(errors),
+        "all_agree": all_agree,
     }
-    n = tally["checked"]
-    ok = (tally["reader_refused"] == 0 and tally["nmrglue_error"] == 0 and tally["maldi_nn_error"] == 0
-          and n == tally["zip_equals_disk"] == tally["parameters_equal"] == tally["fid_equal"]
-          == tally["maldi_nn_mz_within_1e-9_da"] == tally["maldi_nn_intensity_equal"]
-          == tally["mz_equals_tof2mass_outside_hpc"])
-    result["all_agree"] = ok
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2))
-    return 0 if ok else 1
+    return 0 if all_agree else 1
 
 
 if __name__ == "__main__":

@@ -139,8 +139,12 @@ def read_spectrum(folder: str | Path) -> BrukerSpectrum:
         raise BrukerReadError("unreadable") from exc
 
 
-def convert(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
-    """Convert one spectrum from its `acqu` lines and `fid` bytes, as readBrukerFlexFile does with its defaults."""
+def decode(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
+    """Decode one spectrum from its `acqu` lines and `fid` bytes, as readBrukerFlexFile does with its defaults.
+
+    The registered checks on the result (see `convert`) are not applied here, so that the reference check can validate
+    the decoding of spectra those checks refuse. The pipeline always uses `convert`.
+    """
     td, delay, dw, bytorda = (_double(lines, k) for k in ("TD", "DELAY", "DW", "BYTORDA"))
     if any(v is None or not math.isfinite(v) for v in (td, delay, dw, bytorda)) or td < 1 or td != int(td):
         raise BrukerReadError("unreadable")
@@ -171,7 +175,14 @@ def convert(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
     if _text(lines, "HPClUse") == "yes" and all(v is not None and v > 0 for v in (hpc_lo, hpc_hi, hpc_order)):
         mz = apply_hpc(mz, hpc_lo, hpc_hi, hpc_coefficients(_text(lines, "HPCStr")))
         calibration = "tof2mass+hpc"
+    return BrukerSpectrum(mz, intensity, calibration, _text(lines, "AQ_DATE"), _text(lines, "INSTRUM"))
 
+
+def convert(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
+    """`decode`, then the checks registered for Version 2.0: non-empty, finite, strictly increasing, and covering
+    2,000-20,000 Da. A spectrum failing one is refused with its reason."""
+    spectrum = decode(lines, fid_bytes)
+    mz, intensity = spectrum.mz, spectrum.intensity
     if not intensity.any():
         raise BrukerReadError("empty")
     if not (np.isfinite(mz).all() and np.isfinite(intensity).all()):
@@ -180,4 +191,4 @@ def convert(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
         raise BrukerReadError("axis_not_increasing")
     if mz[0] > REQUIRED_RANGE[0] or mz[-1] < REQUIRED_RANGE[1]:
         raise BrukerReadError("range_not_covered")
-    return BrukerSpectrum(mz, intensity, calibration, _text(lines, "AQ_DATE"), _text(lines, "INSTRUM"))
+    return spectrum

@@ -158,3 +158,17 @@ def test_missing_files_are_refused(tmp_path):
         read_spectrum(tmp_path / "s")
     assert e.value.reason == "missing_files"
 
+
+
+def test_decode_returns_what_convert_refuses_and_agrees_where_convert_accepts(tmp_path):
+    from src.bruker import convert, decode
+    folder = write_spectrum(tmp_path / "s")
+    lines = (folder / "acqu").read_text(encoding="latin-1").splitlines()
+    fid = (folder / "fid").read_bytes()
+    accepted, decoded = convert(lines, fid), decode(lines, fid)
+    assert np.array_equal(accepted.mz, decoded.mz) and np.array_equal(accepted.intensity, decoded.intensity)
+    short = write_spectrum(tmp_path / "short", td=2000)
+    lines = (short / "acqu").read_text(encoding="latin-1").splitlines()
+    with pytest.raises(BrukerReadError):
+        convert(lines, (short / "fid").read_bytes())
+    assert decode(lines, (short / "fid").read_bytes()).mz.size == 2000     # decoded, though the check refuses it
