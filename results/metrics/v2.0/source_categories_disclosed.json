@@ -1,0 +1,53 @@
+{
+  "what": "Version 2.0, amendment D4: Sample categories disclosed by the owner's decision (those passing the size and content checks), with isolate counts; rare categories suppressed",
+  "run_utc": "2026-10-04T14:42:13Z",
+  "git_commit": "cc54053",
+  "cohort": {
+    "rule": "species field, identity rule (amendment D5) and years 2018-2024; before the source rule",
+    "isolates": 16975,
+    "identity_rule_excluded": 10
+  },
+  "summary": {
+    "categories": {
+      "ORINA": 279,
+      "HEMO 1ª VENOPUNCION": 101,
+      "ABSCESO INTRA-ABDOMINAL": 57,
+      "LESION CUTANEA": 49,
+      "HEMO 2ª VENOPUNCION": 48,
+      "ABSCESO DE PARTES BLANDAS 1": 44,
+      "ESPUTO": 41,
+      "HERIDA QUIRUR. 1": 39,
+      "LIQUIDO BILIAR": 37,
+      "ASPIRADO TRAQUEAL": 36,
+      "LIQUIDO PERITONEAL": 35,
+      "HEMO 3ª VENOPUNCION": 32,
+      "EXUDADO RECTAL": 31,
+      "EXUDADO CONJUNTIVAL": 29,
+      "ULCERA": 27,
+      "BIOPSIA PLACENTA": 24,
+      "BIOPSIA TEJIDO (PIE DIABETICO)": 22,
+      "HEMO V. PERIFERICA": 22,
+      "ABSCESO 1 (OTROS)": 16,
+      "EXUDADO OTICO": 16,
+      "LIQUIDO ASCITICO": 15,
+      "BIOPSIA TEJIDO 1": 14,
+      "LAVADO BRONCOALVEOLAR": 14,
+      "BIOPSIA OSEA (PIE DIABETICO)": 13,
+      "HERIDA QUIRUR. 2": 13,
+      "HEMO RESERVORIO (PORTACATH) LUZ1": 11,
+      "JUGO GASTRICO": 10,
+      "BIOPSIA OSEA 1": 7,
+      "BRONCOASPIRADO": 7,
+      "ABSCESO HEPATICO": 6,
+      "ABSCESO ORL": 6,
+      "BIOPSIA ENDOMETRIO": 6
+    },
+    "missing": 0,
+    "conflicting": 0,
+    "suppressed_categories": 39,
+    "suppressed_isolates": 65,
+    "matched_isolates": 1172,
+    "unmatched_isolates": 15803,
+    "schema_problem": "suppressed categories hold more than 5 % of matched isolates: the field is treated as free text"
+  }
+}

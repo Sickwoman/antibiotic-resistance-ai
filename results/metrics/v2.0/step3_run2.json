@@ -1,0 +1,1165 @@
+{
+  "what": "Version 2.0 steps 2-3, run 2: the cohort and the frozen features under amendments D and E (no label, no outcome count)",
+  "started_utc": "2026-10-04T14:50:05Z",
+  "git_commit": "47c0e92",
+  "cohort_label": "identifiable screening sources excluded (none was identifiable)",
+  "feature_fingerprint": "347cbd6d5d956ff9",
+  "accounting": [
+    {
+      "step": "archive",
+      "rule": "identifiers of all isolate folders in MARISMa.zip",
+      "remaining": 202596
+    },
+    {
+      "step": "species",
+      "rule": "MARISMa's species field: Escherichia/Coli",
+      "remaining": 16985
+    },
+    {
+      "step": "identity (amendment D5)",
+      "rule": "an identifier filed under more than one genus or species",
+      "excluded": 10,
+      "excluded_with_an_amr_record": 0,
+      "remaining": 16975
+    },
+    {
+      "step": "year",
+      "rule": "year folders 2018-2024",
+      "excluded": 0,
+      "remaining": 16975
+    },
+    {
+      "step": "source (amendment E)",
+      "rule": "identifiable screening or colonisation sources",
+      "excluded": 0,
+      "remaining": 16975,
+      "kept_by_source": {
+        "ambiguous": 142,
+        "clinical": 1030,
+        "unknown (no AMR.csv record)": 15803
+      }
+    },
+    {
+      "step": "replicate folder",
+      "rule": "at least one replicate folder",
+      "excluded": 0,
+      "remaining": 16975
+    },
+    {
+      "step": "reader (amendment D2)",
+      "rule": "a replicate passing the reader's checks, in the A6.2 order",
+      "excluded": 1031,
+      "feature_failures": 0,
+      "remaining": 15944,
+      "reasons_among_excluded": {
+        "feature_bin_without_data": 1166,
+        "sampling_interval_not_2ns": 1,
+        "starts_below_1960_da": 1
+      }
+    },
+    {
+      "step": "AMR.csv record",
+      "rule": "a record matched by identifier (a match, not yet a usable interpretation)",
+      "excluded": 14779,
+      "remaining": 1165
+    }
+  ],
+  "pause_check": {
+    "numerator": 1031,
+    "denominator": 16975,
+    "share": 0.06073637702503682,
+    "threshold": 0.05,
+    "pause": true,
+    "reasons_among_excluded": {
+      "feature_bin_without_data": 1166,
+      "sampling_interval_not_2ns": 1,
+      "starts_below_1960_da": 1
+    },
+    "unexplained_reasons": [],
+    "recorded_in_amendment_d3": {
+      "share": 0.0607,
+      "excluded": 1031,
+      "denominator": 16975
+    },
+    "disposition": "continued: the owner's disposition (amendment D3) covers every exclusion reason"
+  },
+  "cohort_rules": {
+    "archive": {
+      "isolate_folders": 202751,
+      "identifiers": 202596,
+      "files_named_fid": 241980,
+      "fid_files_outside_the_layout": 0
+    },
+    "species_rule": {
+      "rule": "genus folder 'Escherichia' and species folder 'Coli' (MARISMa's species field)",
+      "isolate_folders": 16985,
+      "identifiers": 16985
+    },
+    "species_consistency_rule": {
+      "excluded_identifiers": 10,
+      "rule": "identifier also filed under another genus or species: excluded"
+    },
+    "year_rule": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024"
+      ],
+      "excluded_identifiers": 0,
+      "identifiers": 16975
+    },
+    "replicate_folders": {
+      "technical_replicate_folders": 21199,
+      "isolates_without_any": 0
+    },
+    "isolates_per_year": {
+      "2018": 1521,
+      "2019": 5835,
+      "2020": 1595,
+      "2021": 2197,
+      "2022": 1994,
+      "2023": 2226,
+      "2024": 1607
+    }
+  },
+  "by_year_and_instrument": {
+    "2018 FLEX-PC": {
+      "isolates": 1521,
+      "kept": 1323,
+      "excluded": 198,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2019 FLEX-PC": {
+      "isolates": 5809,
+      "kept": 5046,
+      "excluded": 763,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2019 MBT-WIN10": {
+      "isolates": 26,
+      "kept": 26,
+      "excluded": 0,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2020 MBT-WIN10": {
+      "isolates": 1595,
+      "kept": 1593,
+      "excluded": 2,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2021 MBT-WIN10": {
+      "isolates": 2197,
+      "kept": 2177,
+      "excluded": 20,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2022 MBT-WIN10": {
+      "isolates": 1994,
+      "kept": 1970,
+      "excluded": 24,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2023 MBT-WIN10": {
+      "isolates": 2226,
+      "kept": 2215,
+      "excluded": 11,
+      "kept_and_matched_to_an_amr_record": 0
+    },
+    "2024 MBT-WIN10": {
+      "isolates": 1607,
+      "kept": 1594,
+      "excluded": 13,
+      "kept_and_matched_to_an_amr_record": 1165
+    }
+  },
+  "batch_review": {
+    "attempts": 17132,
+    "attempts_by_outcome": {
+      "passed": 15944,
+      "feature_bin_without_data": 1185,
+      "sampling_interval_not_2ns": 2,
+      "starts_below_1960_da": 1
+    },
+    "by_year": {
+      "2018": {
+        "feature_bin_without_data": 229,
+        "passed": 1323,
+        "sampling_interval_not_2ns": 1,
+        "starts_below_1960_da": 1
+      },
+      "2019": {
+        "feature_bin_without_data": 868,
+        "passed": 5072,
+        "sampling_interval_not_2ns": 1
+      },
+      "2020": {
+        "feature_bin_without_data": 3,
+        "passed": 1593
+      },
+      "2021": {
+        "feature_bin_without_data": 25,
+        "passed": 2177
+      },
+      "2022": {
+        "feature_bin_without_data": 28,
+        "passed": 1970
+      },
+      "2023": {
+        "feature_bin_without_data": 13,
+        "passed": 2215
+      },
+      "2024": {
+        "feature_bin_without_data": 19,
+        "passed": 1594
+      }
+    },
+    "by_acquisition_month": {
+      "2018-05": {
+        "passed": 2,
+        "sampling_interval_not_2ns": 1
+      },
+      "2018-06": {
+        "passed": 88
+      },
+      "2018-07": {
+        "feature_bin_without_data": 10,
+        "passed": 81
+      },
+      "2018-08": {
+        "feature_bin_without_data": 2,
+        "passed": 75,
+        "starts_below_1960_da": 1
+      },
+      "2018-09": {
+        "feature_bin_without_data": 11,
+        "passed": 101
+      },
+      "2018-10": {
+        "passed": 110
+      },
+      "2018-11": {
+        "feature_bin_without_data": 133,
+        "passed": 381
+      },
+      "2018-12": {
+        "feature_bin_without_data": 73,
+        "passed": 485
+      },
+      "2019-01": {
+        "feature_bin_without_data": 81,
+        "passed": 642
+      },
+      "2019-02": {
+        "feature_bin_without_data": 131,
+        "passed": 582
+      },
+      "2019-03": {
+        "feature_bin_without_data": 70,
+        "passed": 742
+      },
+      "2019-04": {
+        "feature_bin_without_data": 284,
+        "passed": 578
+      },
+      "2019-05": {
+        "feature_bin_without_data": 126,
+        "passed": 724,
+        "sampling_interval_not_2ns": 1
+      },
+      "2019-06": {
+        "passed": 839
+      },
+      "2019-07": {
+        "feature_bin_without_data": 5,
+        "passed": 364
+      },
+      "2019-08": {
+        "feature_bin_without_data": 24,
+        "passed": 97
+      },
+      "2019-09": {
+        "feature_bin_without_data": 32,
+        "passed": 230
+      },
+      "2019-10": {
+        "feature_bin_without_data": 78,
+        "passed": 248
+      },
+      "2019-11": {
+        "feature_bin_without_data": 37
+      },
+      "2019-12": {
+        "passed": 26
+      },
+      "2020-01": {
+        "passed": 69
+      },
+      "2020-02": {
+        "passed": 135
+      },
+      "2020-03": {
+        "passed": 109
+      },
+      "2020-04": {
+        "passed": 83
+      },
+      "2020-05": {
+        "passed": 103
+      },
+      "2020-06": {
+        "passed": 157
+      },
+      "2020-07": {
+        "feature_bin_without_data": 3,
+        "passed": 193
+      },
+      "2020-08": {
+        "passed": 179
+      },
+      "2020-09": {
+        "passed": 115
+      },
+      "2020-10": {
+        "passed": 131
+      },
+      "2020-11": {
+        "passed": 167
+      },
+      "2020-12": {
+        "passed": 152
+      },
+      "2021-01": {
+        "passed": 144
+      },
+      "2021-02": {
+        "passed": 162
+      },
+      "2021-03": {
+        "passed": 192
+      },
+      "2021-04": {
+        "passed": 155
+      },
+      "2021-05": {
+        "passed": 195
+      },
+      "2021-06": {
+        "passed": 214
+      },
+      "2021-07": {
+        "passed": 177
+      },
+      "2021-08": {
+        "passed": 201
+      },
+      "2021-09": {
+        "passed": 173
+      },
+      "2021-10": {
+        "feature_bin_without_data": 12,
+        "passed": 187
+      },
+      "2021-11": {
+        "feature_bin_without_data": 13,
+        "passed": 188
+      },
+      "2021-12": {
+        "passed": 189
+      },
+      "2022-01": {
+        "feature_bin_without_data": 4,
+        "passed": 121
+      },
+      "2022-02": {
+        "feature_bin_without_data": 12,
+        "passed": 126
+      },
+      "2022-03": {
+        "feature_bin_without_data": 4,
+        "passed": 211
+      },
+      "2022-04": {
+        "passed": 162
+      },
+      "2022-05": {
+        "passed": 177
+      },
+      "2022-06": {
+        "feature_bin_without_data": 8,
+        "passed": 194
+      },
+      "2022-07": {
+        "passed": 142
+      },
+      "2022-08": {
+        "passed": 178
+      },
+      "2022-09": {
+        "passed": 176
+      },
+      "2022-10": {
+        "passed": 161
+      },
+      "2022-11": {
+        "passed": 157
+      },
+      "2022-12": {
+        "passed": 165
+      },
+      "2023-01": {
+        "passed": 171
+      },
+      "2023-02": {
+        "passed": 466
+      },
+      "2023-03": {
+        "passed": 195
+      },
+      "2023-04": {
+        "feature_bin_without_data": 13,
+        "passed": 156
+      },
+      "2023-05": {
+        "passed": 166
+      },
+      "2023-06": {
+        "passed": 188
+      },
+      "2023-07": {
+        "passed": 179
+      },
+      "2023-08": {
+        "passed": 182
+      },
+      "2023-09": {
+        "passed": 136
+      },
+      "2023-10": {
+        "passed": 102
+      },
+      "2023-11": {
+        "passed": 145
+      },
+      "2023-12": {
+        "passed": 129
+      },
+      "2024-01": {
+        "feature_bin_without_data": 12,
+        "passed": 140
+      },
+      "2024-02": {
+        "feature_bin_without_data": 7,
+        "passed": 120
+      },
+      "2024-03": {
+        "passed": 151
+      },
+      "2024-04": {
+        "passed": 134
+      },
+      "2024-05": {
+        "passed": 139
+      },
+      "2024-06": {
+        "passed": 120
+      },
+      "2024-07": {
+        "passed": 124
+      },
+      "2024-08": {
+        "passed": 135
+      },
+      "2024-09": {
+        "passed": 105
+      },
+      "2024-10": {
+        "passed": 140
+      },
+      "2024-11": {
+        "passed": 148
+      },
+      "2024-12": {
+        "passed": 138
+      }
+    },
+    "by_instrument": {
+      "FLEX-PC": {
+        "feature_bin_without_data": 1097,
+        "passed": 6369,
+        "sampling_interval_not_2ns": 2,
+        "starts_below_1960_da": 1
+      },
+      "MBT-WIN10": {
+        "feature_bin_without_data": 88,
+        "passed": 9575
+      }
+    },
+    "passed_spectra_parameters": {
+      "ML1": {
+        "n": 15944,
+        "q00": 5395945.10327608,
+        "q01": 5401289.9584695,
+        "q05": 5406105.895539706,
+        "q25": 5413638.8749727,
+        "q50": 5419347.0433234,
+        "q75": 5426874.6372309,
+        "q95": 5443615.085252095,
+        "q99": 5458773.7501928,
+        "q100": 5475431.0839971
+      },
+      "ML2": {
+        "n": 15944,
+        "q00": 391.92282878836,
+        "q01": 396.24051539168,
+        "q05": 405.648542993178,
+        "q25": 422.458653693102,
+        "q50": 431.1092194829,
+        "q75": 444.40478937551,
+        "q95": 468.702210309545,
+        "q99": 489.75205457529,
+        "q100": 526.906533459734
+      },
+      "ML3": {
+        "n": 15944,
+        "q00": -0.016504728730894,
+        "q01": -0.015324695615968,
+        "q05": -0.014468196272483,
+        "q25": -0.012861239571122,
+        "q50": -0.011147012027704,
+        "q75": -0.00986914391920831,
+        "q95": -0.0059498221958716,
+        "q99": 0.00040429983665438,
+        "q100": 0.00191258244254063
+      },
+      "TD": {
+        "n": 15944,
+        "q00": 20664.0,
+        "q01": 20670.0,
+        "q05": 20674.0,
+        "q25": 20680.0,
+        "q50": 21396.0,
+        "q75": 21407.0,
+        "q95": 21418.0,
+        "q99": 21424.0,
+        "q100": 21438.0
+      },
+      "DELAY": {
+        "n": 15944,
+        "q00": 19590.0,
+        "q01": 19592.0,
+        "q05": 19594.0,
+        "q25": 19612.0,
+        "q50": 19624.0,
+        "q75": 19628.0,
+        "q95": 19634.0,
+        "q99": 19640.0,
+        "q100": 19670.0
+      },
+      "DW": {
+        "n": 15944,
+        "q00": 2.0,
+        "q01": 2.0,
+        "q05": 2.0,
+        "q25": 2.0,
+        "q50": 2.0,
+        "q75": 2.0,
+        "q95": 2.0,
+        "q99": 2.0,
+        "q100": 2.0
+      },
+      "mz_first": {
+        "n": 15944,
+        "q00": 1992.5757783782021,
+        "q01": 1997.5604568288406,
+        "q05": 1999.2114922409248,
+        "q25": 1999.784299433561,
+        "q50": 1999.9198667606938,
+        "q75": 2000.0375630827052,
+        "q95": 2000.9567411995752,
+        "q99": 2001.9309608551282,
+        "q100": 2002.9317226092949
+      },
+      "mz_last": {
+        "n": 15944,
+        "q00": 19997.149048617957,
+        "q01": 19997.78771676812,
+        "q05": 19998.232314756544,
+        "q25": 19999.422010441467,
+        "q50": 20997.391477957783,
+        "q75": 20998.850728083402,
+        "q95": 21004.928861641158,
+        "q99": 21014.607450926414,
+        "q100": 21033.26358606566
+      },
+      "points": {
+        "n": 15944,
+        "q00": 20664.0,
+        "q01": 20670.0,
+        "q05": 20674.0,
+        "q25": 20680.0,
+        "q50": 21396.0,
+        "q75": 21407.0,
+        "q95": 21418.0,
+        "q99": 21424.0,
+        "q100": 21438.0
+      }
+    },
+    "hpc_requested_among_attempts": 0,
+    "calibration_among_passed": {
+      "tof2mass": 15944
+    },
+    "acqu_file_used": {
+      "acqu": 17132
+    }
+  },
+  "features": {
+    "spectra": 15944,
+    "primary_cohort_spectra": 15944,
+    "n_features": 6000,
+    "dtype": "float32",
+    "fingerprint": "347cbd6d5d956ff9",
+    "nonzero_bins": {
+      "n": 15944,
+      "q00": 1614.0,
+      "q01": 2828.43,
+      "q05": 3352.6000000000004,
+      "q25": 5873.0,
+      "q50": 5994.0,
+      "q75": 5997.0,
+      "q95": 5999.0,
+      "q99": 6000.0,
+      "q100": 6000.0
+    },
+    "raw_points": {
+      "n": 15944,
+      "q00": 20664.0,
+      "q01": 20670.0,
+      "q05": 20674.0,
+      "q25": 20680.0,
+      "q50": 21396.0,
+      "q75": 21407.0,
+      "q95": 21418.0,
+      "q99": 21424.0,
+      "q100": 21438.0
+    }
+  },
+  "spectra_only_checks": {
+    "ciprofloxacin": {
+      "marisma": {
+        "n": 15944,
+        "q00": 0.04934406994851577,
+        "q01": 0.30816267008314685,
+        "q05": 0.3925837289617273,
+        "q25": 0.5413472998797667,
+        "q50": 0.715452868732052,
+        "q75": 0.8187062742211924,
+        "q95": 0.8858498220769492,
+        "q99": 0.9118039496141971,
+        "q100": 0.9481853531616435
+      },
+      "driams_a_validation_reference": {
+        "n": 426,
+        "q00": 0.31654020911482894,
+        "q01": 0.4678422027518444,
+        "q05": 0.5844151833531304,
+        "q25": 0.7489686765358066,
+        "q50": 0.8382183444764095,
+        "q75": 0.8817244122696402,
+        "q95": 0.9231605569183431,
+        "q99": 0.9390999761273245,
+        "q100": 0.9409163825719762
+      },
+      "marisma_by_year": {
+        "2018": {
+          "n": 1323,
+          "q00": 0.140967700927671,
+          "q01": 0.29097351301293156,
+          "q05": 0.3728169904090316,
+          "q25": 0.4965271241399796,
+          "q50": 0.6202686743628242,
+          "q75": 0.7710367656603605,
+          "q95": 0.874179548935785,
+          "q99": 0.9119039009974191,
+          "q100": 0.9391748644837394
+        },
+        "2019": {
+          "n": 5072,
+          "q00": 0.04934406994851577,
+          "q01": 0.2999008996504157,
+          "q05": 0.3756784349156091,
+          "q25": 0.5010415035800456,
+          "q50": 0.6587025292711395,
+          "q75": 0.8180481182092515,
+          "q95": 0.8845299436849043,
+          "q99": 0.9074526031211115,
+          "q100": 0.9321639234689043
+        },
+        "2020": {
+          "n": 1593,
+          "q00": 0.1431423777268168,
+          "q01": 0.3258217743896723,
+          "q05": 0.3879894395901706,
+          "q25": 0.5617156475956661,
+          "q50": 0.7455713073601913,
+          "q75": 0.8305100572352098,
+          "q95": 0.8894603611675754,
+          "q99": 0.9127532919205755,
+          "q100": 0.9261482196306685
+        },
+        "2021": {
+          "n": 2177,
+          "q00": 0.12180319845130581,
+          "q01": 0.31538951758464145,
+          "q05": 0.4021614068188742,
+          "q25": 0.5798715098758512,
+          "q50": 0.7388680399652058,
+          "q75": 0.818770821452793,
+          "q95": 0.887505244816731,
+          "q99": 0.9155630141998885,
+          "q100": 0.9481853531616435
+        },
+        "2022": {
+          "n": 1970,
+          "q00": 0.07848449912444466,
+          "q01": 0.30558639682689975,
+          "q05": 0.40707400723314546,
+          "q25": 0.5994941290666265,
+          "q50": 0.7609152057871085,
+          "q75": 0.831753198867009,
+          "q95": 0.8920529500003094,
+          "q99": 0.9181094971586293,
+          "q100": 0.9400845990028165
+        },
+        "2023": {
+          "n": 2215,
+          "q00": 0.11635546835034827,
+          "q01": 0.32783331134226823,
+          "q05": 0.42322261059073146,
+          "q25": 0.6004495352580204,
+          "q50": 0.7377939360571119,
+          "q75": 0.8206750466044077,
+          "q95": 0.8865367162239921,
+          "q99": 0.915709401696225,
+          "q100": 0.9412825573832436
+        },
+        "2024": {
+          "n": 1594,
+          "q00": 0.11057982586519288,
+          "q01": 0.33039759761667825,
+          "q05": 0.4060320636998609,
+          "q25": 0.5688457273334068,
+          "q50": 0.7264355834432484,
+          "q75": 0.8098582972933757,
+          "q95": 0.8779184188079296,
+          "q99": 0.9074440990720399,
+          "q100": 0.9419296132383131
+        }
+      },
+      "mean_spectra_alignment": {
+        "best_lag_bins": 0,
+        "lag_range_bins": [
+          -20,
+          20
+        ],
+        "top_peaks": 30,
+        "peak_positions_da": [
+          4366.2,
+          5383.0,
+          6257.4,
+          2689.5,
+          3127.4,
+          4778.6,
+          6317.9,
+          3579.8,
+          2067.2,
+          7160.6,
+          7276.0,
+          4771.8,
+          5098.2,
+          3637.9,
+          2181.0,
+          3157.9,
+          4186.0,
+          2834.0,
+          3936.8,
+          5152.0,
+          9065.9,
+          2547.3,
+          4498.4,
+          9538.0,
+          4439.9,
+          9555.4,
+          4614.8,
+          7873.4,
+          2083.0,
+          4534.0
+        ],
+        "offset_to_nearest_peak_da": [
+          -0.18,
+          0.01,
+          -0.06,
+          -0.07,
+          -0.02,
+          0.25,
+          -0.1,
+          -0.07,
+          -0.32,
+          -0.15,
+          0.47,
+          6.97,
+          -0.03,
+          0.41,
+          -0.69,
+          0.01,
+          -0.19,
+          0.11,
+          -0.11,
+          0.26,
+          0.2,
+          -0.07,
+          0.05,
+          0.12,
+          0.48,
+          0.36,
+          0.19,
+          -0.12,
+          -0.6,
+          0.58
+        ],
+        "median_abs_offset_da": 0.1651040647882951
+      }
+    },
+    "ceftriaxone": {
+      "marisma": {
+        "n": 15944,
+        "q00": 0.049355734346789554,
+        "q01": 0.30802250594101177,
+        "q05": 0.3925369181344102,
+        "q25": 0.5412322179420104,
+        "q50": 0.7153835028672659,
+        "q75": 0.8187095073928468,
+        "q95": 0.8858654791961775,
+        "q99": 0.9118354122875902,
+        "q100": 0.9481565005156865
+      },
+      "driams_a_validation_reference": {
+        "n": 425,
+        "q00": 0.3165805347448644,
+        "q01": 0.4677303517753349,
+        "q05": 0.5840461546105827,
+        "q25": 0.7490070179748969,
+        "q50": 0.8384252621591306,
+        "q75": 0.8816791855990928,
+        "q95": 0.9231842773247401,
+        "q99": 0.9390929089662617,
+        "q100": 0.9410110130468384
+      },
+      "marisma_by_year": {
+        "2018": {
+          "n": 1323,
+          "q00": 0.14111061731474667,
+          "q01": 0.2908751047770857,
+          "q05": 0.3726348442482708,
+          "q25": 0.49639013591833303,
+          "q50": 0.6201553004069084,
+          "q75": 0.7710660181175815,
+          "q95": 0.8740656731044439,
+          "q99": 0.9119547129218941,
+          "q100": 0.9392576947136081
+        },
+        "2019": {
+          "n": 5072,
+          "q00": 0.049355734346789554,
+          "q01": 0.29983711755236925,
+          "q05": 0.37563524041299384,
+          "q25": 0.5009255340677362,
+          "q50": 0.6587115440906994,
+          "q75": 0.8181066450755123,
+          "q95": 0.8845641147340387,
+          "q99": 0.9075139423226001,
+          "q100": 0.9321884581195821
+        },
+        "2020": {
+          "n": 1593,
+          "q00": 0.1431462880901282,
+          "q01": 0.32584142022619333,
+          "q05": 0.3877919661046007,
+          "q25": 0.5616417969348411,
+          "q50": 0.7456121941607051,
+          "q75": 0.8305148458920857,
+          "q95": 0.8895680558617737,
+          "q99": 0.9127229868402247,
+          "q100": 0.9261354316560775
+        },
+        "2021": {
+          "n": 2177,
+          "q00": 0.12182307924783532,
+          "q01": 0.31531877688709914,
+          "q05": 0.40215104309113886,
+          "q25": 0.5798360055561627,
+          "q50": 0.7388715857838901,
+          "q75": 0.8187518902590759,
+          "q95": 0.8874614509912712,
+          "q99": 0.9155581763348344,
+          "q100": 0.9481565005156865
+        },
+        "2022": {
+          "n": 1970,
+          "q00": 0.07848497012394405,
+          "q01": 0.30551868956625927,
+          "q05": 0.40704931620563206,
+          "q25": 0.5994333433096944,
+          "q50": 0.7608086564616798,
+          "q75": 0.8317026259913014,
+          "q95": 0.8921073076514002,
+          "q99": 0.9181482399975295,
+          "q100": 0.9400956844628132
+        },
+        "2023": {
+          "n": 2215,
+          "q00": 0.1164764662143374,
+          "q01": 0.3278759473935984,
+          "q05": 0.4230719816535536,
+          "q25": 0.600281579750576,
+          "q50": 0.7376029499911491,
+          "q75": 0.8205611709418339,
+          "q95": 0.8865512907215628,
+          "q99": 0.9156945485451778,
+          "q100": 0.9413805565523085
+        },
+        "2024": {
+          "n": 1594,
+          "q00": 0.11057872277733242,
+          "q01": 0.33035265385900064,
+          "q05": 0.4059443019552264,
+          "q25": 0.5688171953614425,
+          "q50": 0.726164495940211,
+          "q75": 0.8097467182690018,
+          "q95": 0.8777930437287164,
+          "q99": 0.9074272431857155,
+          "q100": 0.9420025418110131
+        }
+      },
+      "mean_spectra_alignment": {
+        "best_lag_bins": 0,
+        "lag_range_bins": [
+          -20,
+          20
+        ],
+        "top_peaks": 30,
+        "peak_positions_da": [
+          4366.2,
+          5383.0,
+          6257.4,
+          2689.5,
+          3127.4,
+          4778.6,
+          6317.9,
+          3579.8,
+          2067.2,
+          7160.6,
+          7276.0,
+          4771.8,
+          5098.2,
+          3637.9,
+          2181.0,
+          3157.9,
+          4186.0,
+          2834.0,
+          3936.8,
+          5152.0,
+          9065.9,
+          2547.3,
+          4498.4,
+          9538.0,
+          4439.9,
+          9555.4,
+          4614.8,
+          7873.4,
+          2083.0,
+          4534.0
+        ],
+        "offset_to_nearest_peak_da": [
+          -0.18,
+          0.01,
+          -0.06,
+          -0.07,
+          -0.02,
+          0.25,
+          -0.11,
+          -0.07,
+          -0.33,
+          -0.15,
+          0.47,
+          6.97,
+          -0.03,
+          0.4,
+          -0.69,
+          0.01,
+          -0.19,
+          0.11,
+          -0.11,
+          0.26,
+          0.19,
+          -0.08,
+          0.05,
+          0.12,
+          0.47,
+          0.36,
+          0.19,
+          -0.12,
+          -0.6,
+          0.57
+        ],
+        "median_abs_offset_da": 0.16709523844770047
+      }
+    }
+  },
+  "limitations": [
+    "residual edge effects: the first 10-16 feature bins for essentially every MARISMa spectrum, the last 21-41 for spectra ending near 20,000 Da (amendment D2)",
+    "sparsely populated edge bins (amendment D2)",
+    "normalisation that depends on the acquisition window, about 1 % for MBT-WIN10 (amendment D2)",
+    "features are not shown to be equivalent to DRIAMS features",
+    "matching E. coli AMR.csv records exist only for 2024, on one instrument (MBT-WIN10): any result applies only to the eligible, tested 2024 subset; the period analyses are unavailable (amendment D6)",
+    "the source of 'EXUDADO RECTAL' isolates (possible resistance screening) is unresolved and kept (amendment E3)"
+  ],
+  "protected_state": {
+    "unchanged": true,
+    "bundles": {
+      "ciprofloxacin": "d59d6d7deafa1af464c33ebefc0f8f641a80eb70f7b51039e6c2ede0fd841c8b",
+      "ceftriaxone": "74c626903dc961fdb48703302efea7d72344e19e98eada234bf66a31f778b3ce"
+    },
+    "zone": "8ee7b2bc20ba7ceb3f625df4416d5352a784480f13e6c2b25fa082d96671b3ae",
+    "logs": {
+      "results/experiments/test_evaluations.csv": {
+        "sha256": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+        "data_rows": 113
+      },
+      "results/experiments/development_runs.csv": {
+        "sha256": "dd5f4a74933a4cfc8382e9a4464ae774aab6944e280b68e8fe340fbbc2d9e894",
+        "data_rows": 34
+      }
+    },
+    "datasets": {
+      "ecoli_ciprofloxacin": {
+        "row_fingerprint": "151415a4d03dbcc5",
+        "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+        "feature_fingerprint": "347cbd6d5d956ff9"
+      },
+      "ecoli_ceftriaxone": {
+        "row_fingerprint": "fb65868756a623ee",
+        "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+        "feature_fingerprint": "347cbd6d5d956ff9"
+      }
+    }
+  },
+  "finished_utc": "2026-10-04T14:53:08Z",
+  "schema": {
+    "antibiotics": [
+      "Amikacin",
+      "Amoxicillin",
+      "Amoxicillin/Clavulanic acid",
+      "Amphotericin B",
+      "Ampicillin",
+      "Ampicillin/Sulbactam",
+      "Anidulafungin",
+      "Azithromycin",
+      "Aztreonam",
+      "Caspofungin",
+      "Cefalotin",
+      "Cefazolin",
+      "Cefepime",
+      "Cefiderocol",
+      "Cefixime",
+      "Cefotaxime",
+      "Cefoxitin",
+      "Ceftaroline",
+      "Ceftazidime",
+      "Ceftazidime/Avibactam",
+      "Ceftolozane/Tazobactam",
+      "Ceftriaxone",
+      "Cefuroxime",
+      "Cephalexin",
+      "Chloramphenicol",
+      "Ciprofloxacin",
+      "Clarithromycin",
+      "Clindamycin",
+      "Clotrimazole",
+      "Colistin",
+      "Dalbavancin",
+      "Daptomycin",
+      "Doripenem",
+      "Doxycycline",
+      "Ertapenem",
+      "Erythromycin",
+      "Ethambutol",
+      "Fluconazole",
+      "Fosfomycin",
+      "Fusidic acid",
+      "Gentamicin",
+      "Gentamicin 500",
+      "Imipenem",
+      "Isavuconazole",
+      "Isoniazid",
+      "Itraconazole",
+      "Levofloxacin",
+      "Linezolid",
+      "Mecillinam",
+      "Meropenem",
+      "Meropenem/Vaborbactam",
+      "Metronidazole",
+      "Micafungin",
+      "Minocycline",
+      "Moxifloxacin",
+      "Mupirocin",
+      "Nalidixic acid",
+      "Nitrofurantoin",
+      "Norfloxacin",
+      "Oritavancin",
+      "Oxacillin",
+      "Penicillin",
+      "Piperacillin",
+      "Piperacillin/Tazobactam",
+      "Posaconazole",
+      "Pristinamycin",
+      "Pyrazinamide",
+      "Rifampin",
+      "Streptomycin",
+      "Tedizolid",
+      "Teicoplanin",
+      "Tetracycline",
+      "Ticarcillin",
+      "Tigecycline",
+      "Tobramycin",
+      "Trimethoprim",
+      "Trimethoprim/Sulfamethoxazole",
+      "Vancomycin",
+      "Voriconazole"
+    ],
+    "matched_isolates": 1165,
+    "unmatched_isolates": 14779,
+    "columns_used": {
+      "ciprofloxacin": "Ciprofloxacin",
+      "ceftriaxone": "Ceftriaxone"
+    },
+    "availability_gate": 100,
+    "per_antibiotic": {
+      "ciprofloxacin": {
+        "non_missing": 1146,
+        "dropped": false
+      },
+      "ceftriaxone": {
+        "non_missing": 0,
+        "dropped": true
+      }
+    },
+    "both_dropped": false,
+    "run_utc": "2026-10-04T14:53:41Z",
+    "cohort": "run 2 primary cohort (identifiable screening sources excluded (none was identifiable)), isolates with a selected spectrum",
+    "all_sources_cohort": "identical: no isolate was excluded by the source rule (amendment E3)"
+  }
+}
