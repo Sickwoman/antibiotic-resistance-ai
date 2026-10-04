@@ -616,3 +616,14 @@ records the authorisation of step 4: implement, test and freeze the scoring scri
 
 Running either model on MARISMa, reading an interpretation category and appending to the production log all need the
 owner's separate approval. Notes A–F stand as recorded.
+
+#### Amendment 12, note H — 2026-10-04T18:16:46Z: the scoring authorisation
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment G, records the owner's authorisation of the one-time evaluation
+of the frozen ciprofloxacin model on MARISMa.
+- **Code.** Commit `e7472f046ac08d629a714fee0abc1cf76331a477`, with code fingerprint `d03d01db196e008447f619ef492b57b7b71e7cd57f95fb305174a3d94bac8522`.
+- **What it covers:** the frozen model's predictions, access to the ciprofloxacin labels, every registered analysis,
+  the two planned production-log rows, and the final report.
+- **Ceftriaxone** stays unavailable, with p = 1 in the fixed Holm family.
+
+The metadata reconciliation required before execution passed. Notes A–G stand as recorded.
