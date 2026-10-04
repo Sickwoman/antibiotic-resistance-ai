@@ -1,0 +1,157 @@
+{
+  "what": "Version 2.0: AMR.csv matches among the isolates each coverage rule keeps (counts only)",
+  "run_utc": "2026-10-04T07:43:10Z",
+  "git_commit": "1d2a62a",
+  "rules": {
+    "approved: first <= 2000 Da and last >= 20000 Da": {
+      "2018 FLEX-PC": {
+        "isolates": 1521,
+        "kept": 77,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 FLEX-PC": {
+        "isolates": 5809,
+        "kept": 228,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 MBT-WIN10": {
+        "isolates": 26,
+        "kept": 26,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2020 MBT-WIN10": {
+        "isolates": 1595,
+        "kept": 834,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2021 MBT-WIN10": {
+        "isolates": 2197,
+        "kept": 1393,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2022 MBT-WIN10": {
+        "isolates": 1994,
+        "kept": 1375,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2023 MBT-WIN10": {
+        "isolates": 2226,
+        "kept": 1553,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2024 MBT-WIN10": {
+        "isolates": 1607,
+        "kept": 1311,
+        "matched": 1172,
+        "matched_and_kept": 961
+      }
+    },
+    "every feature bin has acquired data": {
+      "2018 FLEX-PC": {
+        "isolates": 1521,
+        "kept": 1325,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 FLEX-PC": {
+        "isolates": 5809,
+        "kept": 5046,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 MBT-WIN10": {
+        "isolates": 26,
+        "kept": 26,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2020 MBT-WIN10": {
+        "isolates": 1595,
+        "kept": 1593,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2021 MBT-WIN10": {
+        "isolates": 2197,
+        "kept": 2177,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2022 MBT-WIN10": {
+        "isolates": 1994,
+        "kept": 1970,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2023 MBT-WIN10": {
+        "isolates": 2226,
+        "kept": 2215,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2024 MBT-WIN10": {
+        "isolates": 1607,
+        "kept": 1594,
+        "matched": 1172,
+        "matched_and_kept": 1165
+      }
+    },
+    "every feature bin has acquired data, with the training spectra's acquisition settings": {
+      "2018 FLEX-PC": {
+        "isolates": 1521,
+        "kept": 1323,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 FLEX-PC": {
+        "isolates": 5809,
+        "kept": 5046,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2019 MBT-WIN10": {
+        "isolates": 26,
+        "kept": 26,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2020 MBT-WIN10": {
+        "isolates": 1595,
+        "kept": 1593,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2021 MBT-WIN10": {
+        "isolates": 2197,
+        "kept": 2177,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2022 MBT-WIN10": {
+        "isolates": 1994,
+        "kept": 1970,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2023 MBT-WIN10": {
+        "isolates": 2226,
+        "kept": 2215,
+        "matched": 0,
+        "matched_and_kept": 0
+      },
+      "2024 MBT-WIN10": {
+        "isolates": 1607,
+        "kept": 1594,
+        "matched": 1172,
+        "matched_and_kept": 1165
+      }
+    }
+  }
+}
