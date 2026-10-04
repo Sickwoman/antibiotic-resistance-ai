@@ -1,0 +1,77 @@
+{
+  "what": "Version 2.0 step 3: the Bruker reader's decoding against independent implementations, on real MARISMa spectra (spectra only; no label, no outcome file, no model).",
+  "sample": {
+    "from": "all of the cohort's replicate folders (accepted and refused by the registered checks)",
+    "n": 400,
+    "of": 21199,
+    "seed": 42,
+    "compared": 400
+  },
+  "references": {
+    "nmrglue": {
+      "version": "0.12",
+      "licence": "BSD",
+      "used": "fileio.bruker.read_jcamp, read_binary",
+      "bruker_py_sha256": "bf537c35926e599068b07db4fab33af79ae0c4fbc76fa2a0167494dc54366eeb"
+    },
+    "maldi_nn": {
+      "version": "0.2.5",
+      "licence": "MIT",
+      "used": "SpectrumObject.tof2mass, from_bruker",
+      "spectrum_py_sha256": "b9d25799e56358db2558d5b1ff8eb9fb002c3133ef703d8b6ee34d6c9764dbf0"
+    },
+    "documented_equation": "tof = ML2 + ML3*m + sqrt(1e12/ML1)*sqrt(m) (readBrukerFlexData .tof2mass)"
+  },
+  "checks": [
+    "zip_equals_disk",
+    "parameters_equal",
+    "fid_equal",
+    "maldi_nn_mz_within_1e-9_da",
+    "maldi_nn_intensity_equal",
+    "mz_equals_tof2mass_outside_hpc"
+  ],
+  "by_instrument_and_verdict": {
+    "FLEX-PC / accepted": {
+      "spectra": 8,
+      "zip_equals_disk": 8,
+      "parameters_equal": 8,
+      "fid_equal": 8,
+      "mz_equals_tof2mass_outside_hpc": 8,
+      "maldi_nn_mz_within_1e-9_da": 8,
+      "maldi_nn_intensity_equal": 8
+    },
+    "FLEX-PC / refused: range_not_covered": {
+      "spectra": 145,
+      "zip_equals_disk": 145,
+      "parameters_equal": 145,
+      "fid_equal": 145,
+      "mz_equals_tof2mass_outside_hpc": 145,
+      "maldi_nn_mz_within_1e-9_da": 145,
+      "maldi_nn_intensity_equal": 145
+    },
+    "MBT-WIN10 / accepted": {
+      "spectra": 179,
+      "zip_equals_disk": 179,
+      "parameters_equal": 179,
+      "fid_equal": 179,
+      "mz_equals_tof2mass_outside_hpc": 179,
+      "maldi_nn_mz_within_1e-9_da": 179,
+      "maldi_nn_intensity_equal": 179
+    },
+    "MBT-WIN10 / refused: range_not_covered": {
+      "spectra": 68,
+      "zip_equals_disk": 68,
+      "parameters_equal": 68,
+      "fid_equal": 68,
+      "mz_equals_tof2mass_outside_hpc": 68,
+      "maldi_nn_mz_within_1e-9_da": 68,
+      "maldi_nn_intensity_equal": 68
+    }
+  },
+  "worst": {
+    "inverse_calibration_max_abs_residual": 1.1663360055536032e-08,
+    "maldi_nn_max_abs_mz_difference_da": 0.0
+  },
+  "errors": {},
+  "all_agree": true
+}

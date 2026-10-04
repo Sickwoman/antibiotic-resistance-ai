@@ -44,12 +44,19 @@ from src.utils import free_disk_gb, get_logger, human_bytes, keep_awake, load_co
 RECORD_ID = 17201597
 VERSION = "2.0.0"
 API = f"https://zenodo.org/api/records/{RECORD_ID}"
-# What the record published when the plan was approved (read from the Zenodo API on 2026-10-03). Any difference
-# means the record changed, and the download stops.
-AUTHORISED = {
-    "MARISMa.zip": {"size": 16825605739, "md5": "1af8137ec7f890f9b5f6e0aa82a0ace3", "folder": "MARISMa_v2.0.0"},
-    "AMR.csv": {"size": 14130346, "md5": "9d8cc36ce213f4cd5254f906234779ca", "folder": "MARISMa_v2.0.0_sealed"},
-}
+
+
+def authorised_files(config: dict | None = None) -> dict[str, dict]:
+    """What the record published when the plan was approved (config.yaml, `marisma`: read from the Zenodo API on
+    2026-10-03). Any difference means the record changed, and the download stops."""
+    section = (config or load_config())["marisma"]
+    if (int(section["record"]), str(section["version"])) != (RECORD_ID, VERSION):
+        raise DownloadError("config.yaml's marisma section names another record or version")
+    return {name: {"size": int(f["size_bytes"]), "md5": str(f["checksum"]), "folder": f["folder"]}
+            for name, f in section["files"].items()}
+
+
+AUTHORISED = authorised_files()
 NEVER = {"amr_stats.json", "detailed_dataset_statistics.json"}   # statistics files: not downloaded
 
 log = get_logger("download_marisma")
