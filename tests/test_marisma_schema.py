@@ -217,3 +217,20 @@ def test_source_classes_refuse_an_invalid_mapping_without_content(tmp_path, mapp
         source_classes(path, cohort, mapping)
     assert_no_sample_leak(str(e.value))
     assert "Pus" not in str(e.value)
+
+
+def test_match_counts_return_two_counts_only(tmp_path, capsys):
+    from src.marisma_schema import match_counts
+    path, cohort = sample_fixture(tmp_path)
+    assert match_counts(path, cohort) == (199, 1)
+    assert match_counts(path, [c.lower() for c in cohort]) == (0, 200)      # matching is exact: no case folding
+    assert_no_sample_leak(capsys.readouterr().out)
+
+
+def test_identifier_profile_is_aggregate_only(tmp_path):
+    from src.marisma_schema import identifier_profile
+    path, _ = sample_fixture(tmp_path)
+    profile = identifier_profile(path)
+    assert profile["rows"] == 203 and profile["distinct_identifiers"] == 200
+    assert profile["by_length"] == {10: 199, 14: 1} and sum(profile["by_character_class"].values()) == 200
+    assert_no_sample_leak(repr(profile))

@@ -40,7 +40,7 @@ import json
 import sys
 import time
 import zlib
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -68,6 +68,8 @@ from src.marisma_schema import (  # noqa: E402
     MAX_SUPPRESSED_SHARE,
     MIN_CELL,
     antibiotic_names,
+    identifier_profile,
+    match_counts,
     read_columns,
     sample_categories,
     schema_summary,
@@ -497,6 +499,48 @@ def run_sources(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def identifier_format(identifier: str) -> str:
+    if identifier.isdigit():
+        return "digits only"
+    if identifier.isascii() and identifier.isalnum():
+        return "letters and digits"
+    return "other characters"
+
+
+def run_matching(args: argparse.Namespace) -> dict[str, Any]:
+    """Why so few cohort isolates match AMR.csv: matched and unmatched counts only (amendments A2 and C4), for the whole
+    cohort, for its own identifiers in upper and lower case, and for subsets by year folder and identifier format."""
+    before = protected_state()
+    isolate_folders, _ = layout_folders(name for name, _ in iter_members(args.zip))
+    year_of = {f[3]: f[0] for f in isolate_folders if (f[1], f[2]) == SPECIES and f[0] in YEARS}
+    ids = sorted(year_of)
+    archive_years: dict[str, set[str]] = defaultdict(set)
+    for year, _, _, isolate in isolate_folders:
+        archive_years[year].add(isolate)
+
+    def counts(subset):
+        matched, unmatched = match_counts(args.amr, subset)
+        return {"isolates": len(subset), "matched": matched, "unmatched": unmatched}
+
+    out = {
+        "what": "Version 2.0: matching of the cohort's identifiers to AMR.csv records (counts only)",
+        "run_utc": now(), "git_commit": git_commit(),
+        "exact": counts(ids),
+        "cohort_identifiers_upper_case": counts([i.upper() for i in ids]),
+        "cohort_identifiers_lower_case": counts([i.lower() for i in ids]),
+        "by_year_folder": {y: counts([i for i in ids if year_of[i] == y]) for y in YEARS},
+        "by_identifier_format": {f: counts([i for i in ids if identifier_format(i) == f])
+                                 for f in ("digits only", "letters and digits", "other characters")},
+        "archive_all_species_by_year_folder": {y: counts(sorted(archive_years[y])) for y in sorted(archive_years)},
+        "archive_identifiers_by_length": dict(sorted(Counter(
+            len(i) for y in archive_years.values() for i in y).items())),
+        "amr_csv_identifiers": identifier_profile(args.amr),
+    }
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    return out
+
+
 def run_schema(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
     """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping.
 
@@ -527,6 +571,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sources", action="store_true",
                         help="only the Sample categories with isolate counts (amendment C4), into --sources-out")
     parser.add_argument("--sources-out", type=Path, default=ROOT / "results/metrics/v2.0/source_categories.json")
+    parser.add_argument("--matching", action="store_true",
+                        help="only the identifier-matching diagnostic (counts only), into --matching-out")
+    parser.add_argument("--matching-out", type=Path, default=ROOT / "results/metrics/v2.0/matching_diagnostic.json")
     parser.add_argument("--names", action="store_true",
                         help="only list the antibiotic names in AMR.csv's header into the summary of an earlier run")
     parser.add_argument("--columns", type=json.loads, default=None,
@@ -543,6 +590,11 @@ def main(argv: list[str] | None = None) -> int:
             raise StepError(f"{name} is not the verified download")
 
     with keep_awake():
+        if args.matching:
+            out = run_matching(args)
+            args.matching_out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+            log.info("written %s", args.matching_out.relative_to(ROOT))
+            return 0
         if args.sources:
             out = run_sources(args)
             args.sources_out.parent.mkdir(parents=True, exist_ok=True)

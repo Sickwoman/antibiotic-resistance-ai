@@ -238,3 +238,61 @@ def source_classes(path: str | Path, cohort_ids: Collection[str], mapping: Mappi
     if unknown:
         raise RestrictedReaderError(f"the mapping lists {len(unknown)} categories that are not named categories")
     return {i: mapping.get(v, "ambiguous") if v in named else "ambiguous" for i, v in single.items()}
+
+
+def match_counts(path: str | Path, cohort_ids: Collection[str]) -> tuple[int, int]:
+    """The numbers of cohort isolates matched to at least one record by Identifier, and unmatched (amendments A2, C4).
+
+    Only the Identifier field is looked at, and only these two counts leave the function.
+    """
+    columns, delimiter = read_header(path)
+    if IDENTIFIER not in columns:
+        raise RestrictedReaderError("no Identifier column")
+    id_index = columns.index(IDENTIFIER)
+    cohort, matched = set(cohort_ids), set()
+    line = 1
+    try:
+        with open(path, encoding=ENCODING, newline="") as fh:
+            reader = csv.reader(fh, delimiter=delimiter)
+            next(reader)
+            for line, row in enumerate(reader, start=2):
+                if len(row) != len(columns):
+                    raise RestrictedReaderError(f"row length differs from the header at line {line}")
+                if row[id_index].strip() in cohort:
+                    matched.add(row[id_index].strip())
+    except RestrictedReaderError:
+        raise
+    except (OSError, csv.Error, UnicodeDecodeError):
+        raise RestrictedReaderError(f"unreadable at line {line}") from None
+    return len(matched), len(cohort - matched)
+
+
+def identifier_profile(path: str | Path) -> dict[str, object]:
+    """Aggregate shape of AMR.csv's Identifier field, to diagnose matching: the numbers of rows and distinct
+    identifiers, and distinct identifiers by length and by character class. No identifier leaves the function."""
+    columns, delimiter = read_header(path)
+    if IDENTIFIER not in columns:
+        raise RestrictedReaderError("no Identifier column")
+    id_index, rows, distinct = columns.index(IDENTIFIER), 0, set()
+    line = 1
+    try:
+        with open(path, encoding=ENCODING, newline="") as fh:
+            reader = csv.reader(fh, delimiter=delimiter)
+            next(reader)
+            for line, row in enumerate(reader, start=2):
+                if len(row) != len(columns):
+                    raise RestrictedReaderError(f"row length differs from the header at line {line}")
+                rows += 1
+                distinct.add(row[id_index].strip())
+    except RestrictedReaderError:
+        raise
+    except (OSError, csv.Error, UnicodeDecodeError):
+        raise RestrictedReaderError(f"unreadable at line {line}") from None
+
+    def kind(i: str) -> str:
+        if i.isdigit():
+            return "digits only"
+        return "letters and digits" if i.isascii() and i.isalnum() else "other characters"
+    return {"rows": rows, "distinct_identifiers": len(distinct),
+            "by_length": dict(sorted(Counter(len(i) for i in distinct).items())),
+            "by_character_class": dict(sorted(Counter(kind(i) for i in distinct).items()))}

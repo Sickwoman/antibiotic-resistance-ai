@@ -49,7 +49,9 @@ def test_only_the_restricted_reader_opens_amr_csv():
     for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
         if any(isinstance(a, ast.Attribute) and a.attr == "amr" for a in call.args):
             callee = call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id
-            assert callee in {"read_columns", "schema_check", "sample_categories", "source_classes"}, callee
+            allowed_readers = {"read_columns", "schema_check", "sample_categories", "source_classes",
+                               "match_counts", "identifier_profile"}
+            assert callee in allowed_readers, callee
 
 
 def write_spectrum_files(ml1=3.19e6, td=28750, intensities=None, extra=()):
