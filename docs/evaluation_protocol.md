@@ -485,3 +485,53 @@ earlier model, threshold, split, metric or recorded result, and it adds nothing 
 4. **Ranking is not usefulness.** The primary endpoint is AUROC; no specificity or usefulness requirement is
    adopted, and "flags nearly everyone" (specificity below 0.20) remains a research line.
 5. **DRIAMS-C stays closed.** Its standing is recorded in `docs/driams_c_status.md`.
+
+### Amendment 12 — 2026-10-02: external validation of the frozen models on MARISMa (Version 2.0)
+
+Recorded before any Version 2.0 code, download or experiment, together with
+[the Version 2.0 plan](v2.0_marisma_plan.md). The project owner chose the data source (MARISMa) and the design (both
+frozen models, with a multiplicity correction) on 2026-10-02. This amendment changes no earlier model, threshold,
+split, metric or recorded result. Its scoring will append rows to the production log, once.
+
+1. **A public external dataset, scored once.** MARISMa version 2.0.0 is the evaluation data: Hospital General
+   Universitario Gregorio Marañón, Madrid, 2018–2024. Nothing is fitted on it.
+2. **Frozen models only.** They are used exactly as saved: the served Version 0.4 ciprofloxacin model and Version
+   1.1's arm T ceftriaxone model, with their thresholds, and the Version 0.6 zone for ciprofloxacin.
+3. **Isolate-level units where no patient linkage exists.** MARISMa keeps one identifier per isolate, so intervals
+   resample isolates. Every result states that repeat isolates from one patient cannot be detected. This deviates
+   from the research report's requirement of patient linkage, by the owner's decision.
+4. **Two primary hypotheses, Holm-corrected.** AUROC > 0.5 for each antibiotic, at a family-wise α of 0.05.
+5. **Labels sealed until scoring.** Before scoring, only the names of the antibiotic fields and the number of
+   non-missing interpretations may be read.
+6. **The I-excluded sensitivity analysis is executed** this time, whatever the primary result.
+7. **DRIAMS-C stays closed.**
+
+#### Amendment 12, note A — 2026-10-02: pre-data clarifications (recorded before any MARISMa file is downloaded)
+
+Recorded with amendment A of [the Version 2.0 plan](v2.0_marisma_plan.md), which governs where the two differ. The
+note is proposed, and nothing in it is approved. Amendment 12 above stays exactly as recorded, and this note is pinned
+separately.
+
+1. **Item 3 corrected.** Acceptance of the patient-linkage deviation is pending; it was not given by the owner's choice
+   of data source. It is recorded only when the owner gives it, in a later dated entry, and never backdated.
+2. **Item 5 made precise.** Before scoring, only the restricted schema reader (plan amendment A2) may open `AMR.csv`.
+   - It may match isolates, list antibiotic names and count non-missing interpretations.
+   - It may expose no outcome category, prevalence, MIC value, raw row or outcome-bearing log.
+3. **Item 4's test.** Each primary hypothesis is tested by a one-sided Brunner–Munzel test, with Holm over the fixed
+   two-hypothesis family (plan amendment A3). An antibiotic that is dropped, or falls below the minimums, enters with
+   p = 1.
+
+#### Amendment 12, note B — 2026-10-03: final pre-data clarifications (recorded before any MARISMa file is downloaded)
+
+Recorded with amendment B of [the Version 2.0 plan](v2.0_marisma_plan.md), which governs where the two differ. The
+note is proposed, and nothing in it is approved. Note A stays exactly as recorded, and this note is pinned separately.
+
+1. **A non-finite test is not estimable.** If the Brunner–Munzel statistic or its p-value is not finite, the primary
+   test is reported as "not estimable", and the antibiotic enters the fixed Holm family with p = 1. No fallback test is
+   run. Descriptive metrics are kept wherever they are defined.
+2. **Error control.** "Brunner–Munzel inference is approximate and assumes independent isolates. Holm adjustment does
+   not repair invalid component p-values. Missing patient linkage leaves actual error control uncertain." The
+   family-wise α of 0.05 in item 4 is the nominal design level, not a guarantee.
+3. **Conclusion wording.** A rejected hypothesis is reported only as "Evidence of above-chance ranking on MARISMa under
+   the isolate-independence assumption". This is never read as clinical utility, or as internal performance
+   maintained.
