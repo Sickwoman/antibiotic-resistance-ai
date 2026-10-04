@@ -550,6 +550,32 @@ def run_matching(args: argparse.Namespace) -> dict[str, Any]:
     return out
 
 
+def cohort_identifiers(zip_path: Path) -> tuple[list[str], dict[str, Any]]:
+    """The identifiers that pass the species, identity and year rules (amendment D5), with build_cohort's counts."""
+    names = [name for name, _ in iter_members(zip_path)]
+    cohort, counts, _ = build_cohort(names)
+    return sorted(cohort), counts
+
+
+def run_disclose(args: argparse.Namespace) -> dict[str, Any]:
+    """Amendment D4: the Sample categories that pass the size and content checks, named with their isolate counts; the
+    rare categories stay suppressed (totals only)."""
+    before = protected_state()
+    ids, counts = cohort_identifiers(args.zip)
+    summary = sample_categories(args.amr, ids, owner_disclosure=True)
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    return {
+        "what": "Version 2.0, amendment D4: Sample categories disclosed by the owner's decision (those passing the "
+                "size and content checks), with isolate counts; rare categories suppressed",
+        "run_utc": now(), "git_commit": git_commit(),
+        "cohort": {"rule": "species field, identity rule (amendment D5) and years 2018-2024; before the source rule",
+                   "isolates": len(ids), "identity_rule_excluded": counts["species_consistency_rule"][
+                       "excluded_identifiers"]},
+        "summary": dataclasses.asdict(summary),
+    }
+
+
 def run_coverage_matching(args: argparse.Namespace) -> dict[str, Any]:
     """For each coverage rule of the investigation (amendment C7): the isolates it keeps, by year folder and instrument,
     and how many of them match an AMR.csv record (counts only; amendments A2 and C4)."""
@@ -607,6 +633,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--matching", action="store_true",
                         help="only the identifier-matching diagnostic (counts only), into --matching-out")
     parser.add_argument("--matching-out", type=Path, default=ROOT / "results/metrics/v2.0/matching_diagnostic.json")
+    parser.add_argument("--disclose", action="store_true",
+                        help="amendment D4: the disclosed Sample categories with counts, into --disclose-out")
+    parser.add_argument("--disclose-out", type=Path,
+                        default=ROOT / "results/metrics/v2.0/source_categories_disclosed.json")
     parser.add_argument("--coverage-matching", action="store_true",
                         help="AMR.csv matches among the isolates each coverage rule keeps (counts only)")
     investigation = data_root / "MARISMa_v2.0.0_work" / "investigation_2026-10-04"
@@ -629,6 +659,11 @@ def main(argv: list[str] | None = None) -> int:
             raise StepError(f"{name} is not the verified download")
 
     with keep_awake():
+        if args.disclose:
+            out = run_disclose(args)
+            args.disclose_out.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            log.info("written %s", args.disclose_out.relative_to(ROOT))
+            return 0
         if args.coverage_matching:
             out = run_coverage_matching(args)
             args.coverage_matching_out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")

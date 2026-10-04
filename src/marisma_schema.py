@@ -196,24 +196,34 @@ def _isolate_samples(path: str | Path, cohort_ids: Collection[str]) -> tuple[dic
     return single, len(cohort)
 
 
-def _named(single: dict[str, str]) -> tuple[dict[str, int], dict[str, int], str | None]:
+def _named(single: dict[str, str], owner_disclosure: bool = False
+           ) -> tuple[dict[str, int], dict[str, int], str | None]:
+    """Named and suppressed categories, and the schema problem if any.
+
+    `owner_disclosure` is amendment D4: the owner allowed the categories that pass the size and content checks to be
+    named even though suppressed categories hold more than 5 % of matched isolates. It lifts only that rule: with more
+    than 100 categories nothing is named, and a category failing a size or content check is never named.
+    """
     counts = Counter(v for v in single.values() if v not in (MISSING, CONFLICTING))
     named = {c: n for c, n in counts.items() if n >= MIN_CELL and nameable(c)}
     suppressed = {c: n for c, n in counts.items() if c not in named}
-    problem = None
+    problem, lifted = None, False
     if len(counts) > MAX_CATEGORIES:
         problem = f"more than {MAX_CATEGORIES} distinct categories: the field is treated as free text"
     elif single and sum(suppressed.values()) > MAX_SUPPRESSED_SHARE * len(single):
         problem = "suppressed categories hold more than 5 % of matched isolates: the field is treated as free text"
-    if problem:
+        lifted = owner_disclosure
+    if problem and not lifted:
         named, suppressed = {}, dict(counts)
     return named, suppressed, problem
 
 
-def sample_categories(path: str | Path, cohort_ids: Collection[str]) -> SampleSummary:
-    """The distinct Sample categories among the cohort's isolates, with isolate counts (amendment C4)."""
+def sample_categories(path: str | Path, cohort_ids: Collection[str], *, owner_disclosure: bool = False
+                      ) -> SampleSummary:
+    """The distinct Sample categories among the cohort's isolates, with isolate counts (amendment C4; with
+    `owner_disclosure`, amendment D4)."""
     single, cohort_size = _isolate_samples(path, cohort_ids)
-    named, suppressed, problem = _named(single)
+    named, suppressed, problem = _named(single, owner_disclosure)
     values = Counter(single.values())
     return SampleSummary(categories=dict(sorted(named.items(), key=lambda kv: (-kv[1], kv[0]))),
                          missing=values[MISSING], conflicting=values[CONFLICTING],
@@ -222,17 +232,19 @@ def sample_categories(path: str | Path, cohort_ids: Collection[str]) -> SampleSu
                          schema_problem=problem)
 
 
-def source_classes(path: str | Path, cohort_ids: Collection[str], mapping: Mapping[str, str]) -> dict[str, str]:
+def source_classes(path: str | Path, cohort_ids: Collection[str], mapping: Mapping[str, str], *,
+                   owner_disclosure: bool = False) -> dict[str, str]:
     """Each matched cohort isolate's class under a fixed mapping (amendment C5): "clinical", "screening" or "ambiguous".
 
     Only named categories can be mapped. A category the mapping does not list, a suppressed category, "missing" and
-    "conflicting" are all "ambiguous". No Sample value is returned; with a schema problem, nothing is mapped.
+    "conflicting" are all "ambiguous". No Sample value is returned. With a schema problem nothing is mapped, unless
+    `owner_disclosure` (amendment D4) lifted it.
     """
     if any(c not in CLASSES for c in mapping.values()):
         raise RestrictedReaderError("a mapping class is not clinical, screening or ambiguous")
     single, _ = _isolate_samples(path, cohort_ids)
-    named, _, problem = _named(single)
-    if problem:
+    named, _, problem = _named(single, owner_disclosure)
+    if problem and not named:
         raise RestrictedReaderError("the Sample field has a schema problem; no mapping is applied")
     unknown = [c for c in mapping if c not in named]
     if unknown:

@@ -172,3 +172,58 @@ def test_decode_returns_what_convert_refuses_and_agrees_where_convert_accepts(tm
     with pytest.raises(BrukerReadError):
         convert(lines, (short / "fid").read_bytes())
     assert decode(lines, (short / "fid").read_bytes()).mz.size == 2000     # decoded, though the check refuses it
+
+
+# --- amendment D2: the amended coverage rule -------------------------------------------------------------------------
+
+def tof_at(mz: float) -> float:
+    """The calibration's inverse for the fixture constants: tof = ML2 + ML3*m + sqrt(1e12/ML1)*sqrt(m)."""
+    return ML2 + ML3 * mz + math.sqrt(1e12 / ML1) * math.sqrt(mz)
+
+
+def window(first: float, last: float, dw: float = 2.0) -> dict:
+    delay = tof_at(first)
+    return {"delay": delay, "dw": dw, "td": int((tof_at(last) - delay) / dw) + 1}
+
+
+def amended(folder):
+    from src.bruker import convert_amended
+    from src.preprocessing import PreprocessingConfig
+    lines = (folder / "acqu").read_text(encoding="latin-1").splitlines()
+    return convert_amended(lines, (folder / "fid").read_bytes(), PreprocessingConfig().bin_edges)
+
+
+def test_the_amended_rule_accepts_a_standard_window(tmp_path):
+    w = window(1965.0, 20500.0)
+    s = amended(write_spectrum(tmp_path / "s", **w, intensities=100 + np.zeros(w["td"])))
+    assert s.mz[0] == pytest.approx(1965.0, abs=0.01) and s.mz[-1] >= 20000
+
+
+@pytest.mark.parametrize(("first", "last", "dw", "reason"), [
+    (1965.0, 20500.0, 1.0, "sampling_interval_not_2ns"),
+    (1955.0, 20500.0, 2.0, "starts_below_1960_da"),
+    (2004.0, 20500.0, 2.0, "feature_bin_without_data"),        # bin 0, 2,000-2,003 Da, gets no point
+    (1965.0, 19995.0, 2.0, "feature_bin_without_data"),        # bin 5999, 19,997-20,000 Da, gets no point
+    (1955.0, 19995.0, 1.0, "sampling_interval_not_2ns"),       # the order of the checks decides the reason
+])
+def test_the_amended_rule_refuses_with_its_reason(tmp_path, first, last, dw, reason):
+    w = window(first, last, dw)
+    with pytest.raises(BrukerReadError) as e:
+        amended(write_spectrum(tmp_path / "s", **w, intensities=100 + np.zeros(w["td"])))
+    assert e.value.reason == reason
+
+
+def test_bin_membership_uses_the_pipeline_boundaries():
+    from src.bruker import empty_feature_bins
+    from src.preprocessing import PreprocessingConfig, bin_intensities, trim
+    edges = PreprocessingConfig().bin_edges
+    grid = np.arange(2000.0, 20000.0, 2.9)                     # every bin gets a point, and 20,000 itself is absent
+    assert empty_feature_bins(grid, edges) == 0
+    assert empty_feature_bins(np.r_[2003.0, grid[grid >= 2003.0]], edges) == 1   # 2,003.0 belongs to bin 1
+    assert empty_feature_bins(np.r_[grid[grid < 19997.0], 19997.0], edges) == 0  # 19,997.0 is in the last bin
+    assert empty_feature_bins(np.r_[grid[grid < 19997.0], 20000.0], edges) == 0  # so is 20,000.0: [a, b] is closed
+    assert empty_feature_bins(np.r_[grid[grid < 19997.0], 20000.01], edges) == 1  # beyond 20,000: trimmed away
+    mz = np.sort(np.random.default_rng(3).uniform(1990, 20010, size=20000))
+    kept, ones = trim(mz, np.ones_like(mz), 2000.0, 20000.0)
+    assert empty_feature_bins(mz, edges) == int((bin_intensities(kept, ones, edges) == 0).sum())
+

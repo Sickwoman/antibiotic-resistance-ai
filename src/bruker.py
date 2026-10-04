@@ -36,6 +36,8 @@ from pathlib import Path
 import numpy as np
 
 REQUIRED_RANGE = (2000.0, 20000.0)   # Da; the spectrum must cover it (plan, Cohort: reader failures)
+TRAINING_DW_NS = 2.0                  # amendment D2: DRIAMS-A's sampling interval (0.415 Da apart at 1,960 Da)
+TRAINING_FIRST_MZ = 1960.0            # amendment D2: where DRIAMS-A's raw spectra start
 _VALUE = re.compile(r"(^.*= *<?)|(>? *$)")   # readBrukerFlexData's .grepAcquValue, applied with gsub
 
 
@@ -59,7 +61,10 @@ REASONS = (
     "empty",                           # no points, or every intensity zero
     "non_finite",                      # a mass or intensity is not finite
     "axis_not_increasing",             # m/z is not strictly increasing
-    "range_not_covered",               # m/z does not cover 2,000-20,000 Da
+    "range_not_covered",               # m/z does not cover 2,000-20,000 Da (the approved rule, superseded by D2)
+    "sampling_interval_not_2ns",       # amendment D2: ##$DW is not 2 ns
+    "starts_below_1960_da",            # amendment D2: the first acquired point is below 1,960 Da
+    "feature_bin_without_data",        # amendment D2: a feature bin of the frozen pipeline holds no acquired point
 )
 
 
@@ -191,4 +196,34 @@ def convert(lines: list[str], fid_bytes: bytes) -> BrukerSpectrum:
         raise BrukerReadError("axis_not_increasing")
     if mz[0] > REQUIRED_RANGE[0] or mz[-1] < REQUIRED_RANGE[1]:
         raise BrukerReadError("range_not_covered")
+    return spectrum
+
+
+def empty_feature_bins(mz: np.ndarray, bin_edges: np.ndarray) -> int:
+    """How many feature bins hold no acquired point, binning exactly as src/preprocessing does: points are kept if
+    edges[0] <= m/z <= edges[-1] (its `trim`), and bins are [a, b) except the last, [a, b] (its `bin_intensities`)."""
+    inside = mz[(mz >= bin_edges[0]) & (mz <= bin_edges[-1])]
+    counts, _ = np.histogram(inside, bins=bin_edges)
+    return int((counts == 0).sum())
+
+
+def convert_amended(lines: list[str], fid_bytes: bytes, bin_edges: np.ndarray) -> BrukerSpectrum:
+    """Amendment D2 (2026-10-04): `decode`, the unchanged checks (non-empty, finite, strictly increasing), then the
+    amended coverage rule, in this order: the sampling interval (##$DW) is 2 ns; the first acquired point is at or
+    above 1,960 Da; every feature bin of the frozen pipeline (`bin_edges`, its PreprocessingConfig.bin_edges) holds at
+    least one acquired point. A spectrum failing one is refused with that reason."""
+    spectrum = decode(lines, fid_bytes)
+    mz, intensity = spectrum.mz, spectrum.intensity
+    if not intensity.any():
+        raise BrukerReadError("empty")
+    if not (np.isfinite(mz).all() and np.isfinite(intensity).all()):
+        raise BrukerReadError("non_finite")
+    if np.any(np.diff(mz) <= 0):
+        raise BrukerReadError("axis_not_increasing")
+    if _double(lines, "DW") != TRAINING_DW_NS:
+        raise BrukerReadError("sampling_interval_not_2ns")
+    if mz[0] < TRAINING_FIRST_MZ:
+        raise BrukerReadError("starts_below_1960_da")
+    if empty_feature_bins(mz, bin_edges):
+        raise BrukerReadError("feature_bin_without_data")
     return spectrum

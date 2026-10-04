@@ -245,3 +245,43 @@ def test_suppression_profile_counts_reasons_without_names(tmp_path):
                        "isolates_in_categories_below_min": 4, "categories_failing_content_rules": 2,
                        "isolates_in_categories_failing_content_rules": 2, "missing": 3, "conflicting": 2}
     assert_no_sample_leak(repr(profile))
+
+
+# --- amendment D4: the owner's disclosure of the categories that pass the size and content checks --------------------
+
+def long_tail_fixture(tmp_path):
+    """90 isolates in two named-size categories, 6 in rare categories (6 % > 5 %), one rare one identifying-looking."""
+    rows = ([sample_row(f"I{i}", "Urine") for i in range(60)] + [sample_row(f"I{i}", "Blood culture")
+                                                                  for i in range(60, 90)]
+            + [sample_row(f"J{i}", f"Rare {chr(65 + i)}") for i in range(5)] + [sample_row("J9", "SENT-FREE 1985")])
+    return write_csv(tmp_path / "AMR.csv", rows), [f"I{i}" for i in range(90)] + [f"J{i}" for i in range(5)] + ["J9"]
+
+
+def test_owner_disclosure_names_only_categories_passing_size_and_content(tmp_path, capsys):
+    from src.marisma_schema import sample_categories
+    path, cohort = long_tail_fixture(tmp_path)
+    assert sample_categories(path, cohort).categories == {}                  # C4's rule alone: nothing named
+    summary = sample_categories(path, cohort, owner_disclosure=True)
+    assert summary.categories == {"Urine": 60, "Blood culture": 30}
+    assert (summary.suppressed_categories, summary.suppressed_isolates) == (6, 6)
+    assert summary.schema_problem                                           # still reported
+    assert_no_sample_leak(repr(summary), capsys.readouterr().out)
+    assert "Rare" not in repr(summary)                                      # rare names stay suppressed
+
+
+def test_owner_disclosure_does_not_lift_the_100_category_rule(tmp_path):
+    from src.marisma_schema import sample_categories
+    many = write_csv(tmp_path / "many.csv", [sample_row(f"I{i}", f"Category {chr(65 + i % 26)}{i // 26}")
+                                             for i in range(150)])
+    assert sample_categories(many, [f"I{i}" for i in range(150)], owner_disclosure=True).categories == {}
+
+
+def test_owner_disclosure_allows_the_fixed_mapping(tmp_path):
+    from src.marisma_schema import source_classes
+    path, cohort = long_tail_fixture(tmp_path)
+    with pytest.raises(RestrictedReaderError):
+        source_classes(path, cohort, {"Urine": "clinical"})                  # C4 alone: no mapping
+    classes = source_classes(path, cohort, {"Urine": "clinical", "Blood culture": "screening"}, owner_disclosure=True)
+    assert sorted(set(classes.values())) == ["ambiguous", "clinical", "screening"]
+    assert list(classes.values()).count("ambiguous") == 6                   # the rare categories
+

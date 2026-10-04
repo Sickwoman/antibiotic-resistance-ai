@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
-from src.bruker import BrukerReadError
+from src.bruker import TRAINING_DW_NS, TRAINING_FIRST_MZ, BrukerReadError
 
 NO_REPLICATE_FOLDER = "no_replicate_folder"
 NO_PASSING_REPLICATE = "no_passing_replicate"
@@ -139,8 +139,6 @@ def layout_folders(names: Iterable[str]) -> tuple[set[tuple[str, str, str, str]]
 
 COVERAGE_RULES = ("approved: first <= 2000 Da and last >= 20000 Da", "every feature bin has acquired data",
                   "every feature bin has acquired data, with the training spectra's acquisition settings")
-TRAINING_DW_NS = 2.0                     # DRIAMS-A's sampling interval: 0.415 Da apart at 1,960 Da, as with 2 ns here
-TRAINING_FIRST_MZ = 1960.0               # where DRIAMS-A's raw spectra start (their raw files' first m/z)
 
 
 def coverage_passes(windows, rule: str):
