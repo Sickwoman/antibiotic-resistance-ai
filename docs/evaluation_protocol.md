@@ -602,3 +602,17 @@ Step 3 is not accepted, and scoring stays blocked. Notes A–D stand as recorded
   owner decision before scoring.
 
 Notes A–E stand as recorded.
+
+#### Amendment 12, note G — 2026-10-04T15:21:22Z: acceptance of step 3 and authorisation of step 4
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment F, records the owner's acceptance of the step 3 preparation at
+commit `8c85055a721bc7bc67cbb808f3e0d61e8ec06c1e`. That acceptance was verified against the saved artifacts. It also
+records the authorisation of step 4: implement, test and freeze the scoring script.
+- **The scope.** The frozen ciprofloxacin model on eligible MARISMa *E. coli* isolates from 2024, acquired on MBT-WIN10.
+- **Ceftriaxone** is unavailable. It contributes p = 1 to the original two-hypothesis Holm family, and its model is not
+  run.
+- **The cohort** is described as "all sources retained; screening status could not be determined".
+- **The step 4 specification,** fixed before the scoring code, is in amendment F5.
+
+Running either model on MARISMa, reading an interpretation category and appending to the production log all need the
+owner's separate approval. Notes A–F stand as recorded.
