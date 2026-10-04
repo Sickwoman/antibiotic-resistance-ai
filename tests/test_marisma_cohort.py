@@ -135,3 +135,10 @@ def test_coverage_outcomes_follow_the_registered_order():
     approved = {o["isolate"]: o["kept"] for o in coverage_outcomes(windows, COVERAGE_RULES[0])}
     every_bin = {o["isolate"]: o["kept"] for o in coverage_outcomes(windows, COVERAGE_RULES[1])}
     assert approved == {"a": False, "b": False} and every_bin == {"a": True, "b": False}
+    windows["dw"] = [2.0, 2.0, 2.0]
+    settings = {o["isolate"]: o["kept"] for o in coverage_outcomes(windows, COVERAGE_RULES[2])}
+    assert settings == {"a": True, "b": False}
+    windows.loc[0, "dw"] = 1.0                           # denser sampling: refused under the settings rule
+    assert not coverage_outcomes(windows, COVERAGE_RULES[2])[0]["kept"]
+    windows.loc[0, ["dw", "first_mz"]] = [2.0, 0.5]      # an acquisition starting at about 0 Da: refused too
+    assert not coverage_outcomes(windows, COVERAGE_RULES[2])[0]["kept"]

@@ -137,7 +137,10 @@ def layout_folders(names: Iterable[str]) -> tuple[set[tuple[str, str, str, str]]
 
 # --- Coverage rules (amendment C7's investigation), applied with the replicate order of amendment A6.2 --------------
 
-COVERAGE_RULES = ("approved: first <= 2000 Da and last >= 20000 Da", "every feature bin has acquired data")
+COVERAGE_RULES = ("approved: first <= 2000 Da and last >= 20000 Da", "every feature bin has acquired data",
+                  "every feature bin has acquired data, with the training spectra's acquisition settings")
+TRAINING_DW_NS = 2.0                     # DRIAMS-A's sampling interval: 0.415 Da apart at 1,960 Da, as with 2 ns here
+TRAINING_FIRST_MZ = 1960.0               # where DRIAMS-A's raw spectra start (their raw files' first m/z)
 
 
 def coverage_passes(windows, rule: str):
@@ -148,6 +151,11 @@ def coverage_passes(windows, rule: str):
         return decoded & (windows["first_mz"] <= 2000) & (windows["last_mz"] >= 20000)
     if rule == COVERAGE_RULES[1]:
         return decoded & (windows["empty_bins"] == 0)
+    if rule == COVERAGE_RULES[2]:
+        # sum-binning scales features with sampling density, and TIC normalisation spans the whole acquired range:
+        # a different sampling interval, or an acquisition starting below the training spectra's start, rescales them
+        return (decoded & (windows["empty_bins"] == 0) & (windows["dw"] == TRAINING_DW_NS)
+                & (windows["first_mz"] >= TRAINING_FIRST_MZ))
     raise ValueError(f"unknown coverage rule {rule!r}")
 
 
