@@ -42,8 +42,11 @@ def test_the_step3_scripts_never_score_or_fit(path):
 def test_only_the_restricted_reader_opens_amr_csv():
     # Amendment A2's reconciled rule: before scoring, the only code that opens AMR.csv is the restricted schema
     # reader. The download script names the file to fetch and checksum it; the preparation script passes its path to
-    # the reader and checks its size; nothing else in src/ or scripts/ may name it.
-    allowed = {"src/marisma_schema.py", "scripts/download_marisma.py", "scripts/v20_prepare_marisma.py"}
+    # the reader and checks its size. Step 5's label reader and scoring script (amendment F5) name it too, but read it
+    # only under the owner's verified scoring authorisation (tests/test_v20_scoring.py checks that gate). Nothing
+    # else in src/ or scripts/ may name it.
+    allowed = {"src/marisma_schema.py", "scripts/download_marisma.py", "scripts/v20_prepare_marisma.py",
+               "src/marisma_labels.py", "scripts/v20_score_marisma.py"}
     naming = {p.relative_to(ROOT).as_posix() for folder in ("src", "scripts") for p in (ROOT / folder).rglob("*.py")
               if "AMR.csv" in p.read_text(encoding="utf-8") or "_sealed" in p.read_text(encoding="utf-8")}
     assert naming <= allowed
