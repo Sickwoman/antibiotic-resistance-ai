@@ -54,7 +54,9 @@ if str(ROOT) not in sys.path:
 from src.bruker import BrukerReadError, BrukerSpectrum, _double, _text, convert  # noqa: E402
 from src.dataset import file_sha256, load_dataset  # noqa: E402
 from src.marisma_cohort import (  # noqa: E402
+    COVERAGE_RULES,
     Selection,
+    coverage_outcomes,
     exclusion_summary,
     layout_folders,
     parse_spectrum_member,
@@ -548,6 +550,30 @@ def run_matching(args: argparse.Namespace) -> dict[str, Any]:
     return out
 
 
+def run_coverage_matching(args: argparse.Namespace) -> dict[str, Any]:
+    """For each coverage rule of the investigation (amendment C7): the isolates it keeps, by year folder and instrument,
+    and how many of them match an AMR.csv record (counts only; amendments A2 and C4)."""
+    before = protected_state()
+    windows = pd.read_csv(args.windows, dtype={"isolate": str, "year": str, "biological": str, "technical": str,
+                                                "instrument": str}, keep_default_na=False,
+                          na_values={"first_mz": [""], "last_mz": [""], "empty_bins": [""]})
+    out: dict[str, Any] = {"what": "Version 2.0: AMR.csv matches among the isolates each coverage rule keeps "
+                                   "(counts only)", "run_utc": now(), "git_commit": git_commit(), "rules": {}}
+    for rule in COVERAGE_RULES:
+        frame = pd.DataFrame(coverage_outcomes(windows, rule))
+        cells = {}
+        for (year, instrument), g in frame.groupby(["year", "instrument"]):
+            kept = g.loc[g["kept"], "isolate"].tolist()
+            matched_all, _ = match_counts(args.amr, g["isolate"].tolist())
+            matched_kept, _ = match_counts(args.amr, kept) if kept else (0, 0)
+            cells[f"{year} {instrument}"] = {"isolates": int(len(g)), "kept": len(kept),
+                                             "matched": matched_all, "matched_and_kept": matched_kept}
+        out["rules"][rule] = cells
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    return out
+
+
 def run_schema(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
     """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping.
 
@@ -581,6 +607,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--matching", action="store_true",
                         help="only the identifier-matching diagnostic (counts only), into --matching-out")
     parser.add_argument("--matching-out", type=Path, default=ROOT / "results/metrics/v2.0/matching_diagnostic.json")
+    parser.add_argument("--coverage-matching", action="store_true",
+                        help="AMR.csv matches among the isolates each coverage rule keeps (counts only)")
+    investigation = data_root / "MARISMa_v2.0.0_work" / "investigation_2026-10-04"
+    parser.add_argument("--windows", type=Path, default=investigation / "replicate_windows.csv")
+    parser.add_argument("--coverage-matching-out", type=Path,
+                        default=ROOT / "results/metrics/v2.0/coverage_matching.json")
     parser.add_argument("--names", action="store_true",
                         help="only list the antibiotic names in AMR.csv's header into the summary of an earlier run")
     parser.add_argument("--columns", type=json.loads, default=None,
@@ -597,6 +629,11 @@ def main(argv: list[str] | None = None) -> int:
             raise StepError(f"{name} is not the verified download")
 
     with keep_awake():
+        if args.coverage_matching:
+            out = run_coverage_matching(args)
+            args.coverage_matching_out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+            log.info("written %s", args.coverage_matching_out.relative_to(ROOT))
+            return 0
         if args.matching:
             out = run_matching(args)
             args.matching_out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")

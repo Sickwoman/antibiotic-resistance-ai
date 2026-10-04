@@ -41,7 +41,7 @@ if str(ROOT) not in sys.path:
 
 from src.bruker import BrukerReadError, _double, _text, convert, decode  # noqa: E402
 from src.dataset import load_dataset, resolve_relpath  # noqa: E402
-from src.marisma_cohort import folder_order  # noqa: E402
+from src.marisma_cohort import COVERAGE_RULES, coverage_outcomes  # noqa: E402
 from src.preprocessing import PreprocessingConfig, preprocess_arrays, read_raw_spectrum  # noqa: E402
 from src.utils import get_logger, git_commit, keep_awake, load_config  # noqa: E402
 from src.zip_index import iter_members, read_member  # noqa: E402
@@ -212,37 +212,11 @@ def synthetic_spectra(n: int, seed: int) -> list[tuple[np.ndarray, np.ndarray]]:
 
 # --- 3. Cohort consequences -----------------------------------------------------------------------------------------
 
-def rule_passes(rows: pd.DataFrame, rule: str) -> pd.Series:
-    decoded = rows["verdict"].isin(["passed", "range_not_covered"])     # every other check passed
-    first, last = rows["first_mz"], rows["last_mz"]
-    if rule == "approved: first <= 2000 Da and last >= 20000 Da":
-        return decoded & (first <= 2000) & (last >= 20000)
-    if rule == "every feature bin has acquired data":
-        return decoded & (rows["empty_bins"] == 0)
-    raise ValueError(rule)
-
-
-RULES = ("approved: first <= 2000 Da and last >= 20000 Da", "every feature bin has acquired data")
-
-
 def consequences(windows: pd.DataFrame) -> dict[str, Any]:
-    """Amendment A6.2 per isolate under each rule: the first replicate, in the registered order, that passes."""
+    """Amendment A6.2 per isolate under each rule (src/marisma_cohort.coverage_outcomes), by year and instrument."""
     out: dict[str, Any] = {}
-    windows = windows.copy()
-    for rule in RULES:
-        windows["ok"] = rule_passes(windows, rule)
-        records = []
-        for _isolate, g in windows.groupby("isolate", sort=True):
-            order = {(b, t): k for k, (b, t) in enumerate(
-                (b, t) for b in folder_order(g["biological"].unique())
-                for t in folder_order(g.loc[g["biological"] == b, "technical"].unique()))}
-            g = g.assign(rank=[order[(b, t)] for b, t in zip(g["biological"], g["technical"], strict=True)])
-            g = g.sort_values("rank")
-            chosen = g[g["ok"]]
-            first = chosen.iloc[0] if len(chosen) else g.iloc[0]
-            records.append({"year": first["year"], "instrument": first.get("instrument", ""),
-                            "kept": bool(len(chosen))})
-        frame = pd.DataFrame(records)
+    for rule in COVERAGE_RULES:
+        frame = pd.DataFrame(coverage_outcomes(windows, rule))
         table = frame.groupby(["year", "instrument"])["kept"].agg(isolates="size", kept="sum")
         table["excluded"] = table["isolates"] - table["kept"]
         out[rule] = {"isolates": int(len(frame)), "excluded": int((~frame["kept"]).sum()),

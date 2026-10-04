@@ -133,3 +133,37 @@ def layout_folders(names: Iterable[str]) -> tuple[set[tuple[str, str, str, str]]
             replicates.add(SpectrumFolder(year, genus, species, isolate, biological, technical,
                                           "/".join([*dirs[:7], SPECTRUM_FOLDER])))
     return isolates, replicates
+
+
+# --- Coverage rules (amendment C7's investigation), applied with the replicate order of amendment A6.2 --------------
+
+COVERAGE_RULES = ("approved: first <= 2000 Da and last >= 20000 Da", "every feature bin has acquired data")
+
+
+def coverage_passes(windows, rule: str):
+    """Which decoded replicates pass `rule`. `windows` holds, per replicate, the reader's verdict (a spectrum refused
+    for any reason other than its m/z range never passes), its first and last m/z, and its number of empty bins."""
+    decoded = windows["verdict"].isin(["passed", "range_not_covered"])
+    if rule == COVERAGE_RULES[0]:
+        return decoded & (windows["first_mz"] <= 2000) & (windows["last_mz"] >= 20000)
+    if rule == COVERAGE_RULES[1]:
+        return decoded & (windows["empty_bins"] == 0)
+    raise ValueError(f"unknown coverage rule {rule!r}")
+
+
+def coverage_outcomes(windows, rule: str) -> list[dict[str, Any]]:
+    """Per isolate under `rule`: whether a replicate passes, taking replicates in the registered order (A6.2), and the
+    year and instrument of the chosen replicate, or of the first replicate when none passes."""
+    windows = windows.assign(ok=coverage_passes(windows, rule))
+    out = []
+    for isolate, g in windows.groupby("isolate", sort=True):
+        ranked = [(b, t) for b in folder_order(g["biological"].unique())
+                  for t in folder_order(g.loc[g["biological"] == b, "technical"].unique())]
+        rank = {key: k for k, key in enumerate(ranked)}
+        g = g.assign(rank=[rank[(b, t)] for b, t in zip(g["biological"], g["technical"], strict=True)]).sort_values(
+            "rank")
+        chosen = g[g["ok"]]
+        row = chosen.iloc[0] if len(chosen) else g.iloc[0]
+        out.append({"isolate": isolate, "year": row["year"], "instrument": row.get("instrument", ""),
+                    "kept": bool(len(chosen))})
+    return out

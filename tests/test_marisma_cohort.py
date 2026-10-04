@@ -116,3 +116,22 @@ def test_layout_folders_come_from_directory_components_only():
     assert isolates == {("2021", "Escherichia", "Coli", i) for i in ("iso1", "iso2", "iso3")}
     assert {(r.isolate, r.biological, r.technical, r.folder.rsplit("/", 1)[-1]) for r in replicates} == {
         ("iso1", "0_A1", "1", "1SLin"), ("iso2", "0_B3", "1", "1SLin")}
+
+
+def test_coverage_outcomes_follow_the_registered_order():
+    import pandas as pd
+
+    from src.marisma_cohort import COVERAGE_RULES, coverage_outcomes
+    windows = pd.DataFrame([
+        # isolate a: its first replicate (0_A1) fails both rules; 0_A2 passes only "every bin has data"
+        {"isolate": "a", "year": "2024", "biological": "0_A2", "technical": "1", "instrument": "M",
+         "verdict": "range_not_covered", "first_mz": 2000.4, "last_mz": 21000.0, "empty_bins": 0},
+        {"isolate": "a", "year": "2024", "biological": "0_A1", "technical": "1", "instrument": "M",
+         "verdict": "range_not_covered", "first_mz": 2004.0, "last_mz": 21000.0, "empty_bins": 1},
+        # isolate b: refused for another reason, so it never passes whatever its window
+        {"isolate": "b", "year": "2019", "biological": "0_B1", "technical": "1", "instrument": "F",
+         "verdict": "empty", "first_mz": 1999.0, "last_mz": 20001.0, "empty_bins": 0},
+    ])
+    approved = {o["isolate"]: o["kept"] for o in coverage_outcomes(windows, COVERAGE_RULES[0])}
+    every_bin = {o["isolate"]: o["kept"] for o in coverage_outcomes(windows, COVERAGE_RULES[1])}
+    assert approved == {"a": False, "b": False} and every_bin == {"a": True, "b": False}
