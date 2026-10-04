@@ -101,16 +101,19 @@ def test_the_check_would_notice_an_edit():
 # exactly as it was locked: path -> [(start, length, SHA-256, commit), ...] in file order. The first amendment starts
 # where the locked text ends, and each later one where the previous amendment ends. Since 873aed5: Version 2.0 plan
 # amendment A and protocol amendment 12, note A; since 886076a: plan amendment B and note B (pre-data
-# clarifications); since 62deee6: the owner's approval record of steps 1-3 and note C.
+# clarifications); since 62deee6: the owner's approval record of steps 1-3 and note C; since 1ee6935: plan amendment C
+# and note D (deviation record, sample-source access, coverage investigation).
 LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
     "docs/v2.0_marisma_plan.md": [
         (15422, 19573, "f8cee0a947f7ba15cec6ebdb1040f8fbc44b52aaf84ebf0e22384d5d3e3589dd", "873aed5"),
         (34995, 5652, "c8204365e7c9b84f23fd07f65132a11cefb20d27e61047d30394c81e8d9c1ca5", "886076a"),
-        (40647, 1830, "b46234a911e716c725487bc6d03c3d9662585ed6a444b77e912b9fbe3bafbfa4", "62deee6")],
+        (40647, 1830, "b46234a911e716c725487bc6d03c3d9662585ed6a444b77e912b9fbe3bafbfa4", "62deee6"),
+        (42477, 8246, "145dca7b5a2033b74c5f8d9d01d3b0dc6be5c48eeb29bb378a27700373146e53", "1ee6935")],
     "docs/evaluation_protocol.md": [
         (39768, 1142, "e7e09fd41721eded12b019e42455358c7593a8a771fdda0728d7aa0fd3c8c197", "873aed5"),
         (40910, 1216, "68e495810e09ae281ecbb15f9c8508f1dc69446a72f7fd9b2ae872ecef871969", "886076a"),
-        (42126, 820, "4f46bef1572162c9336cddd088e4aa34392fc468ef8ec3fe1e6cb008dedc10be", "62deee6")],
+        (42126, 820, "4f46bef1572162c9336cddd088e4aa34392fc468ef8ec3fe1e6cb008dedc10be", "62deee6"),
+        (42946, 970, "e801715d98445ecb14d9375c471f3b8e04cddb6cee33726fff4e8b528b5063c8", "1ee6935")],
 }
 AMENDMENT_CASES = [(path, i) for path in sorted(LOCKED_AMENDMENTS) for i in range(len(LOCKED_AMENDMENTS[path]))]
 
