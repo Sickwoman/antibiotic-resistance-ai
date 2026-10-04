@@ -38,6 +38,18 @@ def test_the_committed_tables_are_what_the_committed_records_generate(tables, in
     assert tables.render(inputs) == committed
 
 
+def test_the_tables_do_not_depend_on_line_endings(tables, tmp_path):
+    # A Windows working copy may hold a record with CRLF (the run wrote the report there), while the repository and
+    # every CI checkout hold LF: the tables, including the report's digest, must come out the same either way.
+    for rel in tables.INPUTS:
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        lf = (ROOT / rel).read_bytes().replace(b"\r\n", b"\n")
+        dest.write_bytes(lf.replace(b"\n", b"\r\n") if rel == tables.REPORT else lf)
+    committed = (ROOT / tables.OUT).read_bytes().replace(b"\r\n", b"\n").decode("utf-8")
+    assert tables.render(tables.load_inputs(tmp_path)) == committed
+
+
 def test_the_script_reads_only_committed_aggregates(tables):
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     imported = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}

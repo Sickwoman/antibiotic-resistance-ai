@@ -185,9 +185,11 @@ None of these is needed for tiers 1–2.
 **Tier 1 (read-only).**
 ```bash
 python scripts/v20_tables.py --check     # the committed tables equal what the committed aggregates generate
-sha256sum results/metrics/v2.0/marisma_evaluation.json
+git show HEAD:results/metrics/v2.0/marisma_evaluation.json | sha256sum
 ```
-The report's SHA-256 is `719b140a558cb24a4902e9245642a9270809c6b8e7a472312f1ead42df0e78e2`. The pre-registration
+The report's committed (LF) content has SHA-256 `7544d6674f116ecfeeda6de7924b8d10d35f3be00edc1917306c0b803f269204`.
+On the Windows machine that ran the evaluation, the working copy holds the same content with CRLF line endings, so
+hash the committed blob as shown, or LF-normalised bytes, rather than that file. The pre-registration
 test (1.5) also checks the Version 2.0 plan's amendments and its execution record, each pinned as a separate segment.
 
 **Tier 2.** `tests/test_v20_*.py`, `tests/test_bruker.py`, `tests/test_marisma_*.py`, `tests/test_zip_index.py` and
