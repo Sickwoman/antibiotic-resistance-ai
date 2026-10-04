@@ -8,7 +8,7 @@ Intervals are descriptive: 2,000 stratified bootstrap resamples (resistant and s
 
 ## 1. Reader exclusions: which denominator
 
-The 6.07 % that triggered the aggregate pause is an all-years figure (1,031 of 16,975 isolates), dominated by the FLEX-PC years 2018–2019. Within the 2024 year folder, the source of every scoring candidate, the amended reader excluded 13 of 1,607 isolates (0.81 %), and 7 of the 1,172 matched to an `AMR.csv` record (0.60 %).
+The 6.07 % that triggered the aggregate pause is an all-years figure (1,031 of 16,975 isolates), dominated by the FLEX-PC years 2018–2019. Within the 2024 year folder, the source of every scoring candidate, the amended reader excluded 13 of 1,607 isolates (0.81 %), and 7 of the 1,172 matched to a susceptibility record (0.60 %).
 
 | Population | Isolates | Excluded by the reader | Share |
 |---|---|---|---|
@@ -21,15 +21,15 @@ The 6.07 % that triggered the aggregate pause is an all-years figure (1,031 of 1
 | 2022 MBT-WIN10 | 1,994 | 24 | 1.20 % |
 | 2023 MBT-WIN10 | 2,226 | 11 | 0.49 % |
 | 2024 MBT-WIN10 | 1,607 | 13 | 0.81 % |
-| **2024 isolates matched to an `AMR.csv` record** (the evaluation population's source) | 1,172 | 7 | 0.60 % |
-| 2024 isolates without an `AMR.csv` record | 435 | 6 | 1.38 % |
+| **2024 isolates matched to a susceptibility record** (the evaluation population's source) | 1,172 | 7 | 0.60 % |
+| 2024 isolates without a susceptibility record | 435 | 6 | 1.38 % |
 
 ## 2. From scoring candidates to the analysis populations
 
 | Step | Isolates | Not carried forward |
 |---|---|---|
 | Scoring candidates: every prepared 2024 isolate, MBT-WIN10 | 1,594 |  |
-| Matched to an `AMR.csv` record | 1,165 | 429 without a record |
+| Matched to a susceptibility record | 1,165 | 429 without a record |
 | With a non-missing ciprofloxacin interpretation | 1,146 | 19 matched isolates without one |
 | With one valid interpretation: S 690, I 49, R 406 | 1,145 | 1 with conflicting interpretations; 0 values other than S, I, R |
 | **Primary population** (I counted as resistant) | 1,145 | 455 resistant, 690 susceptible |
