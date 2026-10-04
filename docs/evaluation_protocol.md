@@ -564,3 +564,26 @@ PR #35. The approval record in the plan quotes the owner's words. Notes A and B 
 
 The owner did not approve a coverage tolerance, model scoring, outcome inspection or any change to the frozen models.
 Notes A, B and C stand as recorded.
+
+#### Amendment 12, note E — 2026-10-04T14:36:14Z: the owner's decisions on the step 3 blockers
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment D, records the owner's decisions of 2026-10-04. They were
+informed by label-blind inspection of MARISMa metadata and spectra.
+- **The coverage rule.** Every feature bin of the frozen pipeline holds an acquired point, the sampling interval is
+  2 ns, and the first point is at or above 1,960 Da. Residual edge and normalisation differences are accepted as
+  limitations, not as equivalence with DRIAMS features.
+- **The pause.** Continuation beyond the recorded 6.07 % pause (1,031 of 16,975) is approved for the investigated
+  coverage and acquisition failures only. The 5 % rule stays.
+- **Sample sources.**
+  - The 32 categories that pass the size and content checks may be named, and the 39 rare ones stay suppressed.
+  - The screening mapping is fixed before it is applied.
+  - Unresolved sources are kept as "source unknown/ambiguous", in a cohort labelled "identifiable screening sources
+    excluded".
+- **The identity rule.** Identifiers filed under more than one genus or species are excluded: 10, none with an
+  `AMR.csv` record.
+- **The evaluation population.** Matching *E. coli* `AMR.csv` records exist only for 2024, on one instrument.
+  - Results apply to the eligible, tested 2024 subset only.
+  - The period analyses are unavailable.
+  - Only the restricted schema counts are run before scoring.
+
+Step 3 is not accepted, and scoring stays blocked. Notes A–D stand as recorded.
