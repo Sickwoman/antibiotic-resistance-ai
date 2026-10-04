@@ -33,6 +33,7 @@ fits nothing. Outputs:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import datetime as dt
 import hashlib
 import json
@@ -60,7 +61,17 @@ from src.marisma_cohort import (  # noqa: E402
     pause_check,
     select_first_passing,
 )
-from src.marisma_schema import antibiotic_names, read_columns, schema_summary  # noqa: E402
+from src.marisma_schema import (  # noqa: E402
+    MAX_CATEGORIES,
+    MAX_CATEGORY_CHARS,
+    MAX_CATEGORY_WORDS,
+    MAX_SUPPRESSED_SHARE,
+    MIN_CELL,
+    antibiotic_names,
+    read_columns,
+    sample_categories,
+    schema_summary,
+)
 from src.predict import load_bundle  # noqa: E402
 from src.preprocessing import PreprocessingConfig, PreprocessingError, preprocess_arrays  # noqa: E402
 from src.splits import load_splits  # noqa: E402
@@ -453,6 +464,39 @@ def list_names(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, An
     return result
 
 
+def species_year_identifiers(zip_path: Path) -> tuple[list[str], set[str]]:
+    """E. coli identifiers by the approved rules only (MARISMa's species field and the years), and the subset whose
+    isolate folders also sit under another genus or species (run 1's unapproved exclusion, amendment C2)."""
+    isolate_folders, _ = layout_folders(name for name, _ in iter_members(zip_path))
+    taxa: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for _, genus, species, isolate in isolate_folders:
+        taxa[isolate].add((genus, species))
+    ecoli = sorted({f[3] for f in isolate_folders if (f[1], f[2]) == SPECIES and f[0] in YEARS})
+    return ecoli, {i for i in ecoli if len(taxa[i]) > 1}
+
+
+def run_sources(args: argparse.Namespace) -> dict[str, Any]:
+    """Amendment C4: the Sample categories among the cohort's isolates, with isolate counts, and nothing else."""
+    before = protected_state()
+    ids, inconsistent = species_year_identifiers(args.zip)
+    summary = sample_categories(args.amr, ids)
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    return {
+        "what": "Version 2.0, amendment C4: the distinct Sample categories of AMR.csv among the cohort's isolates, "
+                "with isolate counts (no identifier, row, outcome, MIC or cross-tabulation)",
+        "run_utc": now(), "git_commit": git_commit(),
+        "cohort": {"rule": "MARISMa's species field (Escherichia/Coli) and the years 2018-2024; before the reader, "
+                           "the source rule and any identity rule", "isolates": len(ids),
+                   "of_which_also_filed_under_another_species": len(inconsistent)},
+        "suppression": {"min_isolates": MIN_CELL, "max_characters": MAX_CATEGORY_CHARS,
+                        "max_words": MAX_CATEGORY_WORDS, "no_run_of_4_digits": True, "no_at_or_http": True,
+                        "printable_only": True, "free_text_if_more_than_categories": MAX_CATEGORIES,
+                        "free_text_if_suppressed_share_above": MAX_SUPPRESSED_SHARE},
+        "summary": dataclasses.asdict(summary),
+    }
+
+
 def run_schema(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
     """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping.
 
@@ -480,6 +524,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--work", type=Path, default=data_root / "MARISMa_v2.0.0_work")
     parser.add_argument("--schema", action="store_true",
                         help="run only the schema check, on the cohort of an earlier run, with --columns")
+    parser.add_argument("--sources", action="store_true",
+                        help="only the Sample categories with isolate counts (amendment C4), into --sources-out")
+    parser.add_argument("--sources-out", type=Path, default=ROOT / "results/metrics/v2.0/source_categories.json")
     parser.add_argument("--names", action="store_true",
                         help="only list the antibiotic names in AMR.csv's header into the summary of an earlier run")
     parser.add_argument("--columns", type=json.loads, default=None,
@@ -496,6 +543,12 @@ def main(argv: list[str] | None = None) -> int:
             raise StepError(f"{name} is not the verified download")
 
     with keep_awake():
+        if args.sources:
+            out = run_sources(args)
+            args.sources_out.parent.mkdir(parents=True, exist_ok=True)
+            args.sources_out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+            log.info("written %s", args.sources_out.relative_to(ROOT))
+            return 0
         if args.schema:
             if not args.columns:
                 raise StepError("--schema needs --columns")

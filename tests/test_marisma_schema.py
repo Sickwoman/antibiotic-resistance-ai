@@ -120,3 +120,100 @@ def test_the_delimiter_is_detected_from_the_header_only():
 
 def test_antibiotic_names_accept_both_prefixes_without_duplicates():
     assert antibiotic_names(["Identifier", "MIC_A", "A", "CMI_A", "CMI_B", "B", "MIC_C"]) == ("A", "B")
+
+
+# --- amendment C4: the Sample field (categories and counts only; per-isolate output is the mapped class only) ---------
+
+def sample_row(identifier, sample):
+    return [identifier, "SENT-POS", "2020", f"x/{identifier}", "SENT-ORG-1618", "Escherichia coli", sample,
+            "SENT-MECH-1732", "SENT-MIC-2718", "SENT-RES-4711", "SENT-MIC-2718", "SENT-SUS-0815", "SENT-MIC-2718",
+            "SENT-RES-4711"]
+
+
+def sample_fixture(tmp_path, layout="2.0.0"):
+    ids = [f"IDSENT{i:04d}" for i in range(200)]
+    groups = ([("Urine", 120), ("Blood culture", 60), ("Rectal swab", 10), ("Pus", 2),
+               ("Jane SENT-FREE 1985-03-02", 1), ("contact SENT-MAIL@example.org", 1), ("", 1), ("NA", 1), ("-", 1)])
+    rows, k = [], 0
+    for value, n in groups:
+        for _ in range(n):
+            rows.append(sample_row(ids[k], value))
+            k += 1
+    rows.append(sample_row(ids[0], ""))                         # a second record without a value: still "Urine"
+    for _ in range(2):                                           # two isolates whose records disagree
+        rows += [sample_row(ids[k], "Urine"), sample_row(ids[k], "Blood culture")]
+        k += 1
+    rows.append(sample_row("OUTSIDE-COHORT", "SENT-SAMPLE-OUTSIDE"))
+    cohort = ids[:k] + ["IDSENT-UNMATCHED"]
+    return write_csv(tmp_path / "AMR.csv", rows, layout=layout), cohort
+
+
+SAMPLE_SENTINELS = SENTINELS + ["IDSENT", "SENT-FREE", "SENT-MAIL", "SENT-SAMPLE-OUTSIDE", "1985"]
+
+
+def assert_no_sample_leak(*texts):
+    for text in texts:
+        for s in SAMPLE_SENTINELS:
+            assert s not in text, f"a planted marker leaked: {s}"
+
+
+@pytest.mark.parametrize("layout", ["old", "2.0.0"])
+def test_sample_categories_give_named_categories_and_counts_only(tmp_path, capsys, caplog, layout):
+    from src.marisma_schema import SampleSummary, sample_categories
+    caplog.set_level(logging.DEBUG)
+    path, cohort = sample_fixture(tmp_path, layout)
+    summary = sample_categories(path, cohort)
+    assert summary == SampleSummary(
+        categories={"Urine": 120, "Blood culture": 60, "Rectal swab": 10}, missing=3, conflicting=2,
+        suppressed_categories=3, suppressed_isolates=4, matched_isolates=199, unmatched_isolates=1, schema_problem=None)
+    out = capsys.readouterr()
+    assert_no_sample_leak(repr(summary), str(summary), out.out, out.err, caplog.text)
+
+
+def test_sample_summary_has_exactly_the_permitted_fields():
+    from src.marisma_schema import SampleSummary
+    assert set(SampleSummary.__dataclass_fields__) == {
+        "categories", "missing", "conflicting", "suppressed_categories", "suppressed_isolates", "matched_isolates",
+        "unmatched_isolates", "schema_problem"}
+
+
+@pytest.mark.parametrize("value", ["Jane Doe 1985-03-02", "a@b.org", "see http://x",
+                                   "one two three four five six seven", "x" * 61,"tab\there"])
+def test_identifying_or_free_text_values_are_never_named(value):
+    from src.marisma_schema import nameable
+    assert not nameable(value)
+
+
+def test_free_text_fields_are_suppressed_entirely(tmp_path):
+    from src.marisma_schema import sample_categories
+    many = write_csv(tmp_path / "many.csv", [sample_row(f"I{i}", f"Category {chr(65 + i % 26)}{i // 26}")
+                                             for i in range(150)])
+    summary = sample_categories(many, [f"I{i}" for i in range(150)])
+    assert summary.categories == {} and summary.schema_problem and summary.suppressed_isolates == 150
+    rare = write_csv(tmp_path / "rare.csv", [sample_row(f"I{i}", "Urine") for i in range(90)]
+                     + [sample_row(f"J{i}", f"Rare {chr(65 + i)}") for i in range(6)])
+    summary = sample_categories(rare, [f"I{i}" for i in range(90)] + [f"J{i}" for i in range(6)])
+    assert summary.categories == {} and "5 %" in summary.schema_problem       # 6 of 96 suppressed: over 5 %
+
+
+def test_source_classes_return_classes_never_values(tmp_path, capsys):
+    from src.marisma_schema import source_classes
+    path, cohort = sample_fixture(tmp_path)
+    mapping = {"Urine": "clinical", "Blood culture": "clinical", "Rectal swab": "screening"}
+    classes = source_classes(path, cohort, mapping)
+    assert set(classes.values()) <= {"clinical", "screening", "ambiguous"}
+    counts = {c: list(classes.values()).count(c) for c in ("clinical", "screening", "ambiguous")}
+    assert counts == {"clinical": 180, "screening": 10, "ambiguous": 9}   # suppressed 4 + missing 3 + conflicting 2
+    assert set(classes) <= set(cohort) and "IDSENT-UNMATCHED" not in classes
+    assert_no_sample_leak("".join(classes.values()), capsys.readouterr().out)
+
+
+@pytest.mark.parametrize("mapping", [{"Pus": "clinical"},                 # a suppressed category cannot be mapped
+                                     {"Urine": "kept"}])                   # not one of the three classes
+def test_source_classes_refuse_an_invalid_mapping_without_content(tmp_path, mapping):
+    from src.marisma_schema import source_classes
+    path, cohort = sample_fixture(tmp_path)
+    with pytest.raises(RestrictedReaderError) as e:
+        source_classes(path, cohort, mapping)
+    assert_no_sample_leak(str(e.value))
+    assert "Pus" not in str(e.value)
