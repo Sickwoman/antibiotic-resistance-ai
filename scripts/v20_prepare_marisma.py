@@ -27,6 +27,7 @@ fits nothing. Outputs:
 
     python scripts/v20_prepare_marisma.py
     python scripts/v20_prepare_marisma.py --schema --columns '{"ciprofloxacin": "...", "ceftriaxone": "..."}'
+    python scripts/v20_prepare_marisma.py --names      # refresh only the antibiotic names from the header
 """
 
 from __future__ import annotations
@@ -445,8 +446,21 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     return result
 
 
+def list_names(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
+    """The antibiotic names in AMR.csv's header, through the restricted reader; nothing else is read."""
+    result["schema"] = {"antibiotics": list(antibiotic_names(read_columns(args.amr))), "listed_utc": now(),
+                        "source": "AMR.csv header only, through src/marisma_schema.py"}
+    return result
+
+
 def run_schema(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
-    """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping."""
+    """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping.
+
+    Refused while the aggregate pause (amendment A6.4) holds: processing pauses before any label is read, and only a
+    dated owner decision can lift it.
+    """
+    if result["pause_check"]["pause"]:
+        raise StepError("the aggregate pause (amendment A6.4) holds: the schema check waits for a dated owner decision")
     before = protected_state()
     selection = pd.read_csv(args.work / "selection.csv", dtype=str, keep_default_na=False)
     ids = selection.loc[selection["status"] == "selected", "isolate"].tolist()
@@ -466,6 +480,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--work", type=Path, default=data_root / "MARISMa_v2.0.0_work")
     parser.add_argument("--schema", action="store_true",
                         help="run only the schema check, on the cohort of an earlier run, with --columns")
+    parser.add_argument("--names", action="store_true",
+                        help="only list the antibiotic names in AMR.csv's header into the summary of an earlier run")
     parser.add_argument("--columns", type=json.loads, default=None,
                         help='explicit interpretation columns, e.g. {"ciprofloxacin": "...", "ceftriaxone": "..."}')
     parser.add_argument("--out", type=Path, default=ROOT / "results/metrics/v2.0/step3_preparation.json")
@@ -484,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
             if not args.columns:
                 raise StepError("--schema needs --columns")
             result = run_schema(args, json.loads(args.out.read_text(encoding="utf-8")))
+        elif args.names:
+            result = list_names(args, json.loads(args.out.read_text(encoding="utf-8")))
         else:
             result = prepare(args)
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -24,9 +24,13 @@ def row(identifier, cip, cro, *, extra_mic="SENT-MIC-2718"):
             "SENT-MECH-1732", extra_mic, cip, extra_mic, cro, extra_mic, "SENT-RES-4711"]
 
 
-def write_csv(path, rows, header=HEADER):
-    text = "\n".join(";".join(r) for r in [header, *rows]) + "\n"
-    path.write_text(text, encoding="utf-8-sig")
+def write_csv(path, rows, header=HEADER, *, layout="old"):
+    """"old": MARISMa's older pipeline (";" with "CMI_" and a byte-order mark); "2.0.0": "," with "MIC_", no mark."""
+    delimiter, encoding = (";", "utf-8-sig") if layout == "old" else (",", "utf-8")
+    if layout != "old":
+        header = [c.replace("CMI_", "MIC_") for c in header]
+    text = "\n".join(delimiter.join(r) for r in [header, *rows]) + "\n"
+    path.write_text(text, encoding=encoding)
     return path
 
 
@@ -47,9 +51,10 @@ def assert_no_sentinel(*texts):
             assert s not in text, f"a planted marker leaked: {s}"
 
 
-def test_only_names_and_counts_come_out(tmp_path, capsys, caplog):
+@pytest.mark.parametrize("layout", ["old", "2.0.0"])
+def test_only_names_and_counts_come_out(tmp_path, capsys, caplog, layout):
     caplog.set_level(logging.DEBUG)
-    path = write_csv(tmp_path / "AMR.csv", ROWS)
+    path = write_csv(tmp_path / "AMR.csv", ROWS, layout=layout)
     summary = schema_summary(path, ["a1", "a2", "a3", "a4", "a5"], COLUMNS)
     assert summary == SchemaSummary(
         antibiotics=("Ciprofloxacino", "Ceftriaxona", "Colistina"), matched_isolates=4, unmatched_isolates=1,
@@ -101,3 +106,17 @@ def test_the_header_is_read_without_the_byte_order_mark(tmp_path):
     path = write_csv(tmp_path / "AMR.csv", ROWS)
     assert path.read_bytes().startswith(b"\xef\xbb\xbf")
     assert schema_summary(path, ["a1"], COLUMNS).matched_isolates == 1
+
+
+def test_the_delimiter_is_detected_from_the_header_only():
+    from src.marisma_schema import RestrictedReaderError, detect_delimiter
+    assert detect_delimiter("Identifier,MIC_A,A\n") == ","
+    assert detect_delimiter("Identifier;CMI_A;A\n") == ";"
+    with pytest.raises(RestrictedReaderError):
+        detect_delimiter("Identifier\n")                 # no delimiter at all
+    with pytest.raises(RestrictedReaderError):
+        detect_delimiter("a,b;c\n")                      # a tie is refused, not guessed
+
+
+def test_antibiotic_names_accept_both_prefixes_without_duplicates():
+    assert antibiotic_names(["Identifier", "MIC_A", "A", "CMI_A", "CMI_B", "B", "MIC_C"]) == ("A", "B")

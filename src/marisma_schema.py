@@ -11,9 +11,11 @@ isolates matched and unmatched.
 It never exposes an interpretation category, a count or share by category, an MIC value, a raw row, any other field
 value, or a per-isolate result. Nothing here prints or logs, and error messages carry a reason and a line number only.
 
-The layout follows MARISMa's published pipeline code (4_AMR_labeler.py, 4.1_clean_AMR.py.py): semicolon-separated,
-UTF-8 with a byte-order mark, an "Identifier" column, and, for each antibiotic X, an MIC column "CMI_X" beside the
-interpretation column "X".
+The layout: an "Identifier" column and, for each antibiotic X, an MIC column beside the interpretation column "X".
+MARISMa 2.0.0's AMR.csv is comma-separated, UTF-8 without a byte-order mark, with MIC columns named "MIC_X" (read
+from its header on 2026-10-03: 166 columns, 79 MIC/interpretation pairs). MARISMa's older pipeline code
+(4_AMR_labeler.py) wrote semicolon-separated files with "CMI_X" columns, so both prefixes are accepted. The delimiter
+is detected from the header line alone.
 """
 
 from __future__ import annotations
@@ -23,10 +25,10 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-DELIMITER = ";"
-ENCODING = "utf-8-sig"
+DELIMITERS = (",", ";", "\t")
+ENCODING = "utf-8-sig"                   # also reads UTF-8 without a byte-order mark
 IDENTIFIER = "Identifier"
-MIC_PREFIX = "CMI_"
+MIC_PREFIXES = ("MIC_", "CMI_")
 MISSING_TOKENS = frozenset({"", "NA", "N/A", "NAN", "-", "ND"})   # compared after strip() and upper()
 
 
@@ -36,25 +38,48 @@ class RestrictedReaderError(Exception):
 
 @dataclass(frozen=True)
 class SchemaSummary:
-    antibiotics: tuple[str, ...]          # every X with both "CMI_X" and "X" columns, in header order
+    antibiotics: tuple[str, ...]          # every X with an MIC column ("MIC_X" or "CMI_X") and an "X" column
     matched_isolates: int                 # cohort isolates with at least one record
     unmatched_isolates: int               # cohort isolates with no record
     non_missing: dict[str, int]           # requested antibiotic -> cohort isolates with a non-missing interpretation
 
 
-def read_columns(path: str | Path) -> list[str]:
-    """The header row's column names, and nothing else from the file."""
+def detect_delimiter(header_line: str) -> str:
+    """The delimiter that occurs most often in the header line; refused if none occurs or two tie."""
+    counts = {d: header_line.count(d) for d in DELIMITERS}
+    best = max(counts.values())
+    if best == 0 or list(counts.values()).count(best) > 1:
+        raise RestrictedReaderError("delimiter not recognised in the header")
+    return next(d for d, n in counts.items() if n == best)
+
+
+def read_header(path: str | Path) -> tuple[list[str], str]:
+    """The header row's column names and the delimiter, and nothing else from the file."""
     try:
         with open(path, encoding=ENCODING, newline="") as fh:
-            header = next(csv.reader(fh, delimiter=DELIMITER))
-    except (OSError, StopIteration, csv.Error, UnicodeDecodeError):
+            line = fh.readline()
+    except (OSError, UnicodeDecodeError):
         raise RestrictedReaderError("header unreadable") from None
-    return [c.strip() for c in header]
+    delimiter = detect_delimiter(line)
+    try:
+        header = next(csv.reader([line], delimiter=delimiter))
+    except (StopIteration, csv.Error):
+        raise RestrictedReaderError("header unreadable") from None
+    return [c.strip() for c in header], delimiter
+
+
+def read_columns(path: str | Path) -> list[str]:
+    """The header row's column names, and nothing else from the file."""
+    return read_header(path)[0]
 
 
 def antibiotic_names(columns: list[str]) -> tuple[str, ...]:
-    present = set(columns)
-    return tuple(c[len(MIC_PREFIX):] for c in columns if c.startswith(MIC_PREFIX) and c[len(MIC_PREFIX):] in present)
+    present, names = set(columns), []
+    for c in columns:
+        for prefix in MIC_PREFIXES:
+            if c.startswith(prefix) and c[len(prefix):] in present and c[len(prefix):] not in names:
+                names.append(c[len(prefix):])
+    return tuple(names)
 
 
 def is_non_missing(value: str) -> bool:
@@ -68,7 +93,7 @@ def schema_summary(path: str | Path, cohort_ids: Collection[str],
     `interpretation_columns` maps a label (e.g. "ciprofloxacin") to the exact interpretation column name. The mapping is
     explicit, so no column is found by fuzzy matching and no antibiotic is substituted for another.
     """
-    columns = read_columns(path)
+    columns, delimiter = read_header(path)
     if IDENTIFIER not in columns:
         raise RestrictedReaderError("no Identifier column")
     names = antibiotic_names(columns)
@@ -83,7 +108,7 @@ def schema_summary(path: str | Path, cohort_ids: Collection[str],
     line = 1
     try:
         with open(path, encoding=ENCODING, newline="") as fh:
-            reader = csv.reader(fh, delimiter=DELIMITER)
+            reader = csv.reader(fh, delimiter=delimiter)
             next(reader)
             for line, row in enumerate(reader, start=2):
                 if len(row) != len(columns):

@@ -112,3 +112,11 @@ def test_the_alignment_check_finds_a_known_shift():
     shifted = prep.peak_offsets(x, np.roll(x, 3), PreprocessingConfig(), top=5)
     assert shifted["best_lag_bins"] == 3
     assert np.allclose(shifted["offset_to_nearest_peak_da"], 9.0)            # 3 bins of 3 Da
+
+
+def test_the_schema_check_is_refused_while_the_pause_holds(tmp_path):
+    import argparse
+    prep = load(PREPARATION)
+    args = argparse.Namespace(work=tmp_path, amr=tmp_path / "AMR.csv", columns={"ciprofloxacin": "x"})
+    with pytest.raises(prep.StepError):
+        prep.run_schema(args, {"pause_check": {"pause": True}})
