@@ -587,3 +587,18 @@ informed by label-blind inspection of MARISMa metadata and spectra.
   - Only the restricted schema counts are run before scoring.
 
 Step 3 is not accepted, and scoring stays blocked. Notes A–D stand as recorded.
+
+#### Amendment 12, note F — 2026-10-04T14:45:07Z: the sample-source mapping
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment E, fixes the screening-source mapping before it is applied.
+- **No disclosed category is identifiable as screening.** Every name states an anatomical source only, and MARISMa's
+  descriptor does not mark screening samples.
+- **So no isolate is excluded by the source rule.** The cohort is labelled "identifiable screening sources excluded
+  (none was identifiable)".
+- **Ambiguous categories are kept and reported:**
+  - three named categories, 77 isolates: rectal exudate, tracheal aspirate and gastric juice;
+  - the 39 suppressed categories, 65 isolates.
+- **A risk is flagged.** Rectal swabs may be resistance-screening samples, and changing their class needs a dated
+  owner decision before scoring.
+
+Notes A–E stand as recorded.
