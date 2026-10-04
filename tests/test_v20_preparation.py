@@ -17,6 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 PREPARATION = ROOT / "scripts/v20_prepare_marisma.py"
 REFERENCE_CHECK = ROOT / "scripts/v20_reader_reference_check.py"
+COVERAGE = ROOT / "scripts/v20_coverage_investigation.py"
 SCORING_NAMES = {"predict", "predict_proba", "decision_function", "predict_features", "predict_spectrum_file",
                  "fit", "fit_transform", "partial_fit"}
 
@@ -28,7 +29,7 @@ def load(path: Path):
     return module
 
 
-@pytest.mark.parametrize("path", [PREPARATION, REFERENCE_CHECK])
+@pytest.mark.parametrize("path", [PREPARATION, REFERENCE_CHECK, COVERAGE])
 def test_the_step3_scripts_never_score_or_fit(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
