@@ -104,7 +104,8 @@ def test_the_check_would_notice_an_edit():
 # clarifications); since 62deee6: the owner's approval record of steps 1-3 and note C; since 1ee6935: plan amendment C
 # and note D (deviation record, sample-source access, coverage investigation); since 6a5ea90: plan amendment D and
 # note E (the owner's decisions on the step 3 blockers); since 83ea59e: plan amendment E and note F (the sample-source
-# mapping); since bec0b24: plan amendment F and note G (step 3 accepted, step 4 authorised, scope frozen).
+# mapping); since bec0b24: plan amendment F and note G (step 3 accepted, step 4 authorised, scope frozen); since
+# f1dc93d: plan amendment G and note H (the owner's scoring authorisation, read by src/v20_scoring_guard.py).
 LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
     "docs/v2.0_marisma_plan.md": [
         (15422, 19573, "f8cee0a947f7ba15cec6ebdb1040f8fbc44b52aaf84ebf0e22384d5d3e3589dd", "873aed5"),
@@ -113,7 +114,8 @@ LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
         (42477, 8246, "145dca7b5a2033b74c5f8d9d01d3b0dc6be5c48eeb29bb378a27700373146e53", "1ee6935"),
         (50723, 7667, "9eda7a39e307d7b6d7857a635f02ad773c171c249e4ee3b850d9147fdfe38b87", "6a5ea90"),
         (58390, 4718, "1a694744fb421fef52687fd45d40c6bfe8d83b76116836951beb31602c275035", "83ea59e"),
-        (63108, 9508, "643ec6a96ef1c5b3b9cb1b75f295a56e94ba6c683be505734dffac0503d669d2", "bec0b24")],
+        (63108, 9508, "643ec6a96ef1c5b3b9cb1b75f295a56e94ba6c683be505734dffac0503d669d2", "bec0b24"),
+        (72616, 3643, "4a3b5207cecce56a9c7872e60e31f9554fcd654df21abeb029b74935b636df42", "f1dc93d")],
     "docs/evaluation_protocol.md": [
         (39768, 1142, "e7e09fd41721eded12b019e42455358c7593a8a771fdda0728d7aa0fd3c8c197", "873aed5"),
         (40910, 1216, "68e495810e09ae281ecbb15f9c8508f1dc69446a72f7fd9b2ae872ecef871969", "886076a"),
@@ -121,7 +123,8 @@ LOCKED_AMENDMENTS: dict[str, list[tuple[int, int, str, str]]] = {
         (42946, 970, "e801715d98445ecb14d9375c471f3b8e04cddb6cee33726fff4e8b528b5063c8", "1ee6935"),
         (43916, 1551, "d3cbab8fecde7102a548ca3e07cb792d86b6047bfee2f0d33bf8a50559dac972", "6a5ea90"),
         (45467, 873, "476643d43e6b1e25a16dbef8db304adafbd9ef8be46ec36f072cae69e8662576", "83ea59e"),
-        (46340, 1029, "755a7283d83a8c1aaecb6b6c99824f98181d4ffca7ea0788c3a5ba03c2e9dade", "bec0b24")],
+        (46340, 1029, "755a7283d83a8c1aaecb6b6c99824f98181d4ffca7ea0788c3a5ba03c2e9dade", "bec0b24"),
+        (47369, 745, "23516b3902e6cea50e512575c034af5fd9d9addb2cf27b5c1fa8484955da46a2", "f1dc93d")],
 }
 AMENDMENT_CASES = [(path, i) for path in sorted(LOCKED_AMENDMENTS) for i in range(len(LOCKED_AMENDMENTS[path]))]
 
