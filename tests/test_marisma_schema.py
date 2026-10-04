@@ -234,3 +234,14 @@ def test_identifier_profile_is_aggregate_only(tmp_path):
     assert profile["rows"] == 203 and profile["distinct_identifiers"] == 200
     assert profile["by_length"] == {10: 199, 14: 1} and sum(profile["by_character_class"].values()) == 200
     assert_no_sample_leak(repr(profile))
+
+
+def test_suppression_profile_counts_reasons_without_names(tmp_path):
+    from src.marisma_schema import suppression_profile
+    path, cohort = sample_fixture(tmp_path)
+    profile = suppression_profile(path, cohort)
+    assert profile == {"categories": 6, "matched_isolates": 199, "categories_eligible_by_size_and_content": 3,
+                       "isolates_in_eligible_categories": 190, "categories_below_min_isolates": 3,
+                       "isolates_in_categories_below_min": 4, "categories_failing_content_rules": 2,
+                       "isolates_in_categories_failing_content_rules": 2, "missing": 3, "conflicting": 2}
+    assert_no_sample_leak(repr(profile))

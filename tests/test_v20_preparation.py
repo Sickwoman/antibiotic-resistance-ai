@@ -50,7 +50,7 @@ def test_only_the_restricted_reader_opens_amr_csv():
         if any(isinstance(a, ast.Attribute) and a.attr == "amr" for a in call.args):
             callee = call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id
             allowed_readers = {"read_columns", "schema_check", "sample_categories", "source_classes",
-                               "match_counts", "identifier_profile"}
+                               "match_counts", "identifier_profile", "suppression_profile"}
             assert callee in allowed_readers, callee
 
 

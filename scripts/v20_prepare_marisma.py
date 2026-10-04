@@ -73,6 +73,7 @@ from src.marisma_schema import (  # noqa: E402
     read_columns,
     sample_categories,
     schema_summary,
+    suppression_profile,
 )
 from src.predict import load_bundle  # noqa: E402
 from src.preprocessing import PreprocessingConfig, PreprocessingError, preprocess_arrays  # noqa: E402
@@ -482,6 +483,7 @@ def run_sources(args: argparse.Namespace) -> dict[str, Any]:
     before = protected_state()
     ids, inconsistent = species_year_identifiers(args.zip)
     summary = sample_categories(args.amr, ids)
+    profile = suppression_profile(args.amr, ids)
     if protected_state() != before:
         raise StepError("a protected artifact changed during the run")
     return {
@@ -496,6 +498,7 @@ def run_sources(args: argparse.Namespace) -> dict[str, Any]:
                         "printable_only": True, "free_text_if_more_than_categories": MAX_CATEGORIES,
                         "free_text_if_suppressed_share_above": MAX_SUPPRESSED_SHARE},
         "summary": dataclasses.asdict(summary),
+        "suppression_profile": profile,
     }
 
 

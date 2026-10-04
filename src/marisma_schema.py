@@ -296,3 +296,21 @@ def identifier_profile(path: str | Path) -> dict[str, object]:
     return {"rows": rows, "distinct_identifiers": len(distinct),
             "by_length": dict(sorted(Counter(len(i) for i in distinct).items())),
             "by_character_class": dict(sorted(Counter(kind(i) for i in distinct).items()))}
+
+
+def suppression_profile(path: str | Path, cohort_ids: Collection[str]) -> dict[str, int]:
+    """Why Sample categories are suppressed, in aggregate (amendment C4: "report the schema problem"). Counts of
+    categories and of isolates by reason; no category name and no identifier leaves the function."""
+    single, _ = _isolate_samples(path, cohort_ids)
+    counts = Counter(v for v in single.values() if v not in (MISSING, CONFLICTING))
+    big = {c: n for c, n in counts.items() if n >= MIN_CELL}
+    content_ok = {c for c in counts if nameable(c)}
+    return {"categories": len(counts), "matched_isolates": len(single),
+            "categories_eligible_by_size_and_content": sum(1 for c in big if c in content_ok),
+            "isolates_in_eligible_categories": sum(n for c, n in big.items() if c in content_ok),
+            "categories_below_min_isolates": len(counts) - len(big),
+            "isolates_in_categories_below_min": sum(n for c, n in counts.items() if c not in big),
+            "categories_failing_content_rules": sum(1 for c in counts if c not in content_ok),
+            "isolates_in_categories_failing_content_rules": sum(n for c, n in counts.items() if c not in content_ok),
+            "missing": sum(1 for v in single.values() if v == MISSING),
+            "conflicting": sum(1 for v in single.values() if v == CONFLICTING)}
