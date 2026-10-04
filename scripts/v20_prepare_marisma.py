@@ -518,8 +518,11 @@ def run_matching(args: argparse.Namespace) -> dict[str, Any]:
     year_of = {f[3]: f[0] for f in isolate_folders if (f[1], f[2]) == SPECIES and f[0] in YEARS}
     ids = sorted(year_of)
     archive_years: dict[str, set[str]] = defaultdict(set)
-    for year, _, _, isolate in isolate_folders:
+    taxa: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for year, genus, species, isolate in isolate_folders:
         archive_years[year].add(isolate)
+        taxa[isolate].add((genus, species))
+    flagged = sorted(i for i in ids if len(taxa[i]) > 1)
 
     def counts(subset):
         matched, unmatched = match_counts(args.amr, subset)
@@ -538,6 +541,7 @@ def run_matching(args: argparse.Namespace) -> dict[str, Any]:
         "archive_identifiers_by_length": dict(sorted(Counter(
             len(i) for y in archive_years.values() for i in y).items())),
         "amr_csv_identifiers": identifier_profile(args.amr),
+        "identifiers_also_filed_under_another_species": counts(flagged),
     }
     if protected_state() != before:
         raise StepError("a protected artifact changed during the run")
