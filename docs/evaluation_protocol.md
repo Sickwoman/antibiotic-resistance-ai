@@ -627,3 +627,22 @@ of the frozen ciprofloxacin model on MARISMa.
 - **Ceftriaxone** stays unavailable, with p = 1 in the fixed Holm family.
 
 The metadata reconciliation required before execution passed. Notes A–G stand as recorded.
+
+#### Amendment 12, note I — 2026-10-04T19:26:14Z: the execution record and closure
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), "Execution record and closure", records the one-time evaluation of
+2026-10-04 and closes Version 2.0.
+- **Result:** "The frozen ciprofloxacin model achieved AUROC 0.772 (descriptive 95% interval 0.744–0.798) on 1,145
+  eligible MARISMa E. coli isolates from 2024, with evidence of above-chance ranking under the isolate-independence
+  assumption." Holm-adjusted p is 4.4 × 10⁻⁷¹, and B3's error-control statement applies.
+- **Ceftriaxone:** unavailable, with p = 1 in Holm.
+- **With equal prominence:**
+  - sensitivity 0.897 and specificity 0.393 at the frozen cut-off;
+  - under-prediction (calibration intercept 0.642);
+  - zone NPV 0.907, with 18 R or I isolates among the 193 in the zone;
+  - no internal–external gap demonstrated, which is neither equivalence nor non-inferiority;
+  - no patient linkage, unknown screening status, and acquisition and preprocessing differences.
+- **Deviation:** an unregistered I-excluded p-value was computed and displayed during verification. It was excluded from
+  inference and changed no decision.
+
+Notes A–H stand as recorded.
