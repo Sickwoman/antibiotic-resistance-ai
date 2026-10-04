@@ -124,3 +124,75 @@ def test_the_schema_check_is_refused_while_the_pause_holds(tmp_path):
     args = argparse.Namespace(work=tmp_path, amr=tmp_path / "AMR.csv", columns={"ciprofloxacin": "x"})
     with pytest.raises(prep.StepError):
         prep.run_schema(args, {"pause_check": {"pause": True}})
+
+
+# --- run 2 (amendments D and E) ----------------------------------------------------------------------------------
+
+def test_the_mapping_is_read_from_the_pinned_plan_and_validated():
+    prep = load(PREPARATION)
+    mapping = prep.source_mapping_from_plan()
+    assert len(mapping) == 32 and sorted(set(mapping.values())) == ["ambiguous", "clinical"]
+    assert {k for k, v in mapping.items() if v == "ambiguous"} == {"EXUDADO RECTAL", "ASPIRADO TRAQUEAL",
+                                                                    "JUGO GASTRICO"}
+    begin, end = prep.MAPPING_BEGIN, prep.MAPPING_END
+    with pytest.raises(prep.StepError):
+        prep.source_mapping_from_plan("no markers here")
+    with pytest.raises(prep.StepError):
+        prep.source_mapping_from_plan(f'{begin}\n```json\n{{"A": "kept"}}\n```\n{end}')
+    assert prep.source_mapping_from_plan(f'{begin}\n```json\n{{"A": "screening"}}\n```\n{end}') == {"A": "screening"}
+
+
+def test_the_pause_disposition_covers_only_the_investigated_reasons():
+    prep = load(PREPARATION)
+    from src.marisma_cohort import Selection
+    ok = [Selection(None, "b", "1", "selected")] * 18
+    d3 = [Selection(None, None, None, "no_passing_replicate", ("feature_bin_without_data",)),
+          Selection(None, None, None, "no_passing_replicate", ("starts_below_1960_da", "sampling_interval_not_2ns"))]
+    check = prep.pause_disposition(ok + d3)                      # 2 of 20 = 10 %: the pause holds
+    assert check["pause"] and check["disposition"] and check["unexplained_reasons"] == []
+    other = [Selection(None, None, None, "no_passing_replicate", ("empty",))]
+    with pytest.raises(prep.StepError):
+        prep.pause_disposition(ok + d3 + other)
+    assert "disposition" not in prep.pause_disposition(ok * 3 + other)   # 1 of 55: no pause, nothing to dispose
+
+
+def write_window(first, last, dw=2.0, ml=(3.19e6, 1000.0, 0.0025)):
+    """acqu and fid bytes for a synthetic spectrum whose m/z runs from `first` to about `last`."""
+    import math
+    def tof(m):
+        return ml[1] + ml[2] * m + math.sqrt(1e12 / ml[0]) * math.sqrt(m)
+    delay = tof(first)
+    td = int((tof(last) - delay) / dw) + 1
+    lines = ["##TITLE= synthetic", f"##$TD= {td}", f"##$DELAY= {delay}", f"##$DW= {dw}", f"##$ML1= {ml[0]}",
+             f"##$ML2= {ml[1]}", f"##$ML3= {ml[2]}", "##$BYTORDA= 0", "##$AQ_DATE= <2024-03-04T10:00:00.000+01:00>",
+             "##$INSTRUM= <synthetic>"]
+    b = math.sqrt(1e12 / ml[0])
+    t = delay + np.arange(td) * dw
+    mz = ((-b + np.sqrt(b * b - 4 * ml[2] * (ml[1] - t))) / (2 * ml[2])) ** 2
+    y = np.round(200 + sum(5000 * np.exp(-0.5 * ((mz - c) / 4.0) ** 2) for c in (2500, 4365, 6255, 9000, 15000)))
+    return ("\n".join(lines) + "\n").encode("latin-1"), np.asarray(y, dtype="<i4").tobytes()
+
+
+def test_run2_selection_uses_the_amended_rule(tmp_path):
+    prep = load(PREPARATION)
+    from src.bruker import convert_amended
+    from src.preprocessing import PreprocessingConfig
+    from src.zip_index import iter_members
+    good, late, dense = write_window(1965, 20500), write_window(2004, 20500), write_window(1965, 20500, dw=1.0)
+    layout = {("iso1", "b1", "1"): good, ("iso2", "b1", "1"): late, ("iso2", "b2", "1"): good,
+              ("iso3", "b1", "1"): dense}
+    archive = tmp_path / "a.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for (iso, b, t), (acqu, fid) in layout.items():
+            z.writestr(f"MARISMa/2024/Escherichia/Coli/{iso}/{b}/{t}/1SLin/acqu", acqu)
+            z.writestr(f"MARISMa/2024/Escherichia/Coli/{iso}/{b}/{t}/1SLin/fid", fid)
+    cfg = PreprocessingConfig()
+    members = dict(iter_members(archive))
+    cohort, _, _ = prep.build_cohort(list(members))
+    with open(archive, "rb") as fh:
+        selection, outcomes, attempts, X = prep.select_and_featurise(
+            cohort, fh, members, cfg, tmp_path, lambda lines, fid: convert_amended(lines, fid, cfg.bin_edges))
+    assert selection["status"].tolist() == ["selected", "selected", "no_passing_replicate"]
+    assert selection["failures"].tolist() == ["", "feature_bin_without_data", "sampling_interval_not_2ns"]
+    assert selection["batch_instrument"].tolist() == ["synthetic"] * 3      # excluded isolates keep their batch
+    assert prep.pause_disposition(outcomes)["disposition"]                  # 1 of 3 excluded, all for D3 reasons

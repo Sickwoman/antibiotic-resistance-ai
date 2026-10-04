@@ -51,10 +51,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.bruker import BrukerReadError, BrukerSpectrum, _double, _text, convert  # noqa: E402
+from src.bruker import BrukerReadError, BrukerSpectrum, _double, _text, convert, convert_amended  # noqa: E402
 from src.dataset import file_sha256, load_dataset  # noqa: E402
 from src.marisma_cohort import (  # noqa: E402
     COVERAGE_RULES,
+    NO_PASSING_REPLICATE,
     Selection,
     coverage_outcomes,
     exclusion_summary,
@@ -75,6 +76,7 @@ from src.marisma_schema import (  # noqa: E402
     read_columns,
     sample_categories,
     schema_summary,
+    source_classes,
     suppression_profile,
 )
 from src.predict import load_bundle  # noqa: E402
@@ -100,6 +102,12 @@ LOGS = {   # file -> (SHA-256, data rows), docs/reproduction_guide.md
         ("dd5f4a74933a4cfc8382e9a4464ae774aab6944e280b68e8fe340fbbc2d9e894", 34),
 }
 QUANTILES = (0.0, 0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99, 1.0)
+PLAN = ROOT / "docs/v2.0_marisma_plan.md"
+MAPPING_BEGIN, MAPPING_END = "<!-- v2.0 source mapping: begin -->", "<!-- v2.0 source mapping: end -->"
+D3_REASONS = frozenset({"feature_bin_without_data", "sampling_interval_not_2ns", "starts_below_1960_da"})
+RUN2_COLUMNS = {"ciprofloxacin": "Ciprofloxacin", "ceftriaxone": "Ceftriaxone"}   # exact AMR.csv names, no substitute
+UNKNOWN_SOURCE = "unknown (no AMR.csv record)"
+COHORT_LABEL = "identifiable screening sources excluded (none was identifiable)"
 
 log = get_logger("v20_prepare")
 
@@ -216,8 +224,8 @@ class ArchiveReader:
     member's CRC-32. As in readBrukerFlexData, `acqu` is used if present, otherwise `acqus`.
     """
 
-    def __init__(self, fh: BinaryIO, members: dict[str, Member]):
-        self.fh, self.members = fh, members
+    def __init__(self, fh: BinaryIO, members: dict[str, Member], converter=convert):
+        self.fh, self.members, self.converter = fh, members, converter
         self.attempts: list[dict[str, Any]] = []
         self.year = ""
 
@@ -241,7 +249,7 @@ class ArchiveReader:
             attempt[key] = _double(lines, key)
         attempt["hpc_requested"] = _text(lines, "HPClUse") == "yes"
         try:
-            spectrum = convert(lines, fid_bytes)
+            spectrum = self.converter(lines, fid_bytes)
         except BrukerReadError as exc:
             attempt["reason"] = exc.reason
             raise
@@ -253,30 +261,34 @@ class ArchiveReader:
 
 
 def select_and_featurise(cohort: dict[str, dict[str, Any]], fh: BinaryIO, members: dict[str, Member],
-                         pcfg: PreprocessingConfig, work: Path
+                         pcfg: PreprocessingConfig, work: Path, converter=convert
                          ) -> tuple[pd.DataFrame, list[Selection], list[dict[str, Any]], np.ndarray]:
-    """Amendment A6.2 for every isolate, in isolate order; features of each selected spectrum go to X_all.npy."""
+    """Amendment A6.2 for every isolate, in isolate order; features of each selected spectrum go to X_all.npy.
+    `converter` is the reader's rule: run 1's `convert`, or amendment D2's `convert_amended` for run 2."""
     isolates = sorted(cohort)
     X = np.lib.format.open_memmap(work / "X_all.npy", mode="w+", dtype=np.float32,
                                   shape=(len(isolates), N_FEATURES))
     records, outcomes = [], []
     started = time.perf_counter()
-    reader = ArchiveReader(fh, members)
+    reader = ArchiveReader(fh, members, converter)
     for i, isolate in enumerate(isolates):
         year, replicates = cohort[isolate]["year"], cohort[isolate]["replicates"]
         reader.year = year
+        first_attempt = len(reader.attempts)
         selection = select_first_passing(replicates, reader)
         outcomes.append(Selection(None, selection.biological, selection.technical, selection.status,
                                   selection.failures))          # the spectrum itself is not kept
         record = {"isolate": isolate, "year": year, "status": selection.status,
                   "biological": selection.biological or "", "technical": selection.technical or "",
                   "failures": "|".join(selection.failures), "spectrum_folder": "", "calibration": "",
-                  "acquisition_month": "", "instrument": "", "raw_points": 0, "nonzero_bins": 0}
+                  "acquisition_month": "", "instrument": "", "raw_points": 0, "nonzero_bins": 0,
+                  "batch_instrument": next((a["instrument"] for a in reader.attempts[first_attempt:]
+                                            if a.get("instrument")), "")}
         if selection.spectrum is not None:
             spectrum = selection.spectrum
             record.update(spectrum_folder=replicates[selection.biological][selection.technical],
                           calibration=spectrum.calibration, acquisition_month=spectrum.acquisition_date[:7],
-                          instrument=spectrum.instrument)
+                          instrument=spectrum.instrument, batch_instrument=spectrum.instrument)
             try:
                 features, info = preprocess_arrays(spectrum.mz, spectrum.intensity, pcfg)
             except PreprocessingError:
@@ -600,6 +612,200 @@ def run_coverage_matching(args: argparse.Namespace) -> dict[str, Any]:
     return out
 
 
+# --- Run 2: the cohort under amendments D and E ---
+
+def source_mapping_from_plan(text: str | None = None) -> dict[str, str]:
+    """Amendment E4's mapping, read from the plan itself, so that the mapping applied is the one pinned there."""
+    text = PLAN.read_text(encoding="utf-8") if text is None else text
+    if text.count(MAPPING_BEGIN) != 1 or text.count(MAPPING_END) != 1:
+        raise StepError("the plan does not hold exactly one source-mapping block")
+    block = text.split(MAPPING_BEGIN, 1)[1].split(MAPPING_END, 1)[0].strip()
+    if not (block.startswith("```json") and block.endswith("```")):
+        raise StepError("the source-mapping block is not a fenced JSON block")
+    mapping = json.loads(block[len("```json"):-3])
+    if not mapping or any(v not in ("clinical", "screening", "ambiguous") for v in mapping.values()):
+        raise StepError("the source mapping has an invalid class")
+    return mapping
+
+
+def pause_disposition(outcomes: list[Selection]) -> dict[str, Any]:
+    """Amendment A6.4's pause, with amendment D3's disposition: continuation is approved for the investigated coverage
+    and acquisition failures only. Any other reason among the excluded isolates stops processing for review."""
+    check = pause_check(outcomes)
+    reasons = Counter(r for o in outcomes if o.status == NO_PASSING_REPLICATE for r in o.failures)
+    unexplained = sorted(set(reasons) - D3_REASONS)
+    check.update(reasons_among_excluded=dict(sorted(reasons.items())), unexplained_reasons=unexplained,
+                 recorded_in_amendment_d3={"share": 0.0607, "excluded": 1031, "denominator": 16975})
+    if check["pause"]:
+        if unexplained:
+            raise StepError("the pause holds and some exclusions have reasons the owner's disposition does not cover: "
+                            "review required (amendments A6.3, A6.4 and D3)")
+        check["disposition"] = "continued: the owner's disposition (amendment D3) covers every exclusion reason"
+    return check
+
+
+def identity_excluded_identifiers(names: list[str]) -> list[str]:
+    """Amendment D5: E. coli identifiers (years 2018-2024) whose isolate folders sit under more than one genus or
+    species. Returned for counting only; never written to an output."""
+    isolate_folders, _ = layout_folders(names)
+    taxa: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for _, genus, species, isolate in isolate_folders:
+        taxa[isolate].add((genus, species))
+    ecoli = {f[3] for f in isolate_folders if (f[1], f[2]) == SPECIES and f[0] in YEARS}
+    return sorted(i for i in ecoli if len(taxa[i]) > 1)
+
+
+def rebuild(args: argparse.Namespace) -> dict[str, Any]:
+    """Run 2 of steps 2-3: the cohort and the frozen features under amendments D and E, with a sequential account of
+    every rule. No label, no outcome count; the schema counts are a separate stage (--schema-run2)."""
+    result: dict[str, Any] = {"what": "Version 2.0 steps 2-3, run 2: the cohort and the frozen features under "
+                                      "amendments D and E (no label, no outcome count)",
+                              "started_utc": now(), "git_commit": git_commit(), "cohort_label": COHORT_LABEL}
+    before = protected_state()
+    pcfg = frozen_preprocessing()
+    edges = pcfg.bin_edges
+    result["feature_fingerprint"] = pcfg.fingerprint()
+
+    log.info("indexing the archive's central directory")
+    prefixes = tuple(f"MARISMa/{y}/{SPECIES[0]}/{SPECIES[1]}/" for y in YEARS)
+    names, members = [], {}
+    for name, member in iter_members(args.zip):
+        names.append(name)
+        if name.startswith(prefixes):
+            members[name] = member
+    cohort, counts, folders = build_cohort(names)
+    archive_identifiers = counts["archive"]["identifiers"]
+    identity_excluded = identity_excluded_identifiers(names)      # kept in memory only
+    del names
+    folders.to_csv(args.work / "replicate_folders.csv", index=False, lineterminator="\n")
+    ids = sorted(cohort)
+
+    log.info("applying the source rule (amendment E)")
+    mapping = source_mapping_from_plan()
+    classes = source_classes(args.amr, ids, mapping, owner_disclosure=True)
+    source = {i: classes.get(i, UNKNOWN_SOURCE) for i in ids}
+    pd.DataFrame({"isolate": ids, "source": [source[i] for i in ids]}).to_csv(
+        args.work / "source_classes.csv", index=False, lineterminator="\n")
+    screening = {i for i in ids if source[i] == "screening"}
+    primary = {i: c for i, c in cohort.items() if i not in screening}
+
+    log.info("selecting one spectrum per isolate for %d isolates (all sources)", len(cohort))
+    converter = lambda lines, fid: convert_amended(lines, fid, edges)  # noqa: E731
+    with open(args.zip, "rb") as fh:
+        selection, outcomes, attempts, X = select_and_featurise(cohort, fh, members, pcfg, args.work, converter)
+    selection["source"] = [source[i] for i in selection["isolate"]]
+    selection["primary"] = ~selection["isolate"].isin(screening)
+    selection.to_csv(args.work / "selection.csv", index=False, lineterminator="\n")
+    pd.DataFrame(attempts).to_csv(args.work / "attempts.csv", index=False, lineterminator="\n")
+    in_primary = selection["primary"].to_numpy()
+    pause = pause_disposition([o for o, keep in zip(outcomes, in_primary, strict=True) if keep])
+
+    kept = selection.index[(selection["status"] == "selected")].to_numpy()
+    features = np.asarray(X[kept])
+    del X
+    np.save(args.work / "X.npy", features)
+    (args.work / "X_all.npy").unlink()
+    if features.shape[1] != N_FEATURES or not np.isfinite(features).all() or (features < 0).any():
+        raise StepError("the features are not 6,000 finite, non-negative values per spectrum")
+
+    kept_primary = selection.loc[(selection["status"] == "selected") & selection["primary"]]
+    kept_ids = kept_primary["isolate"].tolist()
+    matched_kept, unmatched_kept = match_counts(args.amr, kept_ids)
+    matched_identity, _ = match_counts(args.amr, identity_excluded) if identity_excluded else (0, 0)
+    by_class = Counter(source[i] for i in ids)
+    reader_frame = selection.loc[selection["primary"]]
+    excluded_reader = reader_frame.loc[reader_frame["status"] != "selected"]
+    accounting = [
+        {"step": "archive", "rule": "identifiers of all isolate folders in MARISMa.zip",
+         "remaining": archive_identifiers},
+        {"step": "species", "rule": "MARISMa's species field: Escherichia/Coli",
+         "remaining": counts["species_rule"]["identifiers"]},
+        {"step": "identity (amendment D5)", "rule": "an identifier filed under more than one genus or species",
+         "excluded": counts["species_consistency_rule"]["excluded_identifiers"],
+         "excluded_with_an_amr_record": matched_identity,
+         "remaining": counts["species_rule"]["identifiers"]
+         - counts["species_consistency_rule"]["excluded_identifiers"]},
+        {"step": "year", "rule": "year folders 2018-2024", "excluded": counts["year_rule"]["excluded_identifiers"],
+         "remaining": len(ids)},
+        {"step": "source (amendment E)", "rule": "identifiable screening or colonisation sources",
+         "excluded": len(screening), "remaining": len(primary),
+         "kept_by_source": {k: int(v) for k, v in sorted(by_class.items())}},
+        {"step": "replicate folder", "rule": "at least one replicate folder",
+         "excluded": int((reader_frame["status"] == "no_replicate_folder").sum()),
+         "remaining": int((reader_frame["status"] != "no_replicate_folder").sum())},
+        {"step": "reader (amendment D2)", "rule": "a replicate passing the reader's checks, in the A6.2 order",
+         "excluded": int((excluded_reader["status"] == NO_PASSING_REPLICATE).sum()),
+         "feature_failures": int((reader_frame["status"] == "feature_failure").sum()),
+         "remaining": len(kept_ids), "reasons_among_excluded": pause["reasons_among_excluded"]},
+        {"step": "AMR.csv record", "rule": "a record matched by identifier (a match, not yet a usable interpretation)",
+         "excluded": unmatched_kept, "remaining": matched_kept},
+    ]
+    result["accounting"] = accounting
+    result["pause_check"] = pause
+    result["cohort_rules"] = counts
+
+    by_cell = {}
+    for (year, instrument), g in reader_frame.groupby(["year", "batch_instrument"]):
+        kept_cell = g.loc[g["status"] == "selected", "isolate"].tolist()
+        matched, _ = match_counts(args.amr, kept_cell) if kept_cell else (0, 0)
+        by_cell[f"{year} {instrument or 'none read'}"] = {
+            "isolates": int(len(g)), "kept": len(kept_cell), "excluded": int(len(g) - len(kept_cell)),
+            "kept_and_matched_to_an_amr_record": matched}
+    result["by_year_and_instrument"] = by_cell
+    result["batch_review"] = batch_review(attempts)
+    result["features"] = {"spectra": int(features.shape[0]), "primary_cohort_spectra": len(kept_ids),
+                          "n_features": int(features.shape[1]), "dtype": str(features.dtype),
+                          "fingerprint": pcfg.fingerprint(),
+                          "nonzero_bins": quantiles(selection.loc[kept, "nonzero_bins"].to_numpy()),
+                          "raw_points": quantiles(selection.loc[kept, "raw_points"].to_numpy())}
+    years = selection.loc[kept, "year"].to_numpy()
+    diagnostics = {}
+    for label, (mean, validation) in mean_training_spectra().items():
+        r = correlations(features.astype(np.float64), mean)
+        diagnostics[label] = {"marisma": quantiles(r),
+                              "driams_a_validation_reference": quantiles(correlations(validation, mean)),
+                              "marisma_by_year": {y: quantiles(r[years == y]) for y in YEARS},
+                              "mean_spectra_alignment": peak_offsets(mean, features.mean(axis=0), pcfg)}
+    result["spectra_only_checks"] = diagnostics
+    result["limitations"] = [
+        "residual edge effects: the first 10-16 feature bins for essentially every MARISMa spectrum, the last 21-41 "
+        "for spectra ending near 20,000 Da (amendment D2)",
+        "sparsely populated edge bins (amendment D2)",
+        "normalisation that depends on the acquisition window, about 1 % for MBT-WIN10 (amendment D2)",
+        "features are not shown to be equivalent to DRIAMS features",
+        "matching E. coli AMR.csv records exist only for 2024, on one instrument (MBT-WIN10): any result applies only "
+        "to the eligible, tested 2024 subset; the period analyses are unavailable (amendment D6)",
+        "the source of 'EXUDADO RECTAL' isolates (possible resistance screening) is unresolved and kept (amendment E3)",
+    ]
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    result["protected_state"] = {"unchanged": True, **before}
+    result["finished_utc"] = now()
+    hashes = {name: file_sha256(args.work / name) for name in
+              ("replicate_folders.csv", "source_classes.csv", "selection.csv", "attempts.csv", "X.npy")}
+    hashes["cohort_isolates_sha256"] = hashlib.sha256("\n".join(kept_ids).encode("utf-8")).hexdigest()
+    (args.work / "hashes.json").write_text(json.dumps(hashes, indent=2) + "\n", encoding="utf-8")
+    (args.work / "inputs.json").write_text(json.dumps({"zip": str(args.zip)}, indent=2) + "\n", encoding="utf-8")
+    return result
+
+
+def run_schema_run2(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
+    """Amendment D6: after the cohort is fixed, only the restricted schema counts for ciprofloxacin and ceftriaxone:
+    matched isolates and, per antibiotic, isolates with a non-missing interpretation. Nothing else is read."""
+    pause = result["pause_check"]
+    if pause["pause"] and not pause.get("disposition"):
+        raise StepError("the aggregate pause holds without the owner's disposition: no schema counts")
+    before = protected_state()
+    selection = pd.read_csv(args.work / "selection.csv", dtype=str, keep_default_na=False)
+    kept = selection.loc[(selection["status"] == "selected") & (selection["primary"] == "True"), "isolate"].tolist()
+    result["schema"] = {**schema_check(args.amr, kept, RUN2_COLUMNS), "run_utc": now(),
+                        "cohort": f"run 2 primary cohort ({COHORT_LABEL}), isolates with a selected spectrum",
+                        "all_sources_cohort": "identical: no isolate was excluded by the source rule (amendment E3)"}
+    if protected_state() != before:
+        raise StepError("a protected artifact changed during the run")
+    return result
+
+
 def run_schema(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
     """Step 2's schema check, on the isolates with a selected spectrum, with an explicit column mapping.
 
@@ -633,6 +839,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--matching", action="store_true",
                         help="only the identifier-matching diagnostic (counts only), into --matching-out")
     parser.add_argument("--matching-out", type=Path, default=ROOT / "results/metrics/v2.0/matching_diagnostic.json")
+    parser.add_argument("--rebuild", action="store_true",
+                        help="run 2 under amendments D and E, into --work-run2 and --out-run2")
+    parser.add_argument("--schema-run2", action="store_true",
+                        help="the restricted schema counts for run 2's primary cohort (amendment D6)")
+    parser.add_argument("--work-run2", type=Path, default=data_root / "MARISMa_v2.0.0_work" / "run2_2026-10-04")
+    parser.add_argument("--out-run2", type=Path, default=ROOT / "results/metrics/v2.0/step3_run2.json")
     parser.add_argument("--disclose", action="store_true",
                         help="amendment D4: the disclosed Sample categories with counts, into --disclose-out")
     parser.add_argument("--disclose-out", type=Path,
@@ -659,6 +871,18 @@ def main(argv: list[str] | None = None) -> int:
             raise StepError(f"{name} is not the verified download")
 
     with keep_awake():
+        if args.rebuild or args.schema_run2:
+            if args.work_run2.resolve().is_relative_to(ROOT.resolve()):
+                raise StepError("the work folder must be outside the repository")
+            args.work_run2.mkdir(parents=True, exist_ok=True)
+            args.work = args.work_run2
+            if args.rebuild:
+                out = rebuild(args)
+            else:
+                out = run_schema_run2(args, json.loads(args.out_run2.read_text(encoding="utf-8")))
+            args.out_run2.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            log.info("written %s", args.out_run2.relative_to(ROOT))
+            return 0
         if args.disclose:
             out = run_disclose(args)
             args.disclose_out.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
