@@ -550,3 +550,17 @@ schema inspection, reader and frozen features.
 
 It does not authorise model scoring, unrestricted outcome access, fitting, recalibration, deployment, or merging
 PR #35. The approval record in the plan quotes the owner's words. Notes A and B stand as recorded.
+
+#### Amendment 12, note D — 2026-10-04T07:07:35Z: deviation record, sample-source access and the coverage investigation
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment C, records:
+- **two deviations in the first run of steps 2–3, neither pre-approved:**
+  - the exclusion of 10 identifiers filed under more than one species;
+  - two probes of `AMR.csv`'s header line beyond amendment A2's outputs;
+- **the owner's authorisation of 2026-10-04:** the restricted reader may read the `Identifier` and `Sample` fields, and
+  output only the distinct `Sample` categories and the isolate counts per category. Suppression rules are fixed before
+  any value is read, and the source mapping is fixed before it is applied;
+- **a label-blind investigation of the coverage check**, which stays in force meanwhile.
+
+The owner did not approve a coverage tolerance, model scoring, outcome inspection or any change to the frozen models.
+Notes A, B and C stand as recorded.

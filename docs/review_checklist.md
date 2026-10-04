@@ -105,6 +105,13 @@ E's final head. It keeps that commit and its parent `70978cb`, which the squash 
 squash created on `v1.4-screening` (section 2). That branch was force-pushed and then deleted, so the commit is on no
 branch. It has no `refs/archive/` counterpart and is not in the bundle.
 
+**A 41st tag (2026-10-04).** `research-archive/v2.0-marisma-preregistration/pr35-head` points at `462a00a`, the head
+of PR #35 that the owner approved on 2026-10-03 for Version 2.0 steps 1–3. PR #35 was squash-merged into `main` as
+`20eafa0`, with the same tree (`13f887c0`), so none of the PR's seven original commits is an ancestor of `main`:
+`186a9d1`, `e7db98f`, `873aed5`, `eb74cb8`, `886076a`, `5a446cb` and `462a00a`. The tag keeps all seven, and the
+branch `v2.0-marisma-steps1-3` builds on `462a00a`. The tag has no `refs/archive/` counterpart and is not in the
+bundle.
+
 **The refs and tags are fixed snapshots: never move or delete them.** `research-archive/v1.4-report/tip` (like
 `refs/archive/v1.4-report/tip`) points at `bf832bd`, the report branch's tip when the archive was made. The two later
 commits on that branch, `70978cb` and `5e80cf8`, are kept by the 39th tag.
@@ -118,12 +125,12 @@ reachable from `main` itself, because `main` holds squash commits; the other 74 
 Windows, deep folders need `core.longpaths` (reproduction guide, section 5).
 
 ```bash
-# A fresh clone gets all 40 tags:
+# A fresh clone gets all 41 tags:
 git clone https://github.com/Sickwoman/antibiotic-resistance-ai.git
 # In an existing clone, a plain `git fetch` brings only the tags whose commits are on a GitHub branch,
 # so it misses most of them. Fetch all of them:
 git fetch origin 'refs/tags/research-archive/*:refs/tags/research-archive/*'
-git tag -l 'research-archive/*'          # lists 40 tags
+git tag -l 'research-archive/*'          # lists 41 tags
 
 # Read the Version 0.8 protocol as approved, and compare it with the merged text (report, section 8.8):
 git show research-archive/v0.8/approved-protocol:docs/v0.8_adaptive_plan.md
