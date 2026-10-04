@@ -1,7 +1,8 @@
 # Reproduction guide, Versions 0.1–1.4
 
 Companion to [the research report](research_report_v0.1-v1.4.md). Written 2026-10-01 against commit `0806e74` and
-the report commit on branch `v1.4-report`.
+the report commit on branch `v1.4-report`. **Addendum, 2026-10-04:** section 6 covers Version 2.0 (MARISMa), and
+section 1.2 notes the production log's two new rows. Everything else is unchanged.
 
 **Read this first.** The repository is built so that every reported number can be *checked* without being
 *recomputed*. Most historical commands would retrain models, re-read labels whose test parts are already spent, append
@@ -54,6 +55,10 @@ sha256sum results/experiments/test_evaluations.csv results/experiments/developme
 |---|---|---|
 | `test_evaluations.csv` (production) | 113 | `6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba` |
 | `development_runs.csv` (development) | 34 | `dd5f4a74933a4cfc8382e9a4464ae774aab6944e280b68e8fe340fbbc2d9e894` |
+
+**Update, 2026-10-04 (Version 2.0).** The production log gained its two planned MARISMa rows (results commit
+`89e73e8`). It now has **115** data rows with SHA-256 `5a21ba7f809e11fbc783908123539ee384836d5bbd3bf6090df4ecf5121f1557`,
+and its first 113 rows are byte-identical to the value above. The development log is unchanged.
 
 **1.3 The saved model bundles** (needs `models/`; `--check` is the default and changes nothing):
 ```bash
@@ -166,3 +171,33 @@ tags before checking any of them out, and restore any archived commit, as the re
 - **Downloads.** Zenodo throttles single connections (hence the parallel downloader); Dryad blocks scripted downloads.
 - **Shells.** PowerShell does not stop on a failing native command unless it is the last one; bash needs `pipefail` to
   see a failure inside a pipe.
+
+## 6. Version 2.0 (MARISMa), added 2026-10-04
+
+**Data, outside the repository.** MARISMa 2.0.0 (Zenodo `doi:10.5281/zenodo.17201597`, CC-BY-4.0):
+- `MARISMa.zip` in `C:\DRIAMS\MARISMa_v2.0.0`;
+- the sealed `AMR.csv` in `C:\DRIAMS\MARISMa_v2.0.0_sealed`;
+- the expected sizes and checksums in `config.yaml → marisma`;
+- every file holding identifiers, and the scoring run's state, under `C:\DRIAMS\MARISMa_v2.0.0_work`.
+
+None of these is needed for tiers 1–2.
+
+**Tier 1 (read-only).**
+```bash
+python scripts/v20_tables.py --check     # the committed tables equal what the committed aggregates generate
+sha256sum results/metrics/v2.0/marisma_evaluation.json
+```
+The report's SHA-256 is `719b140a558cb24a4902e9245642a9270809c6b8e7a472312f1ead42df0e78e2`. The pre-registration
+test (1.5) also checks the Version 2.0 plan's amendments and its execution record, each pinned as a separate segment.
+
+**Tier 2.** `tests/test_v20_*.py`, `tests/test_bruker.py`, `tests/test_marisma_*.py`, `tests/test_zip_index.py` and
+`tests/test_primary_endpoint.py` use synthetic files only. `tests/test_v20_tables.py` also reads the committed
+aggregates.
+
+**Tier 3 (documentation only; never run).**
+
+| Command | Ran from | Hazards | Notes |
+|---|---|---|---|
+| `python scripts/download_marisma.py` | step 1 | D | about 16.8 GB; verifies the published checksums |
+| `python scripts/v20_prepare_marisma.py` (its stages) | `47c0e92` (run 2) | O; reads metadata and the restricted counts | writes the work folder and aggregate outputs; run 1 is kept as a historical record |
+| `python scripts/v20_score_marisma.py --production` | `74daef3` | L, A, O | **the one-time evaluation: spent.** It refuses to start while its state exists; never delete that state. `--rebuild-report` is only for a report-writing repair |

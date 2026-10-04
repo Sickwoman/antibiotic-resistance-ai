@@ -305,8 +305,9 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   the reporting corrections; a pre-specified sensitivity analysis (ciprofloxacin, I excluded) was never run - say so
   wherever the label policy is discussed. Only tier-1 and tier-2 commands of the reproduction guide may be run.
 - **The research history is archived; never move or delete the archive.** 38 refs under `refs/archive/` and, on
-  GitHub, 40 annotated tags `research-archive/…` (the 38 of the same names, plus `v1.4-report/pr30-head` at `5e80cf8`
-  and `v1.4-screening/pr30-squash` at `6a866ea`) hold every at-risk commit; the bundle
+  GitHub, 41 annotated tags `research-archive/…` (the 38 of the same names, plus `v1.4-report/pr30-head` at `5e80cf8`,
+  `v1.4-screening/pr30-squash` at `6a866ea` and `v2.0-marisma-preregistration/pr35-head` at `462a00a`) hold every
+  at-risk commit; the bundle
   `archive/research-history-2026-10-01.bundle` is git-ignored.
   `research-archive/v1.4-report/tip` is a fixed snapshot at `bf832bd`. Versions 1.1-1.4 were squash-merged into
   `main` on 2026-10-01 (`ce6eefa`, `916ece3`, `9a3fee4`, `857b080`), so their original commit IDs resolve only
@@ -317,3 +318,46 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   `-eo pipefail`); never pipe pytest into `tail`/`tee` before a commit - read pytest's own exit code.
   `tests/conftest.py` fails the whole session if a test changed `results/experiments/test_evaluations.csv` or
   `development_runs.csv`: every test that runs a script must point both logs into `tmp_path`.
+- **Version 2.0 is the external validation of the frozen ciprofloxacin model on MARISMa** (`docs/v2.0_marisma_plan.md`,
+  amendment 12 with notes A-I; branch `v2.0-marisma-steps1-3`). It was scored **once**, on 2026-10-04, under the owner's
+  recorded authorisation (amendment G): results commit `89e73e8`. The production log now has **115 data rows**; the
+  first 113 are byte-identical (`6528eb2a…`). The plan's "Execution record and closure" is the result record. Rules
+  to keep:
+  - **Never rerun `scripts/v20_score_marisma.py --production`, and never delete its state** in
+    `C:\DRIAMS\MARISMa_v2.0.0_work\scoring_v2.0`.
+    - The script refuses to start while that state exists. `--rebuild-report` is only for a report-writing repair.
+    - `src/v20_scoring_guard.py` checks the authorisation block in the plan and the code fingerprint of `CODE_FILES`.
+      Do not edit those files.
+  - **MARISMa data stays outside the repository.**
+    - The archive is in `C:\DRIAMS\MARISMa_v2.0.0`, the sealed `AMR.csv` in `C:\DRIAMS\MARISMa_v2.0.0_sealed`, and every
+      file with identifiers under `C:\DRIAMS\MARISMa_v2.0.0_work`. Checksums are in `config.yaml` -> `marisma`.
+    - Read the zip with `src/zip_index.py`, never `zipfile`: its index needs about 3.3 GB here.
+    - Only `src/marisma_labels.py::read_interpretations`, behind the guard, reads interpretation categories.
+    - No MARISMa identifier, path or individual prediction enters a committed file. Cohort and feature hashes stay in
+      the work folder.
+  - **State the result as recorded.** "The frozen ciprofloxacin model achieved AUROC 0.772 (descriptive 95% interval
+    0.744–0.798) on 1,145 eligible MARISMa E. coli isolates from 2024, with evidence of above-chance ranking under the
+    isolate-independence assumption." Always pair it with B3's error-control statement, and keep ceftriaxone
+    **unavailable** (p = 1 in Holm; never substituted).
+  - **Give equal prominence** to each of these:
+    - sensitivity 0.897 and specificity 0.393 at the frozen cut-off;
+    - under-prediction (calibration intercept 0.642);
+    - zone NPV 0.907, with 18 R or I isolates among the 193 in the zone. The zone **failed** its 0.95 criterion:
+      never present it as a validated safety feature;
+    - a gap that was not demonstrated. Never call it "equivalent", "non-inferior" or "maintained";
+    - no patient linkage, unknown screening status, and acquisition and preprocessing differences.
+  - **Denominators and readings:**
+    - 6.07 % (1,031 of 16,975) is the all-years reader exclusion that triggered the pause. In the 2024 folder it was
+      0.81 % (13 of 1,607), and 0.60 % (7 of 1,172) of the matched isolates.
+    - The Brier reference 0.239 is computed on the evaluation cohort after outcome access; it is not a baseline.
+    - A calibration-slope interval containing 1 is not evidence of calibration.
+    - The doubled-variance check is an assumed design effect, not a correction for clustering.
+    - The ambiguous-source zone NPV interval [1.000, 1.000] is degenerate (20 isolates, all susceptible) and
+      establishes nothing.
+  - **The I-excluded analysis is descriptive, with no p-value.**
+    - One was computed and displayed during verification; the plan's deviation record has it. Never regenerate or
+      report it, and verify only registered quantities.
+    - The DRIAMS I-excluded analysis of protocol section 8 is still unrun.
+  - **Tables** come from `scripts/v20_tables.py`, from committed aggregates only.
+  - **Any demo** stays within `docs/research_demo_brief.md`: synthetic inputs or approved aggregates, research-only
+    wording, and no antibiotic recommendation or "safe to treat" claim.
