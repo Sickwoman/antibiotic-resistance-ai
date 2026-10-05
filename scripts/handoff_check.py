@@ -192,8 +192,9 @@ def main(argv: list[str] | None = None) -> int:
         commit = run(["git", "rev-parse", "HEAD"], clone).stdout.strip()
         local = run(["git", "rev-parse", "HEAD"], ROOT).stdout.strip()
         report.check("a fresh clone of the pushed branch, without the model or data", cloned.returncode == 0 and
-                     commit == local and not (clone / mp.TARGET).exists() and not (clone / "data" / "processed")
-                     .exists(), f"{args.ref} at {commit[:7]}")
+                     commit == local and not (clone / mp.TARGET).exists()
+                     and {p.name for p in (clone / "data").rglob("*") if p.is_file()} <= {".gitkeep"},
+                     f"{args.ref} at {commit[:7]}; models/ and data/ hold only their .gitkeep placeholders")
 
         # 2. A clean virtual environment, from the lock file
         t0 = time.time()
