@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Research demo: frozen ciprofloxacin model</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="banner">
+    <div class="banner-inner">
+      <p class="eyebrow">Version 2.0 research demo · runs on this computer only</p>
+      <h1>MALDI-TOF resistance prediction: the frozen ciprofloxacin model</h1>
+      <p class="notice"><strong>Research prototype.</strong> Synthetic spectra only. Not a diagnostic, not a
+        substitute for antimicrobial susceptibility testing, and never a treatment recommendation.</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="card about" aria-labelledby="about-title">
+      <h2 id="about-title">What this project is</h2>
+      <p>The project asks whether routine MALDI-TOF mass spectra, already recorded to identify bacteria, carry a
+        signal about <em>E. coli</em>'s resistance to ciprofloxacin. A LightGBM model was trained on 2,977 spectra
+        from one Swiss hospital (DRIAMS-A) and then frozen: its preprocessing, weights and research threshold have not
+        changed since. In Version 2.0 it was evaluated once, under a pre-registered protocol, on an independent
+        hospital's public data (MARISMa, Madrid).</p>
+      <p>This page shows the pipeline at work on three <strong>synthetic</strong> spectra, scored by the real frozen
+        model on this computer, beside the evaluation's published results. A synthetic spectrum comes from no
+        organism, so its score demonstrates the pipeline and says nothing about any bacterium.</p>
+    </section>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="demo-title">
+        <h2 id="demo-title">Try the pipeline</h2>
+        <p id="model-status" class="model-status" aria-live="polite">Checking the frozen model…</p>
+
+        <h3>1 · Choose a synthetic spectrum</h3>
+        <div id="examples" class="examples" role="group" aria-label="Synthetic examples"></div>
+        <p id="example-facts" class="facts"></p>
+        <figure class="plot">
+          <svg id="plot" role="img" aria-labelledby="plot-caption" viewBox="0 0 640 300"
+               preserveAspectRatio="xMidYMid meet"></svg>
+          <figcaption id="plot-caption">Synthetic spectrum: raw intensity against m/z (Da). The shaded band is the
+            2,000–20,000 Da range the frozen preprocessing keeps.</figcaption>
+        </figure>
+        <p class="footnote">The three examples are the first three draws of a fixed generator (seed 42), committed
+          before the model scored any of them. They have no ground-truth label.</p>
+
+        <h3>2 · Run the frozen model</h3>
+        <button id="run" type="button" class="run" disabled>Run research prediction</button>
+        <div id="state" class="state" role="status" aria-live="polite" hidden></div>
+        <div id="result" class="result" hidden>
+          <div class="result-head">
+            <div>
+              <p class="label">Model score</p>
+              <p id="score" class="score"></p>
+            </div>
+            <div>
+              <p class="label">Research threshold (frozen)</p>
+              <p id="threshold" class="threshold"></p>
+            </div>
+            <div>
+              <p class="label">Status</p>
+              <p id="position" class="position"></p>
+            </div>
+          </div>
+          <p id="threshold-note" class="facts"></p>
+          <p class="explain">A demonstration of the pipeline on a synthetic spectrum: the score is not a property of
+            any organism, and it is not a clinical probability. "Above" or "below" only places the score against the
+            threshold the model was frozen with.</p>
+          <p class="explain">On MARISMa the model under-predicted resistance on aggregate (calibration intercept
+            <span id="intercept-inline"></span>). That is a finding about 1,145 real isolates. It does not say how
+            this synthetic example's score is off.</p>
+          <dl class="meta">
+            <dt>Model</dt><dd id="model-version"></dd>
+            <dt>Ran through</dt><dd id="runner"></dd>
+            <dt>Time</dt><dd id="timing"></dd>
+          </dl>
+          <p id="disclaimer" class="disclaimer"></p>
+        </div>
+      </section>
+
+      <section class="card evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">External evaluation on MARISMa (Version 2.0)</h2>
+        <div id="evidence-body"><p class="facts">Loading the committed results…</p></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Synthetic inputs only; no upload, no storage, no external connection. Predictions run through the project's
+      unchanged <code>scripts/predict_spectrum.py</code>. Evaluation figures are read from committed aggregate files
+      when the page loads.</p>
+  </footer>
+</body>
+</html>

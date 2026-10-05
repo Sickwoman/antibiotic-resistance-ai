@@ -1,0 +1,20 @@
+{
+  "release_tag": "model-ecoli-ciprofloxacin-v0.4.0",
+  "assets": [
+    {
+      "name": "ecoli_ciprofloxacin-v0.4.0-tuned_lightgbm-random-seed42.zip",
+      "bytes": 650235,
+      "sha256": "9980930f35a4f592ab4269aed9811f3e869844ea6a13679a7e60f8fead62618d"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 126,
+      "sha256": "2b127337f6e0ef14481bd83fb35f9195abd82d3dba5f186a2cf0c3672fad667c"
+    }
+  ],
+  "bundle": {
+    "name": "best_random.joblib",
+    "bytes": 636912,
+    "sha256": "d59d6d7deafa1af464c33ebefc0f8f641a80eb70f7b51039e6c2ede0fd841c8b"
+  }
+}
