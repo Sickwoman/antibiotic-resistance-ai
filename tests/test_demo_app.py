@@ -178,6 +178,8 @@ def test_cli_messages_are_classified_and_local_paths_are_not_shown():
     root = str(ROOT)
     missing = _classify(f"Error: Model file not found: {root}\\models\\x.joblib. Train and save a model first.", None)
     assert missing.code == "model_unavailable" and missing.status == 503 and root not in missing.message
+    assert "train_baselines" not in missing.message and "Model file not found: <repository>/models/x.joblib." in \
+        missing.message
     assert _classify("Error: x does not match its checksum in x.sha256", None).code == "model_invalid"
     assert _classify("Error: m/z values are not strictly increasing.", None).code == "inference_failed"
 

@@ -92,6 +92,9 @@ def _safe(message: str, tmp: str | None) -> str:
 def _classify(stderr: str, tmp: str | None) -> DemoInferenceError:
     message = _safe(stderr.removeprefix("Error:").strip() or "the prediction CLI failed without a message", tmp)
     if "Model file not found" in message:
+        # The CLI adds "Train and save a model first with ...": retraining would not give the frozen model, and that
+        # command scores spent test parts, so only its first sentence is relayed.
+        message = message.split(". Train and save", 1)[0].rstrip(".") + "."
         return DemoInferenceError("model_unavailable", "The frozen model bundle was not found, so no prediction can "
                                   "be made. It is not distributed with the repository (models/ is not in Git). An "
                                   "authorised user obtains models/v0.4/ecoli_ciprofloxacin/best_random.joblib from "
