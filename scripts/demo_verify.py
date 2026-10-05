@@ -570,7 +570,7 @@ def run() -> Report:
         status = json.loads(http("GET", f"http://127.0.0.1:{clone_port}/api/status")[2])
         code, body = post_json(f"http://127.0.0.1:{clone_port}/api/predict", {"example": "synthetic-1"})
         report.check("a fresh clone has no bundle, and serves the page and the evidence anyway",
-                     not (clone / "models").exists() and status["model"]["present"] is False
+                     not (clone / BUNDLE.relative_to(ROOT)).exists() and status["model"]["present"] is False
                      and status["evidence_available"] is True and http("GET", f"http://127.0.0.1:{clone_port}/")[0]
                      == 200)
         report.check("a fresh clone's prediction explains how to obtain and verify the bundle", code == 503 and
