@@ -33,6 +33,7 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
 import shutil
 import socket
@@ -430,7 +431,8 @@ def run() -> Report:
     temp_before = {p.name for p in Path(tempfile.gettempdir()).iterdir()}
     before, status_before = manifest(), git_status()
     log_hashes = {log: sha256(ROOT / log) for log in LOGS}
-    report.facts["environment"] = {"python": sys.version.split()[0], "edge": edge_version(),
+    report.facts["environment"] = {"os": platform.platform(), "python": sys.version.split()[0],
+                                   "edge": edge_version(),
                                    "commit": subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
                                                             capture_output=True, text=True).stdout.strip()}
     processes: list[subprocess.Popen] = []
@@ -555,6 +557,28 @@ def run() -> Report:
         stop(missing)
         processes.remove(missing)
 
+        # A fresh clone of the committed head, which has no models/: what a new user sees before obtaining the bundle
+        clone = work / "clone"
+        subprocess.run(["git", "-c", "core.longpaths=true", "clone", "--quiet", "--no-hardlinks", str(ROOT),
+                        str(clone)], check=True, capture_output=True)
+        clone_port = free_port()
+        fresh = subprocess.Popen([sys.executable, "-m", "demo", "--port", str(clone_port)], cwd=clone,
+                                 stdout=(work / "server-clone.log").open("w", encoding="utf-8"),
+                                 stderr=subprocess.STDOUT)
+        processes.append(fresh)
+        wait_for_server(f"http://127.0.0.1:{clone_port}/api/status", fresh)
+        status = json.loads(http("GET", f"http://127.0.0.1:{clone_port}/api/status")[2])
+        code, body = post_json(f"http://127.0.0.1:{clone_port}/api/predict", {"example": "synthetic-1"})
+        report.check("a fresh clone has no bundle, and serves the page and the evidence anyway",
+                     not (clone / "models").exists() and status["model"]["present"] is False
+                     and status["evidence_available"] is True and http("GET", f"http://127.0.0.1:{clone_port}/")[0]
+                     == 200)
+        report.check("a fresh clone's prediction explains how to obtain and verify the bundle", code == 503 and
+                     body["error"]["code"] == "model_unavailable" and "demo/README.md" in body["error"]["message"]
+                     and "SHA-256" in body["error"]["message"], f"HTTP {code}")
+        stop(fresh)
+        processes.remove(fresh)
+
         damaged = work / "damaged" / "best_random.joblib"
         damaged.parent.mkdir()
         data = bytearray(BUNDLE.read_bytes())
@@ -646,9 +670,14 @@ def write(report: Report) -> None:
     (OUT / "verification.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
     net = report.facts.get("network", {})
     lines = ["# Research demo: end-to-end verification", "",
-             f"Run {stamp} by `scripts/demo_verify.py` on commit `{env['commit']}`, with Python {env['python']} and "
-             f"{env.get('edge_running') or 'Microsoft Edge ' + env['edge']}. "
+             f"Run {stamp} by `scripts/demo_verify.py` on commit `{env['commit']}`, on {env['os']}, with Python "
+             f"{env['python']} and {env.get('edge_running') or 'Microsoft Edge ' + env['edge']}. "
              f"**{sum(c['ok'] for c in report.checks)} of {len(report.checks)} checks passed.**", "",
+             "**Scope.** These are observations from this one run in this environment: one Windows machine, the pinned "
+             "dependencies of `requirements-lock.txt`, the frozen bundle present, and the browser and commit named "
+             "above. They are not guarantees for other machines, browsers, versions or configurations. CI does not "
+             "run this check. CI runs the unit tests on Ubuntu and Windows with Python 3.11 and 3.12, without the "
+             "model bundle (those tests skip) and without a browser.", "",
              "The scores below are pipeline demonstrations on synthetic spectra. They are not research results, and "
              "no experiment log was touched.", "",
              "| Synthetic example | Demo score (CLI, 4 decimals) | Frozen model, unrounded | Status | CLI run |",

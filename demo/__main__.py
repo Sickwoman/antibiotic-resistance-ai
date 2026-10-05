@@ -41,7 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://{args.host}:{args.port}/"
     model = model_status(args.model if args.model is not None else default_model_path())
     print("Research demo of the frozen ciprofloxacin model: synthetic spectra only, not a clinical tool.")
-    print(f"  model bundle: {model['path']} ({'present' if model['present'] else 'MISSING: predictions will fail'})")
+    print(f"  model bundle: {model['path']} ({'present' if model['present'] else 'MISSING'})")
+    if not model["present"]:
+        print("  The frozen bundle is not distributed with the repository. The page and the evaluation panel\n"
+              "  work, but every prediction will report the missing model. See demo/README.md, 'The frozen model'.")
     removed = sweep_stale()
     if removed:
         print(f"  removed {removed} temporary folder(s) that an interrupted earlier run left behind")

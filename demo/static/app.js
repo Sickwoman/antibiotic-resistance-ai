@@ -267,7 +267,9 @@
         (model.sidecar ? " (its SHA-256 sidecar is checked on every run)." : " (no checksum sidecar).");
     } else {
       box.className = "model-status missing";
-      box.textContent = `Frozen model not found at ${model.path}: predictions will fail until it is restored.`;
+      box.textContent = `Frozen model not found at ${model.path}. It is not distributed with the repository, so ` +
+        "predictions will fail until an authorised copy is installed (demo/README.md, “The frozen model”). " +
+        "The evaluation panel works without it.";
     }
   }
 

@@ -93,8 +93,10 @@ def _classify(stderr: str, tmp: str | None) -> DemoInferenceError:
     message = _safe(stderr.removeprefix("Error:").strip() or "the prediction CLI failed without a message", tmp)
     if "Model file not found" in message:
         return DemoInferenceError("model_unavailable", "The frozen model bundle was not found, so no prediction can "
-                                  "be made. The models/ folder is not in Git: restore "
-                                  "models/v0.4/ecoli_ciprofloxacin/best_random.joblib and its .sha256 sidecar. "
+                                  "be made. It is not distributed with the repository (models/ is not in Git). An "
+                                  "authorised user obtains models/v0.4/ecoli_ciprofloxacin/best_random.joblib from "
+                                  "the project owner through a trusted channel and checks its SHA-256 before use: "
+                                  "see demo/README.md, \"The frozen model\". The rest of the page works without it. "
                                   f"The CLI reported: {message}", 503)
     if any(s in message for s in ("does not match its checksum", "Could not read the model file",
                                   "is not a model bundle", "confidence zones", "confidence-zones")):
