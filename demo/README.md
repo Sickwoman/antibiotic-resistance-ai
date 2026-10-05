@@ -63,12 +63,26 @@ in [docs/reproduction_guide.md](../docs/reproduction_guide.md), section 1.3, and
 `v0.4.0-tuned_lightgbm-random-seed42`, saved on 2026-09-18 from commit `3c8245b`.
 
 **How an authorised user obtains it.**
-- **The source.** This repository does not distribute the bundle: no release, artifact store or download script holds
-  it. The only copy known to the project is the project owner's. Ask the owner for it through a channel you both
-  trust. Whether and how it is redistributed is the owner's decision: the code is MIT-licensed and DRIAMS is CC0, but
-  this repository grants nothing about the bundle itself.
-- **Placement.** Put it at the path above, with the sidecar if you were given one.
-- **Verification, before first use:**
+- **The package.** The bundle travels as a model package, `ecoli_ciprofloxacin-v0.4.0-tuned_lightgbm-random-seed42.zip`
+  (650,235 bytes). It holds the bundle, its checksum, a manifest, a model card and a notice.
+- **Not published yet.** No release, artifact store or download script holds it, until the owner decides on the terms
+  and publication ([docs/release/model-v0.4.0/PUBLICATION.md](../docs/release/model-v0.4.0/PUBLICATION.md)). Until
+  then, ask the project owner for the package through a channel you both trust. The code is MIT-licensed and DRIAMS
+  is CC0, but this repository grants nothing about the model itself: its proposed terms are in the package's
+  `NOTICE.md`.
+- **Installation**, with the environment of section 2:
+
+  ```powershell
+  .\.venv\Scripts\python.exe scripts\install_model.py <path to the package .zip>
+  ```
+
+  It checks the bundle against the SHA-256 pinned in this repository before writing anything, and never deserialises
+  it.
+  - It refuses a missing, damaged or different package with exit code 2. A package whose own checksum file and
+    manifest were changed to match a different bundle is refused too, by the pin.
+  - It never replaces a different model already at the target (exit code 3).
+  - Run again on an installed model, it changes nothing.
+- **A loose bundle,** without the package, needs the hash checked by hand before first use:
 
   ```powershell
   (Get-FileHash models\v0.4\ecoli_ciprofloxacin\best_random.joblib -Algorithm SHA256).Hash.ToLower()

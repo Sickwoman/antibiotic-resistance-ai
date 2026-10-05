@@ -377,3 +377,14 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   - **`scripts/demo_verify.py` is the end-to-end check.** It needs `models/` and Edge, audits every Python process's
     sockets and writes, and drives Edge over DevTools. Edge's launcher relaunches itself, so `--screenshot` and
     `--dump-dom` from a script are unreliable here: use the DevTools driver.
+- **The frozen model's distribution package** (`src/model_package.py`, `scripts/package_model.py`,
+  `scripts/install_model.py`, records in `docs/release/model-v0.4.0/`). Rules to keep:
+  - **The package is built only from the pinned original** (SHA-256 `d59d6d7d…`, 636,912 bytes), byte for byte. The
+    build is reproducible (stored ZIP, fixed timestamps), and the package goes to `dist/`, which Git ignores. Never
+    commit it or the bundle.
+  - **The installer trusts only the pin in `src/model_package.py`.** It never deserialises, never downloads, and never
+    replaces a different model. The package's own checksum file and manifest can refuse a package but never accept
+    one.
+  - **Publication is the owner's decision** (`PUBLICATION.md`): the licence (MIT proposed, in `NOTICE.md`), the
+    authority to license it (thesis affiliation unresolved), and the GitHub Release action. Do not publish or upload
+    the package by any route without that approval.

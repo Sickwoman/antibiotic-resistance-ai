@@ -1,0 +1,144 @@
+{
+  "package": "ecoli_ciprofloxacin-v0.4.0-tuned_lightgbm-random-seed42",
+  "package_format": "amr-model-package/1",
+  "model": {
+    "model_version": "v0.4.0-tuned_lightgbm-random-seed42",
+    "model": "tuned_lightgbm",
+    "model_kind": "lightgbm",
+    "species": "Escherichia coli",
+    "antibiotic": "Ciprofloxacin",
+    "label_map": {
+      "0": "susceptible (S)",
+      "1": "resistant (R or I)"
+    },
+    "threshold": 0.14261540693905073,
+    "threshold_rule": {
+      "rule": "min_sensitivity",
+      "min_sensitivity": 0.9
+    },
+    "n_features": 6000,
+    "feature_fingerprint": "347cbd6d5d956ff9",
+    "calibration": {
+      "method": "sigmoid",
+      "folds": 5,
+      "fitted_on": "out-of-fold predictions of 5 patient-grouped folds of the training part"
+    },
+    "seed": 42,
+    "params": {
+      "subsample": 1.0,
+      "reg_lambda": 10.0,
+      "num_leaves": 31,
+      "n_estimators": 300,
+      "min_child_samples": 10,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.3,
+      "class_weight": null
+    },
+    "created": "2026-09-18 12:54:10"
+  },
+  "bundle": {
+    "file": "best_random.joblib",
+    "bytes": 636912,
+    "sha256": "d59d6d7deafa1af464c33ebefc0f8f641a80eb70f7b51039e6c2ede0fd841c8b",
+    "format": "amr-model-bundle/1",
+    "serialisation": "joblib (a zlib-compressed pickle): loading it runs code, so load only a copy whose SHA-256 matches the value pinned in the repository",
+    "install_to": "models/v0.4/ecoli_ciprofloxacin/best_random.joblib",
+    "checksum_file": "best_random.joblib.sha256"
+  },
+  "provenance": {
+    "repository": "https://github.com/Sickwoman/antibiotic-resistance-ai",
+    "source_commit": "3c8245b",
+    "source_commit_resolvable_via": "tag research-archive/v0.4/run",
+    "sha256_pinned_in": [
+      "src/model_package.py",
+      "docs/reproduction_guide.md (section 1.3)"
+    ],
+    "training_data": {
+      "dataset": "DRIAMS-A, E. coli isolates with a ciprofloxacin result",
+      "doi": "10.5061/dryad.bzkh1899q",
+      "licence": "CC0 1.0",
+      "split": "random",
+      "train_size": 2977,
+      "row_fingerprint": "151415a4d03dbcc5"
+    },
+    "bundle_contents": "the fitted pipeline and aggregate metadata; the calibration folds are stored as integer row positions into the training part. No identifier, spectrum, label or per-isolate prediction."
+  },
+  "environment": {
+    "python": "3.12.10",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "joblib": "1.6.0",
+    "install": "pip install -r requirements-lock.txt --extra-index-url https://download.pytorch.org/whl/cpu",
+    "loader": "src/predict.load_bundle (unchanged), via scripts/predict_spectrum.py or the demo"
+  },
+  "evaluation": {
+    "internal_test_driams_a": {
+      "n": 856,
+      "n_r_or_i": 197,
+      "auroc": {
+        "low": 0.6960961094290343,
+        "high": 0.806503365168345,
+        "estimate": 0.75086078737974
+      },
+      "sensitivity": {
+        "low": 0.7595628415300546,
+        "high": 0.895742222326498,
+        "estimate": 0.8274111675126904
+      },
+      "specificity": {
+        "low": 0.41076438569206847,
+        "high": 0.5053649902492349,
+        "estimate": 0.4582701062215478
+      },
+      "source": "results/metrics/v0.4/ecoli_ciprofloxacin/test_intervals.json"
+    },
+    "external_marisma_2024": {
+      "n": 1145,
+      "n_r_or_i": 455,
+      "auroc": {
+        "estimate": 0.7721802834846313,
+        "low": 0.743869326325848,
+        "high": 0.7983761745500876,
+        "undefined_resamples": 0
+      },
+      "sensitivity": {
+        "estimate": 0.8967032967032967,
+        "low": 0.865934065934066,
+        "high": 0.9252747252747253,
+        "undefined_resamples": 0
+      },
+      "specificity": {
+        "estimate": 0.3927536231884058,
+        "low": 0.3565217391304348,
+        "high": 0.4289855072463768,
+        "undefined_resamples": 0
+      },
+      "calibration_intercept": {
+        "estimate": 0.6422088841224711,
+        "low": 0.5806794315287566,
+        "high": 0.70216229203137,
+        "undefined_resamples": 0
+      },
+      "zone_npv": {
+        "estimate": 0.9067357512953368,
+        "low": 0.8647335890878091,
+        "high": 0.9441694867456288,
+        "undefined_resamples": 0
+      },
+      "zone_members": 193,
+      "zone_r_or_i": 18,
+      "conclusion": "Evidence of above-chance ranking on MARISMa under the isolate-independence assumption.",
+      "error_control": "Brunner–Munzel inference is approximate and assumes independent isolates. Holm adjustment does not repair invalid component p-values. Missing patient linkage leaves actual error control uncertain.",
+      "source": "results/metrics/v2.0/marisma_evaluation.json"
+    }
+  },
+  "terms": {
+    "status": "proposed: in force only once the copyright holder publishes this package",
+    "proposed_licence": "MIT",
+    "notice": "NOTICE.md"
+  },
+  "intended_use": "methodological research only; not a medical device or diagnostic; never a treatment recommendation",
+  "installation": "python scripts/install_model.py <this package's .zip>"
+}
