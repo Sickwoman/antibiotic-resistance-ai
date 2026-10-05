@@ -535,3 +535,114 @@ note is proposed, and nothing in it is approved. Note A stays exactly as recorde
 3. **Conclusion wording.** A rejected hypothesis is reported only as "Evidence of above-chance ranking on MARISMa under
    the isolate-independence assumption". This is never read as clinical utility, or as internal performance
    maintained.
+
+#### Amendment 12, note C — 2026-10-03T15:21:12Z: approval of steps 1–3
+
+The owner approved all 17 decisions of the Version 2.0 approval statement (PR #35 at commit
+`462a00aa0542991a37f17634469d63ac28bd115f`, including plan amendments A and B and notes A and B). In doing so, the owner
+explicitly accepted:
+- the missing-patient-linkage limitation;
+- the conditional statistical interpretation;
+- the non-estimable primary-test rule.
+
+This authorises steps 1–3 of [the Version 2.0 plan](v2.0_marisma_plan.md) only: download, metadata cohort, restricted
+schema inspection, reader and frozen features.
+
+It does not authorise model scoring, unrestricted outcome access, fitting, recalibration, deployment, or merging
+PR #35. The approval record in the plan quotes the owner's words. Notes A and B stand as recorded.
+
+#### Amendment 12, note D — 2026-10-04T07:07:35Z: deviation record, sample-source access and the coverage investigation
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment C, records:
+- **two deviations in the first run of steps 2–3, neither pre-approved:**
+  - the exclusion of 10 identifiers filed under more than one species;
+  - two probes of `AMR.csv`'s header line beyond amendment A2's outputs;
+- **the owner's authorisation of 2026-10-04:** the restricted reader may read the `Identifier` and `Sample` fields, and
+  output only the distinct `Sample` categories and the isolate counts per category. Suppression rules are fixed before
+  any value is read, and the source mapping is fixed before it is applied;
+- **a label-blind investigation of the coverage check**, which stays in force meanwhile.
+
+The owner did not approve a coverage tolerance, model scoring, outcome inspection or any change to the frozen models.
+Notes A, B and C stand as recorded.
+
+#### Amendment 12, note E — 2026-10-04T14:36:14Z: the owner's decisions on the step 3 blockers
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment D, records the owner's decisions of 2026-10-04. They were
+informed by label-blind inspection of MARISMa metadata and spectra.
+- **The coverage rule.** Every feature bin of the frozen pipeline holds an acquired point, the sampling interval is
+  2 ns, and the first point is at or above 1,960 Da. Residual edge and normalisation differences are accepted as
+  limitations, not as equivalence with DRIAMS features.
+- **The pause.** Continuation beyond the recorded 6.07 % pause (1,031 of 16,975) is approved for the investigated
+  coverage and acquisition failures only. The 5 % rule stays.
+- **Sample sources.**
+  - The 32 categories that pass the size and content checks may be named, and the 39 rare ones stay suppressed.
+  - The screening mapping is fixed before it is applied.
+  - Unresolved sources are kept as "source unknown/ambiguous", in a cohort labelled "identifiable screening sources
+    excluded".
+- **The identity rule.** Identifiers filed under more than one genus or species are excluded: 10, none with an
+  `AMR.csv` record.
+- **The evaluation population.** Matching *E. coli* `AMR.csv` records exist only for 2024, on one instrument.
+  - Results apply to the eligible, tested 2024 subset only.
+  - The period analyses are unavailable.
+  - Only the restricted schema counts are run before scoring.
+
+Step 3 is not accepted, and scoring stays blocked. Notes A–D stand as recorded.
+
+#### Amendment 12, note F — 2026-10-04T14:45:07Z: the sample-source mapping
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment E, fixes the screening-source mapping before it is applied.
+- **No disclosed category is identifiable as screening.** Every name states an anatomical source only, and MARISMa's
+  descriptor does not mark screening samples.
+- **So no isolate is excluded by the source rule.** The cohort is labelled "identifiable screening sources excluded
+  (none was identifiable)".
+- **Ambiguous categories are kept and reported:**
+  - three named categories, 77 isolates: rectal exudate, tracheal aspirate and gastric juice;
+  - the 39 suppressed categories, 65 isolates.
+- **A risk is flagged.** Rectal swabs may be resistance-screening samples, and changing their class needs a dated
+  owner decision before scoring.
+
+Notes A–E stand as recorded.
+
+#### Amendment 12, note G — 2026-10-04T15:21:22Z: acceptance of step 3 and authorisation of step 4
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment F, records the owner's acceptance of the step 3 preparation at
+commit `8c85055a721bc7bc67cbb808f3e0d61e8ec06c1e`. That acceptance was verified against the saved artifacts. It also
+records the authorisation of step 4: implement, test and freeze the scoring script.
+- **The scope.** The frozen ciprofloxacin model on eligible MARISMa *E. coli* isolates from 2024, acquired on MBT-WIN10.
+- **Ceftriaxone** is unavailable. It contributes p = 1 to the original two-hypothesis Holm family, and its model is not
+  run.
+- **The cohort** is described as "all sources retained; screening status could not be determined".
+- **The step 4 specification,** fixed before the scoring code, is in amendment F5.
+
+Running either model on MARISMa, reading an interpretation category and appending to the production log all need the
+owner's separate approval. Notes A–F stand as recorded.
+
+#### Amendment 12, note H — 2026-10-04T18:16:46Z: the scoring authorisation
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), amendment G, records the owner's authorisation of the one-time evaluation
+of the frozen ciprofloxacin model on MARISMa.
+- **Code.** Commit `e7472f046ac08d629a714fee0abc1cf76331a477`, with code fingerprint `d03d01db196e008447f619ef492b57b7b71e7cd57f95fb305174a3d94bac8522`.
+- **What it covers:** the frozen model's predictions, access to the ciprofloxacin labels, every registered analysis,
+  the two planned production-log rows, and the final report.
+- **Ceftriaxone** stays unavailable, with p = 1 in the fixed Holm family.
+
+The metadata reconciliation required before execution passed. Notes A–G stand as recorded.
+
+#### Amendment 12, note I — 2026-10-04T19:26:14Z: the execution record and closure
+
+[The Version 2.0 plan](v2.0_marisma_plan.md), "Execution record and closure", records the one-time evaluation of
+2026-10-04 and closes Version 2.0.
+- **Result:** "The frozen ciprofloxacin model achieved AUROC 0.772 (descriptive 95% interval 0.744–0.798) on 1,145
+  eligible MARISMa E. coli isolates from 2024, with evidence of above-chance ranking under the isolate-independence
+  assumption." Holm-adjusted p is 4.4 × 10⁻⁷¹, and B3's error-control statement applies.
+- **Ceftriaxone:** unavailable, with p = 1 in Holm.
+- **With equal prominence:**
+  - sensitivity 0.897 and specificity 0.393 at the frozen cut-off;
+  - under-prediction (calibration intercept 0.642);
+  - zone NPV 0.907, with 18 R or I isolates among the 193 in the zone;
+  - no internal–external gap demonstrated, which is neither equivalence nor non-inferiority;
+  - no patient linkage, unknown screening status, and acquisition and preprocessing differences.
+- **Deviation:** an unregistered I-excluded p-value was computed and displayed during verification. It was excluded from
+  inference and changed no decision.
+
+Notes A–H stand as recorded.

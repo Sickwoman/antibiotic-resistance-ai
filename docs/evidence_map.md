@@ -6,6 +6,10 @@ that pre-registered, ran and recorded it, its saved results, its limitations, an
 exploratory. Compiled on 2026-10-01 from the repository at `0806e74` (branch `v1.4-screening`), without running
 any experiment. **"Not recorded"** means no committed artifact states it; nothing was filled in from memory.
 
+**Addendum, 2026-10-04:** entry [E2.0](#e20--external-validation-on-marisma-version-20) (Version 2.0, MARISMa) is added
+at the end, compiled from the repository at `89e73e8` and the Version 2.0 execution record. Entries E0.1–E1.4b are
+unchanged.
+
 Commit notes. Versions 0.1–1.4 reached `main` through squash merges (1.1–1.4 on 2026-10-01, as PRs #26–#29), so their
 original commits, which this map cites, are not ancestors of `main`. Commits of Versions 0.2–0.6 are held by local
 branches (`v0.2-driams-d`, `v0.3-baselines`, `v0.4-improved-ml`, `v0.5-deep-learning`, `v0.6-explainability`) that
@@ -209,3 +213,66 @@ results have been inspected.
 - **Saved results.** `results/metrics/v1.4/ecoli_ceftriaxone/tables.md`. A1 − A0 −0.007 [−0.056, +0.043]: not
   demonstrated. Source separability AUROC 0.937 (0.912–0.959).
 - **Status.** Exploratory; triggered the pre-set stop to model iteration on the pool.
+
+---
+
+## External validation (`marisma_ecoli_ciprofloxacin`, label 1 = R or I)
+
+### E2.0 — External validation on MARISMa (Version 2.0)
+- **Question.** Does the served ciprofloxacin model, frozen, rank *E. coli* isolates above chance at a hospital,
+  country and period no earlier version touched (MARISMa 2.0.0, Hospital General Universitario Gregorio Marañón,
+  Madrid)?
+- **Prior information.**
+  - **Plan and pins.** Plan `186a9d1` (protocol amendment 12), pinned at `e7db98f`, recorded before any Version 2.0
+    code or download.
+  - **Pre-data amendments.** A (`873aed5`, pin `eb74cb8`) and B (`886076a`, pin `5a446cb`); the primary-test rule at
+    `462a00a`.
+  - **Approval.** The owner approved steps 1–3 at `462a00a` (record `62deee6`, pin `d9ed5ec`). PR #35 was squash-merged
+    as `20eafa0`, and its head is tagged `research-archive/v2.0-marisma-preregistration/pr35-head`.
+  - **Later decisions.** C (`1ee6935`, pin `00b387f`), D (`6a5ea90`, pin `8bea756`), E (`83ea59e`, pin `26e1517`) and
+    F (`bec0b24`, pin `9895067`) were each recorded before the step they governed. The scoring authorisation, G
+    (`f1dc93d`, pin `74daef3`), was recorded before any prediction or label read.
+  - **No MARISMa label, outcome count or published result on it** was seen before the run.
+- **Data.**
+  - **Archive.** MARISMa 2.0.0 (Zenodo `doi:10.5281/zenodo.17201597`, CC-BY-4.0), checked against the published
+    checksums, plus member CRC-32 (`archive_integrity.json`).
+  - ***E. coli* isolates.** 16,975 after the identity rule. *E. coli* susceptibility records exist for 2024 only.
+  - **Reader exclusions.** 1,031 over all years (6.07 %), 13 of 1,607 in the 2024 folder (0.81 %), and 7 of 1,172 matched
+    2024 isolates (0.60 %), all under the amended coverage rule D2.
+  - **Analysis populations.** Candidates 1,594 → matched 1,165 → non-missing interpretation 1,146 → primary 1,145
+    (455 R or I, 690 S; 1 conflicting excluded) and I-excluded 1,096 (406 R, 690 S).
+  - **No patient linkage**, and screening status could not be determined (all sources retained).
+- **Selection and evaluation.**
+  - **Model.** The frozen M-cip bundle (`d59d6d7d…`), frozen cut-off and zone; no fitting.
+  - **Primary.** AUROC with a one-sided Brunner–Munzel test, Holm over {ciprofloxacin, ceftriaxone = 1}.
+  - **Intervals.** 2,000 stratified bootstrap resamples, seed 42, descriptive.
+  - **Gap.** Against the stored internal predictions, with an unpaired second-level bootstrap.
+  - **Sensitivity analyses.** Linkage robustness with an assumed design effect of 2; I excluded; by sample-source
+    group.
+  - **Code.** Scoring code `e7472f0` (code fingerprint `d03d01db…`), tested on synthetic data; run once with
+    `--production` at `74daef3` on 2026-10-04 (18:18:21Z–18:19:04Z, exit 0).
+- **Saved results.**
+  - **Files.** `results/metrics/v2.0/marisma_evaluation.json` and two production-log rows (stages `v2.0-external`,
+    `v2.0-external-sensitivity`; log 113 → 115 rows), committed as `89e73e8`. Tables:
+    `results/metrics/v2.0/tables.md` (`scripts/v20_tables.py`).
+  - **Primary.** AUROC 0.772 [0.744, 0.798], Holm-adjusted p 4.4 × 10⁻⁷¹: "Evidence of above-chance ranking on
+    MARISMa under the isolate-independence assumption" (B3's error-control statement applies). Ceftriaxone
+    unavailable.
+  - **Cut-off and calibration.** Sensitivity 0.897 [0.866, 0.925], specificity 0.393 [0.357, 0.429]; calibration
+    intercept 0.642 [0.581, 0.702] (under-prediction).
+  - **Zone.** NPV 0.907 [0.865, 0.944], with 18 of 193 R or I.
+  - **Gap.** −0.021 [−0.086, +0.041], not demonstrated.
+- **Deviations.**
+  - **Run 1** (2026-10-03; its outputs committed at `1c578e6`) stopped at its gates. Its deviations are recorded in
+    amendment C, and its outputs are kept in `results/metrics/v2.0/run1_blocked_2026-10-03/`.
+  - **An unregistered I-excluded p-value** was computed and displayed while verifying the report. It was excluded from
+    inference, changed no decision, and is recorded in the plan's execution record.
+- **Limitations.**
+  - No patient linkage, and unknown screening status.
+  - Acquisition and preprocessing differences: first bins, about 1 % scaling.
+  - One hospital, one year, one instrument.
+  - The breakpoint standard is not stated.
+  - Prevalence 0.397 against 0.230.
+  - The p-values are approximate.
+- **Status.** Confirmatory for the ciprofloxacin primary endpoint, under the isolate-independence assumption. The
+  secondaries and sensitivity analyses are descriptive. The one-time evaluation is spent.

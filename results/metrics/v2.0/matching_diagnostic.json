@@ -1,0 +1,149 @@
+{
+  "what": "Version 2.0: matching of the cohort's identifiers to AMR.csv records (counts only)",
+  "run_utc": "2026-10-04T07:31:22Z",
+  "git_commit": "4cc4deb",
+  "exact": {
+    "isolates": 16985,
+    "matched": 1172,
+    "unmatched": 15813
+  },
+  "cohort_identifiers_upper_case": {
+    "isolates": 16985,
+    "matched": 14,
+    "unmatched": 16971
+  },
+  "cohort_identifiers_lower_case": {
+    "isolates": 16985,
+    "matched": 680,
+    "unmatched": 16305
+  },
+  "by_year_folder": {
+    "2018": {
+      "isolates": 1524,
+      "matched": 0,
+      "unmatched": 1524
+    },
+    "2019": {
+      "isolates": 5836,
+      "matched": 0,
+      "unmatched": 5836
+    },
+    "2020": {
+      "isolates": 1595,
+      "matched": 0,
+      "unmatched": 1595
+    },
+    "2021": {
+      "isolates": 2200,
+      "matched": 0,
+      "unmatched": 2200
+    },
+    "2022": {
+      "isolates": 1995,
+      "matched": 0,
+      "unmatched": 1995
+    },
+    "2023": {
+      "isolates": 2228,
+      "matched": 0,
+      "unmatched": 2228
+    },
+    "2024": {
+      "isolates": 1607,
+      "matched": 1172,
+      "unmatched": 435
+    }
+  },
+  "by_identifier_format": {
+    "digits only": {
+      "isolates": 289,
+      "matched": 5,
+      "unmatched": 284
+    },
+    "letters and digits": {
+      "isolates": 12252,
+      "matched": 669,
+      "unmatched": 11583
+    },
+    "other characters": {
+      "isolates": 4444,
+      "matched": 498,
+      "unmatched": 3946
+    }
+  },
+  "archive_all_species_by_year_folder": {
+    "2018": {
+      "isolates": 13698,
+      "matched": 617,
+      "unmatched": 13081
+    },
+    "2019": {
+      "isolates": 29410,
+      "matched": 2028,
+      "unmatched": 27382
+    },
+    "2020": {
+      "isolates": 24560,
+      "matched": 1662,
+      "unmatched": 22898
+    },
+    "2021": {
+      "isolates": 31694,
+      "matched": 2211,
+      "unmatched": 29483
+    },
+    "2022": {
+      "isolates": 32156,
+      "matched": 2341,
+      "unmatched": 29815
+    },
+    "2023": {
+      "isolates": 35764,
+      "matched": 2709,
+      "unmatched": 33055
+    },
+    "2024": {
+      "isolates": 35418,
+      "matched": 18116,
+      "unmatched": 17302
+    }
+  },
+  "archive_identifiers_by_length": {
+    "8": 134703,
+    "9": 2,
+    "10": 2599,
+    "11": 64464,
+    "12": 841,
+    "13": 16,
+    "14": 38,
+    "15": 16,
+    "16": 5,
+    "17": 10,
+    "18": 1,
+    "19": 4,
+    "25": 1
+  },
+  "amr_csv_identifiers": {
+    "rows": 36141,
+    "distinct_identifiers": 29679,
+    "by_length": {
+      "8": 21893,
+      "10": 380,
+      "11": 7385,
+      "12": 12,
+      "13": 2,
+      "14": 6,
+      "16": 1
+    },
+    "by_character_class": {
+      "digits only": 540,
+      "letters and digits": 21353,
+      "other characters": 7786
+    }
+  },
+  "identifiers_also_filed_under_another_species": {
+    "isolates": 10,
+    "matched": 0,
+    "unmatched": 10
+  }
+}

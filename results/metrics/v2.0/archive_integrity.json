@@ -1,0 +1,19 @@
+{
+  "what": "MARISMa.zip integrity: SHA-256 against provenance.json, and every member's CRC-32 and size",
+  "checked_utc": "2026-10-03T16:57:14Z",
+  "size_bytes": 16825605739,
+  "size_matches_provenance": true,
+  "sha256_matches_provenance": true,
+  "md5_published_and_verified": "1af8137ec7f890f9b5f6e0aa82a0ace3",
+  "members": 3113953,
+  "outcome": {
+    "directory_entries": 1417687,
+    "files_crc_and_size_ok": 1696266
+  },
+  "compression_methods": {
+    "0": 1659958,
+    "8": 1453995
+  },
+  "uncompressed_bytes": 46546918287,
+  "all_ok": true
+}

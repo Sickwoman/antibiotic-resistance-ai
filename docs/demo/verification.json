@@ -1,0 +1,247 @@
+{
+  "what": "end-to-end verification of the research demo (scripts/demo_verify.py)",
+  "run_utc": "2026-10-05T10:25:36Z",
+  "passed": true,
+  "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.10",
+    "edge": "154.0.4258.53",
+    "commit": "7fba910",
+    "edge_running": "Edg/154.0.4258.53"
+  },
+  "network": {
+    "python_processes": 15,
+    "python_socket_events": 12,
+    "python_host_lookups": [],
+    "page_request_hosts": [
+      "127.0.0.1"
+    ],
+    "tcp_connect_attempts": [
+      "127.0.0.1:50846",
+      "127.0.0.1:59193"
+    ],
+    "tcp_outside_loopback": [],
+    "udp_connects": [
+      "127.0.0.1:443",
+      "[2603:1020:201:10::10f]:443"
+    ],
+    "udp_send_events": 0,
+    "browser_background_hosts": [
+      "edge.microsoft.com",
+      "mss.office.com",
+      "prod.rewardsplatform.microsoft.com",
+      "substrate.office.com",
+      "www.bing.com"
+    ]
+  },
+  "persistence": {
+    "temporary_files_written": 31,
+    "bytecode_files_written": 0,
+    "log_rows": {
+      "results/experiments/test_evaluations.csv": 115,
+      "results/experiments/development_runs.csv": 34
+    }
+  },
+  "synthetic_scores": {
+    "synthetic-1": {
+      "demo_score": 0.1918,
+      "library_unrounded": 0.191769,
+      "above_threshold": true,
+      "cli_wall_s": 2.34
+    },
+    "synthetic-2": {
+      "demo_score": 0.3941,
+      "library_unrounded": 0.394083,
+      "above_threshold": true,
+      "cli_wall_s": 2.23
+    },
+    "synthetic-3": {
+      "demo_score": 0.2333,
+      "library_unrounded": 0.233276,
+      "above_threshold": true,
+      "cli_wall_s": 2.15
+    }
+  },
+  "checks": [
+    {
+      "check": "the page is served on 127.0.0.1 with the security headers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a non-loopback Host header is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "synthetic-1: the demo's score is the frozen model's own, through the unchanged CLI",
+      "ok": true,
+      "detail": "demo 0.1918, library 0.191769, threshold 0.142615"
+    },
+    {
+      "check": "synthetic-2: the demo's score is the frozen model's own, through the unchanged CLI",
+      "ok": true,
+      "detail": "demo 0.3941, library 0.394083, threshold 0.142615"
+    },
+    {
+      "check": "synthetic-3: the demo's score is the frozen model's own, through the unchanged CLI",
+      "ok": true,
+      "detail": "demo 0.2333, library 0.233276, threshold 0.142615"
+    },
+    {
+      "check": "synthetic-1: the unchanged API gives the same score",
+      "ok": true,
+      "detail": "API 0.1918"
+    },
+    {
+      "check": "synthetic-2: the unchanged API gives the same score",
+      "ok": true,
+      "detail": "API 0.3941"
+    },
+    {
+      "check": "synthetic-3: the unchanged API gives the same score",
+      "ok": true,
+      "detail": "API 0.2333"
+    },
+    {
+      "check": "synthetic-1: the browser displays the model's score and status",
+      "ok": true,
+      "detail": "displayed '0.1918', 'Above the research threshold'"
+    },
+    {
+      "check": "synthetic-1: no label, treatment or reassurance is displayed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "synthetic-2: the browser displays the model's score and status",
+      "ok": true,
+      "detail": "displayed '0.3941', 'Above the research threshold'"
+    },
+    {
+      "check": "synthetic-2: no label, treatment or reassurance is displayed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "synthetic-3: the browser displays the model's score and status",
+      "ok": true,
+      "detail": "displayed '0.2333', 'Above the research threshold'"
+    },
+    {
+      "check": "synthetic-3: no label, treatment or reassurance is displayed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the evaluation panel displays the committed figures",
+      "ok": true,
+      "detail": "missing []"
+    },
+    {
+      "check": "the page keeps nothing in browser storage",
+      "ok": true,
+      "detail": "[0, 0, 0, 0]"
+    },
+    {
+      "check": "a missing bundle is reported as model_unavailable",
+      "ok": true,
+      "detail": "HTTP 503"
+    },
+    {
+      "check": "the page shows the missing-model error and no score",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a fresh clone has no bundle, and serves the page and the evidence anyway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a fresh clone's prediction explains how to obtain and verify the bundle",
+      "ok": true,
+      "detail": "HTTP 503"
+    },
+    {
+      "check": "a damaged bundle is refused by its checksum",
+      "ok": true,
+      "detail": "model_invalid"
+    },
+    {
+      "check": "a spectrum the reader refuses is an inference error",
+      "ok": true,
+      "detail": "inference_failed"
+    },
+    {
+      "check": "a run that takes too long is stopped",
+      "ok": true,
+      "detail": "timeout"
+    },
+    {
+      "check": "every socket of the server, the CLI runs and the API is a loopback socket",
+      "ok": true,
+      "detail": "12 socket events in 15 Python processes; outside loopback: []"
+    },
+    {
+      "check": "no Python process looked up a non-loopback host name",
+      "ok": true,
+      "detail": "looked up []"
+    },
+    {
+      "check": "every request the page made went to 127.0.0.1",
+      "ok": true,
+      "detail": "['127.0.0.1']"
+    },
+    {
+      "check": "every TCP connection of the browser went to 127.0.0.1",
+      "ok": true,
+      "detail": "['127.0.0.1:50846', '127.0.0.1:59193']"
+    },
+    {
+      "check": "the browser sent no UDP data",
+      "ok": true,
+      "detail": "UDP connects without data (Chromium's IPv6 reachability probe): ['127.0.0.1:443', '[2603:1020:201:10::10f]:443']"
+    },
+    {
+      "check": "every file the demo's processes opened for writing was a temporary file",
+      "ok": true,
+      "detail": "31 temporary files; other: []"
+    },
+    {
+      "check": "no temporary spectrum survived its request",
+      "ok": true,
+      "detail": "left: []"
+    },
+    {
+      "check": "no demo temporary folder is left behind",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "no browser profile stored a prediction (Cache-Control: no-store)",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "check": "the server's console output holds no prediction",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "models, results, data and both logs are unchanged",
+      "ok": true,
+      "detail": "changed: []"
+    },
+    {
+      "check": "the production log has 115 data rows and the development log 34",
+      "ok": true,
+      "detail": "{'results/experiments/test_evaluations.csv': 115, 'results/experiments/development_runs.csv': 34}"
+    },
+    {
+      "check": "the repository gained no file outside docs/demo/",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,542 @@
+{
+  "what": "Version 2.0: the one-time evaluation of the frozen ciprofloxacin model on MARISMa (docs/v2.0_marisma_plan.md, amendment F5)",
+  "written_utc": "2026-10-04T18:19:04Z",
+  "authorised_commit": "e7472f046ac08d629a714fee0abc1cf76331a477",
+  "code_fingerprint": "d03d01db196e008447f619ef492b57b7b71e7cd57f95fb305174a3d94bac8522",
+  "preflight": {
+    "code_fingerprint": "d03d01db196e008447f619ef492b57b7b71e7cd57f95fb305174a3d94bac8522",
+    "git_commit": "74daef3",
+    "protected_state": {
+      "bundle_sha256": "d59d6d7deafa1af464c33ebefc0f8f641a80eb70f7b51039e6c2ede0fd841c8b",
+      "zone_sha256": "8ee7b2bc20ba7ceb3f625df4416d5352a784480f13e6c2b25fa082d96671b3ae",
+      "logs": {
+        "results/experiments/test_evaluations.csv": {
+          "sha256": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+          "data_rows": 113
+        },
+        "results/experiments/development_runs.csv": {
+          "sha256": "dd5f4a74933a4cfc8382e9a4464ae774aab6944e280b68e8fe340fbbc2d9e894",
+          "data_rows": 34
+        }
+      },
+      "datasets": {
+        "ecoli_ciprofloxacin": {
+          "row_fingerprint": "151415a4d03dbcc5",
+          "x_sha256": "c27609b6f2663e0d4d044597d8da9f9e7eede0264e2be3a1c5262cfc762e22c6",
+          "feature_fingerprint": "347cbd6d5d956ff9"
+        },
+        "ecoli_ceftriaxone": {
+          "row_fingerprint": "fb65868756a623ee",
+          "x_sha256": "4f24ddc925c101ad657972c6b9f12969506dc6b6b12d99e4bf4444e4e2df30ab",
+          "feature_fingerprint": "347cbd6d5d956ff9"
+        }
+      }
+    },
+    "zone": {
+      "lower": 0.10255963637363619,
+      "threshold": 0.14261540693905073
+    },
+    "step3": {
+      "work_files_match_hashes": true,
+      "counts_match_accepted_json": true,
+      "accepted_commit": "8c85055a721bc7bc67cbb808f3e0d61e8ec06c1e"
+    },
+    "candidate_cohort": {
+      "isolates": 1594,
+      "features": [
+        1594,
+        6000
+      ]
+    },
+    "internal_side": {
+      "logged_auroc": 0.75086078737974,
+      "reproduced_auroc": 0.75086078737974,
+      "n": 856,
+      "n_resistant": 197
+    },
+    "log": {
+      "sha256": "6528eb2abcdfb611d65712354b8a05daed03febdb137a0910ed0eb7764f3ddba",
+      "rows": 113,
+      "planned_keys_absent": true
+    },
+    "outputs_absent": true,
+    "planned": {
+      "keys": [
+        [
+          "marisma_ecoli_ciprofloxacin",
+          "external__MARISMa-2024__saved_model",
+          "v0.4_tuned_lightgbm",
+          42
+        ],
+        [
+          "marisma_ecoli_ciprofloxacin__intermediate-exclude",
+          "external__MARISMa-2024__saved_model",
+          "v0.4_tuned_lightgbm",
+          42
+        ]
+      ],
+      "rows_to_append": 2,
+      "report": "results/metrics/v2.0/marisma_evaluation.json",
+      "work_folder": "C:\\DRIAMS\\MARISMa_v2.0.0_work\\scoring_v2.0"
+    }
+  },
+  "scope": "the frozen ciprofloxacin model on eligible MARISMa E. coli isolates of 2024, acquired on MBT-WIN10; all sources retained; screening status could not be determined",
+  "populations": {
+    "candidate_scoring_cohort": 1594,
+    "matched_to_an_amr_record": 1165,
+    "with_a_non_missing_interpretation": 1146,
+    "conflicting_interpretations": 1,
+    "primary_analysis": {
+      "by_value": {
+        "I": 49,
+        "R": 406,
+        "S": 690
+      },
+      "excluded_other_values": {},
+      "labelled": 1145,
+      "resistant": 455,
+      "susceptible": 690
+    },
+    "i_excluded_analysis": {
+      "by_value": {
+        "I excluded": 49,
+        "R": 406,
+        "S": 690
+      },
+      "excluded_other_values": {},
+      "labelled": 1096,
+      "resistant": 406,
+      "susceptible": 690
+    },
+    "primary_by_source": {
+      "clinical": 1014,
+      "ambiguous": 131
+    }
+  },
+  "primary": {
+    "n": 1145,
+    "n_resistant": 455,
+    "n_susceptible": 690,
+    "prevalence": 0.39737991266375544,
+    "threshold": 0.14261540693905073,
+    "zone_lower_edge": 0.10255963637363619,
+    "metrics": {
+      "roc_auc": {
+        "estimate": 0.7721802834846313,
+        "low": 0.743869326325848,
+        "high": 0.7983761745500876,
+        "undefined_resamples": 0
+      },
+      "pr_auc": {
+        "estimate": 0.7173659749522472,
+        "low": 0.6832611866182012,
+        "high": 0.7502508212113301,
+        "undefined_resamples": 0
+      },
+      "sensitivity": {
+        "estimate": 0.8967032967032967,
+        "low": 0.865934065934066,
+        "high": 0.9252747252747253,
+        "undefined_resamples": 0
+      },
+      "specificity": {
+        "estimate": 0.3927536231884058,
+        "low": 0.3565217391304348,
+        "high": 0.4289855072463768,
+        "undefined_resamples": 0
+      },
+      "precision": {
+        "estimate": 0.49334945586457074,
+        "low": 0.47624283877083234,
+        "high": 0.5098280098280098,
+        "undefined_resamples": 0
+      },
+      "brier": {
+        "estimate": 0.19944839542931755,
+        "low": 0.18962083026838264,
+        "high": 0.20954470316486534,
+        "undefined_resamples": 0
+      },
+      "brier_base_rate": {
+        "estimate": 0.23946911767510157,
+        "low": 0.23946911767510157,
+        "high": 0.23946911767510157,
+        "undefined_resamples": 0
+      },
+      "calibration_intercept": {
+        "estimate": 0.6422088841224711,
+        "low": 0.5806794315287566,
+        "high": 0.70216229203137,
+        "undefined_resamples": 0
+      },
+      "calibration_slope": {
+        "estimate": 1.0941178417931934,
+        "low": 0.9513956406560149,
+        "high": 1.2467694223832946,
+        "undefined_resamples": 0
+      },
+      "zone_coverage": {
+        "estimate": 0.1685589519650655,
+        "low": 0.14759825327510917,
+        "high": 0.18866812227074226,
+        "undefined_resamples": 0
+      },
+      "zone_npv": {
+        "estimate": 0.9067357512953368,
+        "low": 0.8647335890878091,
+        "high": 0.9441694867456288,
+        "undefined_resamples": 0
+      }
+    },
+    "pr_auc_no_skill": 0.39737991266375544,
+    "sensitivity_against_target": "point misses 0.90; interval contains 0.90",
+    "zone": {
+      "n_in_zone": 193,
+      "point": "misses 0.95",
+      "interval": "lies below 0.95",
+      "version_0_8_reading": "the point estimate misses 0.95",
+      "version_0_7_reading": "neither",
+      "note": "0.95 is a research criterion; no reading here establishes clinical reliability"
+    },
+    "primary": {
+      "status": "tested",
+      "statistic": -19.48878013421513,
+      "p_value": 2.1988403187573934e-71,
+      "auroc": 0.7721802834846313,
+      "n_resistant": 455,
+      "n_susceptible": 690,
+      "confirmatory": true,
+      "reading": "confirmatory",
+      "holm_input": 2.1988403187573934e-71,
+      "linkage_robustness": {
+        "status": "tested",
+        "design_effect": 2.0,
+        "statistic": -13.780648589957192,
+        "df": 919.9994063565025,
+        "p_value": 1.0249918043058886e-39
+      }
+    }
+  },
+  "holm_family": {
+    "family": [
+      "ciprofloxacin",
+      "ceftriaxone"
+    ],
+    "nominal_alpha": 0.05,
+    "holm_inputs": {
+      "ciprofloxacin": 2.1988403187573934e-71,
+      "ceftriaxone": 1.0
+    },
+    "adjusted": {
+      "ciprofloxacin": 4.397680637514787e-71,
+      "ceftriaxone": 1.0
+    },
+    "rejected": {
+      "ciprofloxacin": true,
+      "ceftriaxone": false
+    },
+    "error_control": "Brunner\u2013Munzel inference is approximate and assumes independent isolates. Holm adjustment does not repair invalid component p-values. Missing patient linkage leaves actual error control uncertain.",
+    "conclusions": {
+      "ciprofloxacin": "Evidence of above-chance ranking on MARISMa under the isolate-independence assumption.",
+      "ceftriaxone": "unavailable"
+    }
+  },
+  "gap": {
+    "internal_auroc": 0.75086078737974,
+    "internal_interval": [
+      0.6960961094290343,
+      0.806503365168345
+    ],
+    "internal_single_class_resamples_skipped": 0,
+    "external_auroc": 0.7721802834846313,
+    "gap": -0.021319496104891256,
+    "low": -0.0861766506888619,
+    "high": 0.04077689879204562,
+    "demonstrated": false,
+    "reading": "gap not demonstrated (the interval includes 0); this never means performance was maintained"
+  },
+  "sensitivity_analyses": {
+    "i_excluded": {
+      "n": 1096,
+      "n_resistant": 406,
+      "n_susceptible": 690,
+      "prevalence": 0.3704379562043796,
+      "threshold": 0.14261540693905073,
+      "zone_lower_edge": 0.10255963637363619,
+      "metrics": {
+        "roc_auc": {
+          "estimate": 0.7831084457771115,
+          "low": 0.7541585457271365,
+          "high": 0.8103413471835511,
+          "undefined_resamples": 0
+        },
+        "pr_auc": {
+          "estimate": 0.7140174925099732,
+          "low": 0.6785710750261101,
+          "high": 0.7488385355543776,
+          "undefined_resamples": 0
+        },
+        "sensitivity": {
+          "estimate": 0.9064039408866995,
+          "low": 0.8768472906403941,
+          "high": 0.9334975369458128,
+          "undefined_resamples": 0
+        },
+        "specificity": {
+          "estimate": 0.3927536231884058,
+          "low": 0.3565217391304348,
+          "high": 0.43043478260869567,
+          "undefined_resamples": 0
+        },
+        "precision": {
+          "estimate": 0.4675984752223634,
+          "low": 0.4507571092700403,
+          "high": 0.48404012905827787,
+          "undefined_resamples": 0
+        },
+        "brier": {
+          "estimate": 0.18485016851157535,
+          "low": 0.17507425326927997,
+          "high": 0.19474084466304803,
+          "undefined_resamples": 0
+        },
+        "brier_base_rate": {
+          "estimate": 0.2332136768075017,
+          "low": 0.23321367680750174,
+          "high": 0.23321367680750174,
+          "undefined_resamples": 0
+        },
+        "calibration_intercept": {
+          "estimate": 0.5033382884273341,
+          "low": 0.44018370528567086,
+          "high": 0.5634863457003424,
+          "undefined_resamples": 0
+        },
+        "calibration_slope": {
+          "estimate": 1.1407738450966574,
+          "low": 0.999824955895615,
+          "high": 1.300510733567447,
+          "undefined_resamples": 0
+        },
+        "zone_coverage": {
+          "estimate": 0.17335766423357665,
+          "low": 0.15145985401459855,
+          "high": 0.19434306569343066,
+          "undefined_resamples": 0
+        },
+        "zone_npv": {
+          "estimate": 0.9210526315789473,
+          "low": 0.880238741267465,
+          "high": 0.9548022598870056,
+          "undefined_resamples": 0
+        }
+      },
+      "pr_auc_no_skill": 0.3704379562043796,
+      "sensitivity_against_target": "point meets 0.90; interval contains 0.90",
+      "zone": {
+        "n_in_zone": 190,
+        "point": "misses 0.95",
+        "interval": "contains 0.95",
+        "version_0_8_reading": "the point estimate misses 0.95",
+        "version_0_7_reading": "the point estimate meets 0.95, or the interval contains 0.95",
+        "note": "0.95 is a research criterion; no reading here establishes clinical reliability"
+      }
+    },
+    "all_sources": "identical to the primary cohort (no isolate was excluded by source, amendment E3); not additional evidence",
+    "by_sample_source_group": {
+      "clinical": {
+        "n": 1014,
+        "n_resistant": 391,
+        "n_susceptible": 623,
+        "prevalence": 0.38560157790927024,
+        "threshold": 0.14261540693905073,
+        "zone_lower_edge": 0.10255963637363619,
+        "metrics": {
+          "roc_auc": {
+            "estimate": 0.7616105553115237,
+            "low": 0.7306252642727828,
+            "high": 0.7904995217432356,
+            "undefined_resamples": 0
+          },
+          "pr_auc": {
+            "estimate": 0.6974190760630365,
+            "low": 0.658408980708838,
+            "high": 0.7334473125504707,
+            "undefined_resamples": 0
+          },
+          "sensitivity": {
+            "estimate": 0.8900255754475703,
+            "low": 0.8567774936061381,
+            "high": 0.9207161125319693,
+            "undefined_resamples": 0
+          },
+          "specificity": {
+            "estimate": 0.3868378812199037,
+            "low": 0.34831460674157305,
+            "high": 0.42536115569823435,
+            "undefined_resamples": 0
+          },
+          "precision": {
+            "estimate": 0.4767123287671233,
+            "low": 0.45956873315363883,
+            "high": 0.49510557592616006,
+            "undefined_resamples": 0
+          },
+          "brier": {
+            "estimate": 0.19873331137352895,
+            "low": 0.1888529911883861,
+            "high": 0.20968030089888526,
+            "undefined_resamples": 0
+          },
+          "brier_base_rate": {
+            "estimate": 0.23691300102315116,
+            "low": 0.23691300102315113,
+            "high": 0.23691300102315113,
+            "undefined_resamples": 0
+          },
+          "calibration_intercept": {
+            "estimate": 0.5996479143881583,
+            "low": 0.5401736423977493,
+            "high": 0.663328130611992,
+            "undefined_resamples": 0
+          },
+          "calibration_slope": {
+            "estimate": 1.0475868913906208,
+            "low": 0.8989265569226161,
+            "high": 1.206696195542835,
+            "undefined_resamples": 0
+          },
+          "zone_coverage": {
+            "estimate": 0.17061143984220908,
+            "low": 0.14889053254437876,
+            "high": 0.1932938856015779,
+            "undefined_resamples": 0
+          },
+          "zone_npv": {
+            "estimate": 0.8959537572254335,
+            "low": 0.8505678298575263,
+            "high": 0.9375088276836158,
+            "undefined_resamples": 0
+          }
+        },
+        "pr_auc_no_skill": 0.38560157790927024,
+        "sensitivity_against_target": "point misses 0.90; interval contains 0.90",
+        "zone": {
+          "n_in_zone": 173,
+          "point": "misses 0.95",
+          "interval": "lies below 0.95",
+          "version_0_8_reading": "the point estimate misses 0.95",
+          "version_0_7_reading": "neither",
+          "note": "0.95 is a research criterion; no reading here establishes clinical reliability"
+        },
+        "note": "descriptive; no p-value (A3.6)"
+      },
+      "ambiguous": {
+        "n": 131,
+        "n_resistant": 64,
+        "n_susceptible": 67,
+        "prevalence": 0.48854961832061067,
+        "threshold": 0.14261540693905073,
+        "zone_lower_edge": 0.10255963637363619,
+        "metrics": {
+          "roc_auc": {
+            "estimate": 0.8430503731343284,
+            "low": 0.7747201492537313,
+            "high": 0.9060226212686567,
+            "undefined_resamples": 0
+          },
+          "pr_auc": {
+            "estimate": 0.8399685174828475,
+            "low": 0.7714507900347651,
+            "high": 0.9051173956453991,
+            "undefined_resamples": 0
+          },
+          "sensitivity": {
+            "estimate": 0.9375,
+            "low": 0.875,
+            "high": 0.984375,
+            "undefined_resamples": 0
+          },
+          "specificity": {
+            "estimate": 0.44776119402985076,
+            "low": 0.3283582089552239,
+            "high": 0.5671641791044776,
+            "undefined_resamples": 0
+          },
+          "precision": {
+            "estimate": 0.6185567010309279,
+            "low": 0.5699701834862385,
+            "high": 0.6777777777777778,
+            "undefined_resamples": 0
+          },
+          "brier": {
+            "estimate": 0.20498347354053642,
+            "low": 0.17441988734530703,
+            "high": 0.23492147717009754,
+            "undefined_resamples": 0
+          },
+          "brier_base_rate": {
+            "estimate": 0.24986888875939633,
+            "low": 0.24986888875939633,
+            "high": 0.24986888875939633,
+            "undefined_resamples": 0
+          },
+          "calibration_intercept": {
+            "estimate": 0.97296532389407,
+            "low": 0.7997052138403462,
+            "high": 1.1392278279702988,
+            "undefined_resamples": 0
+          },
+          "calibration_slope": {
+            "estimate": 1.4970026159811178,
+            "low": 1.0915362209169674,
+            "high": 2.1750461441080473,
+            "undefined_resamples": 0
+          },
+          "zone_coverage": {
+            "estimate": 0.15267175572519084,
+            "low": 0.09923664122137404,
+            "high": 0.21374045801526717,
+            "undefined_resamples": 0
+          },
+          "zone_npv": {
+            "estimate": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "undefined_resamples": 0
+          }
+        },
+        "pr_auc_no_skill": 0.48854961832061067,
+        "sensitivity_against_target": "point meets 0.90; interval contains 0.90",
+        "zone": {
+          "n_in_zone": 20,
+          "point": "meets 0.95",
+          "interval": "lies above 0.95",
+          "version_0_8_reading": "the point estimate meets 0.95",
+          "version_0_7_reading": "the point estimate meets 0.95, or the interval contains 0.95",
+          "note": "0.95 is a research criterion; no reading here establishes clinical reliability"
+        },
+        "note": "descriptive; no p-value (A3.6)"
+      }
+    },
+    "by_period": "unavailable: no E. coli AMR.csv record outside 2024 (amendment D6)"
+  },
+  "availability": {
+    "primary (AUROC, Brunner\u2013Munzel, Holm)": "ciprofloxacin: available; ceftriaxone: unavailable (dropped at step 2, Holm input p = 1)",
+    "gap (internal minus MARISMa AUROC)": "ciprofloxacin: available; ceftriaxone: unavailable",
+    "threshold metrics": "ciprofloxacin: available; ceftriaxone: unavailable",
+    "probabilities (Brier, calibration)": "ciprofloxacin: available; ceftriaxone: unavailable",
+    "zone (M-cip only)": "available",
+    "linkage robustness": "ciprofloxacin: available; ceftriaxone: unavailable",
+    "I excluded": "ciprofloxacin: available, descriptive; ceftriaxone: unavailable",
+    "all sample sources": "identical to the primary analysis: no isolate was excluded by source",
+    "by period (2018-2019, 2020-2021, 2022-2024)": "unavailable: no E. coli AMR.csv record outside 2024",
+    "by sample-source group": "ciprofloxacin: descriptive, where each group has both classes"
+  },
+  "internal_side": {
+    "logged_auroc": 0.75086078737974,
+    "reproduced_auroc": 0.75086078737974,
+    "n": 856,
+    "n_resistant": 197
+  }
+}

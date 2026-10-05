@@ -1,0 +1,42 @@
+{
+  "what": "Version 2.0, amendment C4: the distinct Sample categories of AMR.csv among the cohort's isolates, with isolate counts (no identifier, row, outcome, MIC or cross-tabulation)",
+  "run_utc": "2026-10-04T07:19:54Z",
+  "git_commit": "86cc8f4",
+  "cohort": {
+    "rule": "MARISMa's species field (Escherichia/Coli) and the years 2018-2024; before the reader, the source rule and any identity rule",
+    "isolates": 16985,
+    "of_which_also_filed_under_another_species": 10
+  },
+  "suppression": {
+    "min_isolates": 5,
+    "max_characters": 60,
+    "max_words": 6,
+    "no_run_of_4_digits": true,
+    "no_at_or_http": true,
+    "printable_only": true,
+    "free_text_if_more_than_categories": 100,
+    "free_text_if_suppressed_share_above": 0.05
+  },
+  "summary": {
+    "categories": {},
+    "missing": 0,
+    "conflicting": 0,
+    "suppressed_categories": 71,
+    "suppressed_isolates": 1172,
+    "matched_isolates": 1172,
+    "unmatched_isolates": 15813,
+    "schema_problem": "suppressed categories hold more than 5 % of matched isolates: the field is treated as free text"
+  },
+  "suppression_profile": {
+    "categories": 71,
+    "matched_isolates": 1172,
+    "categories_eligible_by_size_and_content": 32,
+    "isolates_in_eligible_categories": 1107,
+    "categories_below_min_isolates": 39,
+    "isolates_in_categories_below_min": 65,
+    "categories_failing_content_rules": 0,
+    "isolates_in_categories_failing_content_rules": 0,
+    "missing": 0,
+    "conflicting": 0
+  }
+}

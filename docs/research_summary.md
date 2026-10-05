@@ -1,7 +1,8 @@
 # Research summary: MALDI-TOF resistance prediction on DRIAMS, Versions 0.1–1.4
 
 *One-page technical summary, 2026-10-01. Full report: [research_report_v0.1-v1.4.md](research_report_v0.1-v1.4.md).
-Research prototype; not a diagnostic.*
+Research prototype; not a diagnostic.* *Addendum, 2026-10-04: Version 2.0, the external validation on MARISMa, is
+summarised at the end; the text above it is unchanged.*
 
 **Question.** Can routine MALDI-TOF spectra rank *E. coli* isolates by resistance, and does that hold across
 hospitals and time? Can adaptation, cut-off rules or more training data make it useful? Every version was
@@ -70,3 +71,35 @@ Further analysis could still inform description or new hypotheses, but not confi
    analysis exists here; the observed intervals are the only precision evidence.
 4. Externally justified operating requirements.
 5. DRIAMS-C only through an amendment, and only for a procedure that first earns it on development data.
+
+**Addendum, 2026-10-04: Version 2.0, external validation on MARISMa (confirmatory).** Full record: report section 13
+and the plan's execution record. Tables: `results/metrics/v2.0/tables.md`.
+- **The design.**
+  - The served ciprofloxacin model, frozen, was scored once on MARISMa 2.0.0 (Madrid; public, CC-BY-4.0), under a
+    pre-registration and amendments recorded before each step.
+  - MARISMa's *E. coli* susceptibility results exist for 2024 only.
+  - Ceftriaxone **could not be evaluated** (no interpretations; p = 1 in the Holm family).
+- **The result.** "The frozen ciprofloxacin model achieved AUROC 0.772 (descriptive 95% interval 0.744–0.798) on
+  1,145 eligible MARISMa E. coli isolates from 2024, with evidence of above-chance ranking under the
+  isolate-independence assumption." The Holm-adjusted p was 4.4 × 10⁻⁷¹. Brunner–Munzel inference is approximate and
+  assumes independent isolates. Holm adjustment does not repair invalid component p-values. Missing patient linkage
+  leaves actual error control uncertain.
+- **Equally prominent:**
+  - at the frozen cut-off, sensitivity 0.897 (point misses 0.90) and specificity 0.393, with 419 of 690 susceptible
+    isolates flagged;
+  - under-prediction of resistance (calibration intercept 0.642 [0.581, 0.702]);
+  - the confidence zone's NPV 0.907 [0.865, 0.944], with 18 of its 193 isolates R or I, below the 0.95 target;
+  - an internal–external gap of −0.021 [−0.086, +0.041], not demonstrated, which is neither equivalence nor
+    non-inferiority.
+- **Limitations:**
+  - no patient linkage, and unknown screening status;
+  - acquisition and preprocessing differences the frozen pipeline cannot remove;
+  - one hospital, one year and one instrument;
+  - reader exclusions of 6.07 % over all years, but 0.81 % in the 2024 folder.
+- **A recorded deviation.** An unregistered I-excluded p-value was computed and displayed during verification. It was
+  excluded from inference and changed no decision.
+- **Status.**
+  - Version 2.0 is complete, and its one-time evaluation is spent.
+  - Of the requirements for a future study (above), it met independence of institution, country and period, and its
+    sample type is recorded. But it has no patient linkage, and its sample types could not identify screening samples.
+  - It supports nothing about clinical use.

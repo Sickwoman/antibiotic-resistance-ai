@@ -1,0 +1,51 @@
+{
+  "what": "Version 2.0, amendment C6: identifiers filed under E. coli and another genus or species (archive metadata and spectra only; aggregate counts)",
+  "run_utc": "2026-10-04T07:30:11Z",
+  "git_commit": "ecec3b5",
+  "identifiers": 10,
+  "folder_pairs": 10,
+  "other_genus_species": {
+    "Campylobacter/Coli": 5,
+    "Corynebacterium/Accolens": 1,
+    "Pseudomonas/Aeruginosa": 1,
+    "Parabacteroides/Distasonis": 1,
+    "Neisseria/Gonorrhoeae": 1,
+    "Staphylococcus/Epidermidis": 1
+  },
+  "same_year_folder": 5,
+  "same_acquisition_date": 2,
+  "patterns": {
+    "spectra no closer than typical spectra of the other species": 5,
+    "in between": 5
+  },
+  "references": {
+    "two_replicates_of_one_ecoli_isolate": {
+      "n": 150,
+      "q00": 0.22594201645865078,
+      "q05": 0.4455595057490505,
+      "q50": 0.9049282125274702,
+      "q95": 0.9842775960308773,
+      "q100": 0.9951980524094044
+    },
+    "two_different_ecoli_isolates": {
+      "n": 150,
+      "q00": 0.05327558719441027,
+      "q05": 0.27142322789273954,
+      "q50": 0.5018444563492759,
+      "q95": 0.868009706080201,
+      "q100": 0.9322968866826264
+    },
+    "thresholds": {
+      "same_isolate_q05": 0.4455595057490505,
+      "different_isolates_q95": 0.868009706080201
+    }
+  },
+  "max_cross_correlation": {
+    "n": 10,
+    "q00": 0.04463619584725995,
+    "q05": 0.045883821353523535,
+    "q50": 0.12293457947454492,
+    "q95": 0.20900844360103224,
+    "q100": 0.21874327832519336
+  }
+}
