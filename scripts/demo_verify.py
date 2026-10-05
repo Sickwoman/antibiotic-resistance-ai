@@ -408,7 +408,8 @@ def netlog_summary(paths: list[Path]) -> dict:
     return {"tcp_connect_attempts": sorted(tcp),
             "tcp_outside_loopback": sorted(a for a in tcp if host(a) not in LOOPBACK),
             "udp_connects": sorted(udp_connect), "udp_send_events": udp_sent,
-            "browser_background_hosts": sorted(h for h in background if h)}
+            # loopback hosts here are the browser-initiated navigations to the demo page itself
+            "browser_background_hosts": sorted(h for h in background if h and h not in LOOPBACK)}
 
 
 # --- the run ---------------------------------------------------------------------------------------------------------
