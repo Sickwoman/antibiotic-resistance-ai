@@ -1,0 +1,142 @@
+{
+  "what": "clean-environment handoff check (scripts/handoff_check.py)",
+  "run_utc": "2026-10-05T11:43:43Z",
+  "passed": true,
+  "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "base_python": "python.exe",
+    "versions": [
+      "3.12.10",
+      "1.9.1",
+      "4.7.0",
+      "2.5.3",
+      "1.6.0",
+      "0.141.1"
+    ],
+    "pip_seconds": 381
+  },
+  "scores": {
+    "synthetic-1": {
+      "demo_score": 0.1918,
+      "unrounded": 0.191768627,
+      "saved_demo_score": 0.1918,
+      "saved_unrounded": 0.191769
+    },
+    "synthetic-2": {
+      "demo_score": 0.3941,
+      "unrounded": 0.39408314,
+      "saved_demo_score": 0.3941,
+      "saved_unrounded": 0.394083
+    },
+    "synthetic-3": {
+      "demo_score": 0.2333,
+      "unrounded": 0.233275778,
+      "saved_demo_score": 0.2333,
+      "saved_unrounded": 0.233276
+    }
+  },
+  "minutes": 7.6,
+  "clone_commit": "422c0c7c1187800ae94a0a4c271c0e6fc24014b8",
+  "checks": [
+    {
+      "check": "a fresh clone of the pushed branch, without the model or data",
+      "ok": true,
+      "detail": "v2.0-research-demo at 422c0c7; models/ and data/ hold only their .gitkeep placeholders"
+    },
+    {
+      "check": "a clean virtual environment installed from requirements-lock.txt",
+      "ok": true,
+      "detail": "Python ['3.12.10'], scikit-learn, LightGBM, numpy, joblib ['1.9.1', '4.7.0', '2.5.3', '1.6.0']; 381 s"
+    },
+    {
+      "check": "a missing package is refused",
+      "ok": true,
+      "detail": "Not installed: No package at C:\\Users\\Moksh\\AppData\\Local\\Temp\\handoff-lfv5n2bz\\absent.zip."
+    },
+    {
+      "check": "a damaged package is refused",
+      "ok": true,
+      "detail": "Not installed: damaged.zip is damaged or not a ZIP package (Bad CRC-32 for file 'best_random.joblib')."
+    },
+    {
+      "check": "a self-consistent forgery is refused by the pin",
+      "ok": true,
+      "detail": "Not installed: Refused: the bundle's SHA-256 is 18dbb0760c24b1f6da610f9eb4177338cdaf87a2afb9bc008a7f983372ca3ecd (636,912 bytes), not the pinned d59d6d7deafa1af"
+    },
+    {
+      "check": "nothing was installed by the refused packages",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a different existing model is never replaced",
+      "ok": true,
+      "detail": "Not installed: A different file is already at C:\\Users\\Moksh\\AppData\\Local\\Temp\\handoff-lfv5n2bz\\other\\best_random.joblib; it was left untouched. Move it aside "
+    },
+    {
+      "check": "before installation, the demo reports the missing model and how to obtain it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the documented command installs the verified bundle",
+      "ok": true,
+      "detail": "Installed the frozen model at C:\\Users\\Moksh\\AppData\\Local\\Temp\\handoff-lfv5n2bz\\clone\\models\\v0.4\\ecoli_ciprofloxacin\\best_random.joblib (SHA-256 d59d6d7deafa1"
+    },
+    {
+      "check": "installing again changes nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "synthetic-1: the clean environment's demo score equals the saved evidence",
+      "ok": true,
+      "detail": "0.1918 against 0.1918"
+    },
+    {
+      "check": "synthetic-2: the clean environment's demo score equals the saved evidence",
+      "ok": true,
+      "detail": "0.3941 against 0.3941"
+    },
+    {
+      "check": "synthetic-3: the clean environment's demo score equals the saved evidence",
+      "ok": true,
+      "detail": "0.2333 against 0.2333"
+    },
+    {
+      "check": "synthetic-1: the unrounded score matches within 1e-06",
+      "ok": true,
+      "detail": "0.191768627 against 0.191769; difference 3.7e-07"
+    },
+    {
+      "check": "synthetic-2: the unrounded score matches within 1e-06",
+      "ok": true,
+      "detail": "0.394083140 against 0.394083; difference 1.4e-07"
+    },
+    {
+      "check": "synthetic-3: the unrounded score matches within 1e-06",
+      "ok": true,
+      "detail": "0.233275778 against 0.233276; difference 2.2e-07"
+    },
+    {
+      "check": "the clean environment opened nothing inside this checkout (models/ included)",
+      "ok": true,
+      "detail": "11289 opens recorded; inside: []"
+    },
+    {
+      "check": "the clone's end-to-end browser check passes in the clean environment",
+      "ok": true,
+      "detail": "36 of 36 checks passed."
+    },
+    {
+      "check": "this checkout's models, results, data and both logs are unchanged",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the clone's logs are unchanged (115 and 34 rows)",
+      "ok": true,
+      "detail": "{'results/experiments/test_evaluations.csv': 115, 'results/experiments/development_runs.csv': 34}"
+    }
+  ]
+}
