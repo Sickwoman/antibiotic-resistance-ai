@@ -361,3 +361,19 @@ Real ML research project on MALDI-TOF spectra (DRIAMS). Follow these rules stric
   - **Tables** come from `scripts/v20_tables.py`, from committed aggregates only.
   - **Any demo** stays within `docs/research_demo_brief.md`: synthetic inputs or approved aggregates, research-only
     wording, and no antibiotic recommendation or "safe to treat" claim.
+- **The research demo lives in `demo/`** (`python -m demo`, http://127.0.0.1:8050/; branch `v2.0-research-demo`;
+  brief `docs/research_demo_brief.md`). Rules to keep:
+  - **Synthetic inputs only:** the three spectra of `demo/synthetic.py` (seed 42), committed before the model scored
+    them. There is no upload route; never add one, and never feed it DRIAMS or MARISMa spectra.
+  - **Inference only through the unchanged `scripts/predict_spectrum.py`,** one subprocess per run. The demo never
+    imports `src/api/` and never changes it. The served model, threshold, zones and API contract stay as they are.
+  - **The page never shows "Resistant", "Susceptible", a confidence-zone label, a treatment, or green.**
+    - It shows the score, the frozen threshold and "above" or "below the research threshold".
+    - The zone appears only as the failed research criterion (NPV 0.907, 18 of 193 R/I).
+  - **Evaluation figures are read from the committed aggregates at runtime** (`demo/evidence.py`), never typed.
+  - **Nothing persists.** One temporary spectrum per run is deleted when the CLI returns, and the start-up sweep
+    removes leftovers older than 15 minutes. Responses are no-store, and the page uses no storage. A strict CSP
+    blocks other origins, and the server binds to loopback.
+  - **`scripts/demo_verify.py` is the end-to-end check.** It needs `models/` and Edge, audits every Python process's
+    sockets and writes, and drives Edge over DevTools. Edge's launcher relaunches itself, so `--screenshot` and
+    `--dump-dom` from a script are unreliable here: use the DevTools driver.

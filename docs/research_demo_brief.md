@@ -2,6 +2,9 @@
 
 **Date:** 2026-10-04, after the Version 2.0 execution record.
 
+**Implemented 2026-10-05** on branch `v2.0-research-demo` as `demo/` (launch guide: [demo/README.md](../demo/README.md);
+end-to-end check: [demo/verification.md](demo/verification.md)). The brief below is kept as written.
+
 **Status:** an implementation brief. Nothing in it is built yet, and it authorises no experiment, no use of patient
 data, no deployment and no change to the served model, API or result page.
 

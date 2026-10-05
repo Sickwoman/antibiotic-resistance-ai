@@ -2771,6 +2771,22 @@ python scripts/v20_tables.py --check   # the tables, from the committed aggregat
 # never again: python scripts/v20_score_marisma.py --production   (the one-time evaluation, already spent)
 ```
 
+### The research demo (local, synthetic spectra only)
+
+A local dashboard shows the pipeline at work beside these results ([`demo/README.md`](demo/README.md)).
+- **Inputs.** It scores three synthetic spectra (seed 42) with the real frozen model, through the unchanged
+  `scripts/predict_spectrum.py`.
+- **What it displays.** The model score, the frozen threshold and an above or below status, never "Resistant" or
+  "Susceptible". The evaluation panel is read from the committed aggregates.
+- **What it does not do.** It stores nothing, fetches nothing from another origin, and binds to 127.0.0.1.
+- **Verification.** `scripts/demo_verify.py` checks it end to end ([`docs/demo/verification.md`](docs/demo/verification.md)).
+
+```powershell
+.\.venv\Scripts\python.exe -m demo     # then open http://127.0.0.1:8050/
+```
+
+![The research demo after a run](docs/demo/screenshots/03_result_synthetic-1.png)
+
 ## Project structure (Version 2.0)
 
 ```
@@ -2810,6 +2826,7 @@ antibiotic-resistance-ai/
 │   ├── v20_prepare_marisma.py  Version 2.0 cohort, reader and frozen features (no label)
 │   ├── v20_score_marisma.py    Version 2.0 one-time evaluation (spent: never run --production again)
 │   ├── v20_tables.py           Version 2.0 result tables from the committed aggregates only
+│   ├── demo_verify.py          end-to-end check of the research demo (real server, CLI, API and browser)
 │   └── predict_spectrum.py     research prediction for one raw spectrum file, --explain for the regions
 ├── src/
 │   ├── utils.py                config, paths, seeding, logging, keep-awake
@@ -2865,6 +2882,7 @@ antibiotic-resistance-ai/
 ├── docs/driams_c_status.md     what has been accessed at DRIAMS-C, by antibiotic, and its standing
 ├── docs/v2.0_marisma_plan.md   the external validation on MARISMa: plan, amendments A–G, execution record
 ├── docs/research_demo_brief.md the bounded brief for a research demo (synthetic inputs, research wording)
+├── demo/                       the research demo: local dashboard, synthetic spectra, CLI runner (python -m demo)
 ├── notebooks/01_data_exploration.ipynb, 02_preprocessing.ipynb, 03_model_analysis.ipynb
 ├── tests/                      pytest suite (synthetic data; runs on GitHub Actions for every push)
 ├── data/ models/ results/      (large files are git-ignored)
