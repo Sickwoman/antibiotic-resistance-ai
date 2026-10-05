@@ -1,23 +1,24 @@
 {
   "what": "end-to-end verification of the research demo (scripts/demo_verify.py)",
-  "run_utc": "2026-10-05T05:50:55Z",
+  "run_utc": "2026-10-05T10:25:36Z",
   "passed": true,
   "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
     "python": "3.12.10",
     "edge": "154.0.4258.53",
-    "commit": "0f0b0bb",
+    "commit": "7fba910",
     "edge_running": "Edg/154.0.4258.53"
   },
   "network": {
-    "python_processes": 13,
-    "python_socket_events": 9,
+    "python_processes": 15,
+    "python_socket_events": 12,
     "python_host_lookups": [],
     "page_request_hosts": [
       "127.0.0.1"
     ],
     "tcp_connect_attempts": [
-      "127.0.0.1:53485",
-      "127.0.0.1:61256"
+      "127.0.0.1:50846",
+      "127.0.0.1:59193"
     ],
     "tcp_outside_loopback": [],
     "udp_connects": [
@@ -34,7 +35,7 @@
     ]
   },
   "persistence": {
-    "temporary_files_written": 14,
+    "temporary_files_written": 31,
     "bytecode_files_written": 0,
     "log_rows": {
       "results/experiments/test_evaluations.csv": 115,
@@ -46,19 +47,19 @@
       "demo_score": 0.1918,
       "library_unrounded": 0.191769,
       "above_threshold": true,
-      "cli_wall_s": 2.41
+      "cli_wall_s": 2.34
     },
     "synthetic-2": {
       "demo_score": 0.3941,
       "library_unrounded": 0.394083,
       "above_threshold": true,
-      "cli_wall_s": 2.35
+      "cli_wall_s": 2.23
     },
     "synthetic-3": {
       "demo_score": 0.2333,
       "library_unrounded": 0.233276,
       "above_threshold": true,
-      "cli_wall_s": 2.39
+      "cli_wall_s": 2.15
     }
   },
   "checks": [
@@ -153,6 +154,16 @@
       "detail": ""
     },
     {
+      "check": "a fresh clone has no bundle, and serves the page and the evidence anyway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a fresh clone's prediction explains how to obtain and verify the bundle",
+      "ok": true,
+      "detail": "HTTP 503"
+    },
+    {
       "check": "a damaged bundle is refused by its checksum",
       "ok": true,
       "detail": "model_invalid"
@@ -170,7 +181,7 @@
     {
       "check": "every socket of the server, the CLI runs and the API is a loopback socket",
       "ok": true,
-      "detail": "9 socket events in 13 Python processes; outside loopback: []"
+      "detail": "12 socket events in 15 Python processes; outside loopback: []"
     },
     {
       "check": "no Python process looked up a non-loopback host name",
@@ -185,7 +196,7 @@
     {
       "check": "every TCP connection of the browser went to 127.0.0.1",
       "ok": true,
-      "detail": "['127.0.0.1:53485', '127.0.0.1:61256']"
+      "detail": "['127.0.0.1:50846', '127.0.0.1:59193']"
     },
     {
       "check": "the browser sent no UDP data",
@@ -195,7 +206,7 @@
     {
       "check": "every file the demo's processes opened for writing was a temporary file",
       "ok": true,
-      "detail": "14 temporary files; other: []"
+      "detail": "31 temporary files; other: []"
     },
     {
       "check": "no temporary spectrum survived its request",
