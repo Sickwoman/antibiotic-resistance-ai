@@ -1,17 +1,18 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it and the DRIAMS dataset it builds on."
+message: "If you use this software, please cite it and the DRIAMS dataset it builds on. For the Version 2.0 external results, also cite the MARISMa dataset (doi:10.5281/zenodo.17201597)."
 title: "Adaptive AI for Rapid Antibiotic Resistance Prediction from MALDI-TOF Mass Spectrometry Data"
 abstract: >-
   Research prototype that predicts antibiotic resistance of bacterial isolates from MALDI-TOF
   mass spectra (DRIAMS) and studies how well such models generalize across hospitals and time.
-  Not a clinically validated diagnostic tool.
+  Version 2.0 adds a pre-registered external validation of the frozen ciprofloxacin model on MARISMa
+  and a local research demo on synthetic spectra. Not a clinically validated diagnostic tool.
 type: software
 authors:
   - given-names: Moksh
 repository-code: "https://github.com/Sickwoman/antibiotic-resistance-ai"
 license: MIT
-version: 1.4.0
-date-released: "2026-10-02"
+version: 2.0.0
+# date-released: set when release v2.0.0 is published (not yet published)
 keywords:
   - antimicrobial resistance
   - MALDI-TOF

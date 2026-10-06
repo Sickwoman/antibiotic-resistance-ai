@@ -6,8 +6,59 @@ descriptive or engineering. Every number is copied from the
 one to its saved artifact. Nothing here is new. "Not demonstrated" means the 95 % interval includes 0; it never means
 "equivalent". **This is not a clinically validated diagnostic tool, and no result supports clinical use.**
 
-Only 1.4.0 is published as a GitHub release; the earlier versions are listed for the record. Their original commits
-resolve through the `research-archive/…` tags ([review checklist](docs/review_checklist.md), section 5).
+Only 1.4.0 is published as a GitHub release. 2.0.0 is prepared and not yet published. The earlier versions are listed
+for the record, and their original commits resolve through the `research-archive/…` tags
+([review checklist](docs/review_checklist.md), section 5). The Version 2.0 entries copy their numbers from the
+report's section 13.
+
+## 2.0.0 — unreleased (prepared 2026-10-06)
+
+- **Contents.** Version 2.0 (PRs #35–#37; on `main` as `20eafa0` and `b4c8d31`):
+  - the pre-registered external validation of the frozen ciprofloxacin model on MARISMa;
+  - a local research demo;
+  - the tooling to package and install the frozen model.
+- **The model is unchanged.** It is still `v0.4.0-tuned_lightgbm-random-seed42`, the Version 0.4 bundle with SHA-256
+  `d59d6d7d…`. Nothing was refitted, recalibrated or re-thresholded.
+- **Separate releases.** This code release does not contain the model. The model artifact has a release of its own,
+  `model-ecoli-ciprofloxacin-v0.4.0`, which waits for the copyright holder's decision on its terms
+  ([docs/release/model-v0.4.0/PUBLICATION.md](docs/release/model-v0.4.0/PUBLICATION.md)).
+- **Release date:** set when 2.0.0 is published.
+
+## Version 2.0 — 2026-10-02 to 2026-10-05: external validation on MARISMa (confirmatory)
+
+- **Plan:** [docs/v2.0_marisma_plan.md](docs/v2.0_marisma_plan.md) (protocol amendment 12, its amendments and its
+  execution record). **Report:** section 13.
+- **The run:** the frozen ciprofloxacin model, scored once on 1,145 eligible MARISMa *E. coli* isolates from 2024 (455
+  resistant, 690 susceptible).
+- **Primary:** AUROC 0.772 [0.744, 0.798], Holm-adjusted p 4.4 × 10⁻⁷¹: evidence of above-chance ranking under the
+  isolate-independence assumption. Brunner–Munzel inference is approximate and assumes independent isolates. Holm
+  adjustment does not repair invalid component p-values. Missing patient linkage leaves actual error control
+  uncertain.
+- **With equal weight:**
+  - sensitivity 0.897 [0.866, 0.925] and specificity 0.393 [0.357, 0.429] at the frozen cut-off;
+  - calibration intercept 0.642 [0.581, 0.702], meaning resistance was under-predicted;
+  - confidence-zone NPV 0.907 [0.865, 0.944], with 18 of the 193 isolates in the zone R or I, below the 0.95
+    research target;
+  - internal minus MARISMa AUROC −0.021 [−0.086, +0.041], not demonstrated.
+- **Ceftriaxone could not be evaluated:** MARISMa has no interpretation for it.
+- **Limits:**
+  - no patient linkage, and unknown screening status;
+  - acquisition and preprocessing differences;
+  - one hospital, one year, one instrument.
+
+## Research demo — 2026-10-05: a software demonstration (engineering)
+
+- **`python -m demo`** is a local dashboard that runs the unchanged prediction command on three synthetic spectra.
+  - The scores demonstrate the pipeline. They are not results about any organism.
+  - It shows the evaluation's committed results with their limits, and never a susceptibility label, a zone label or
+    a treatment.
+  - Guide: [demo/README.md](demo/README.md).
+- **Checks:**
+  - [docs/demo/verification.md](docs/demo/verification.md): browser, end to end, on one Windows machine;
+  - [docs/release/model-v0.4.0/HANDOFF_CHECK.md](docs/release/model-v0.4.0/HANDOFF_CHECK.md): a clean environment on
+    the same machine.
+- **Model installation.** `scripts/install_model.py` installs the frozen bundle from a local package, after checking
+  it against the SHA-256 pinned in the repository.
 
 ## 1.4.0 — 2026-10-02 (release)
 

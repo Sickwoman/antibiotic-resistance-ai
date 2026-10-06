@@ -10,6 +10,11 @@ the project's [research report](../research_report_v0.1-v1.4.md), which names th
 or regenerated to write it. Section and table numbers are local to this chapter, and can be renumbered to fit the
 thesis.
 
+**Addendum, 2026-10-06.** Section 11 adds Version 2.0, the pre-registered external validation on MARISMa, from
+section 13 of the research report. The source is `main` at `b4c8d31`; release `v2.0.0` is prepared, not yet
+published. Sections 1–10 are unchanged and describe Versions 0.1–1.4. The author, affiliation and supervisor
+fields are unchanged and remain to be completed by the author.
+
 > **Status.** The models described here are a research prototype. They are not a clinically validated diagnostic.
 > Nothing in this chapter recommends a treatment or replaces antimicrobial susceptibility testing (AST).
 
@@ -760,6 +765,106 @@ Other details:
 5. **Open DRIAMS-C's ceftriaxone labels only if** a frozen procedure first earns it on development data, and the
    owner approves a dated amendment that settles C's uncertain standing.
 
+## 11. Addendum: Version 2.0, external validation on MARISMa
+
+*Added 2026-10-06 from section 13 of the research report, on which every number below appears verbatim (Appendix A,
+part 2). Sections 1–10 are unchanged.*
+
+### 11.1 Question and design
+Version 2.0 put the requirements of Section 10 to work on one question: does the served ciprofloxacin model, frozen,
+rank *E. coli* isolates above chance at a hospital, a country and a period that no earlier version had touched?
+- **Data.** MARISMa 2.0.0, a public MALDI-TOF dataset from the Hospital General Universitario Gregorio Marañón,
+  Madrid (CC BY 4.0) [11, 12].
+- **Pre-registration.** The plan was recorded before any Version 2.0 code and before any download (protocol
+  amendment 12). Each later decision was recorded as a dated, pinned amendment before the step it governed.
+- **The test.** The primary test was a one-sided Brunner–Munzel test, with Holm over the two frozen models.
+- **Ceftriaxone could not be evaluated:** MARISMa holds no ceftriaxone interpretation for the eligible isolates, so it
+  entered Holm with p = 1.
+- **One year, one instrument.** MARISMa's *E. coli* susceptibility results exist for 2024 only, so the population is
+  the eligible 2024 isolates, all acquired on one instrument.
+- **Nothing was fitted.** The model, its threshold and its confidence zone were applied as frozen, and the data were
+  scored once.
+
+### 11.2 The population
+
+| Population | Isolates | Note |
+|---|---|---|
+| *E. coli*, all years | 16,975 | the reader excluded 1,031 (6.07 %) |
+| The 2024 year folder | 1,607 | the reader excluded 13 (0.81 %) |
+| 2024 isolates with a susceptibility record | 1,172 | the reader excluded 7 (0.60 %) |
+| Scoring candidates | 1,594 | 1,165 matched to a record; 429 not |
+| **Primary population** (I counted as resistant) | **1,145** | 455 resistant, 690 susceptible |
+| I-excluded population | 1,096 | 406 resistant, 690 susceptible |
+
+The 6.07 % that paused the preparation is an all-years figure, not the exclusion rate of the evaluated population.
+
+### 11.3 Results
+The registered sentence:
+
+> The frozen ciprofloxacin model achieved AUROC 0.772 (descriptive 95% interval 0.744–0.798) on 1,145 eligible MARISMa
+> E. coli isolates from 2024, with evidence of above-chance ranking under the isolate-independence assumption.
+
+The Holm-adjusted p was 4.4 × 10⁻⁷¹. It comes with the protocol's qualification, verbatim: "Brunner–Munzel inference
+is approximate and assumes independent isolates. Holm adjustment does not repair invalid component p-values. Missing
+patient linkage leaves actual error control uncertain."
+
+| Endpoint | Estimate [95 % interval] | Reading |
+|---|---|---|
+| AUROC | 0.772 [0.744, 0.798] | above chance, under the isolate-independence assumption |
+| Sensitivity at the frozen cut-off | 0.897 [0.866, 0.925] | the point estimate misses the 0.90 research target |
+| Specificity | 0.393 [0.357, 0.429] | 419 of 690 susceptible isolates flagged resistant |
+| Calibration intercept | 0.642 [0.581, 0.702] | resistance under-predicted |
+| Calibration slope | 1.094 [0.951, 1.247] | containing 1 is not evidence of calibration |
+| Confidence-zone NPV | 0.907 [0.865, 0.944] | 18 of the 193 isolates in the zone were R or I: below the 0.95 research target |
+| Gap, internal minus MARISMa AUROC | −0.021 [−0.086, +0.041] | not demonstrated, which is neither equivalence nor non-inferiority |
+
+**What the ranking result does not support.**
+- **A decision rule.** At its frozen cut-off the model flagged most susceptible isolates.
+- **Calibrated probabilities.** Its probabilities were too low on aggregate.
+- **A safety feature.** Its confidence zone missed its research target, so it is not one.
+
+**The sensitivity analyses were descriptive.**
+- **I excluded:** AUROC 0.783 [0.754, 0.810].
+- **Clinical specimen types:** AUROC 0.762 [0.731, 0.790].
+- **Ambiguous or unknown sources:** AUROC 0.843 [0.775, 0.906]. That group's zone held 20 isolates, all susceptible,
+  so its interval [1.000, 1.000] is a degenerate bootstrap interval that establishes nothing.
+- **Linkage robustness:** with the variance doubled, an assumed design effect and not a correction for the unknown
+  clustering, p = 1.0 × 10⁻³⁹.
+
+**A recorded deviation.** While the report was verified after the run, an unregistered p-value was computed and
+displayed for the I-excluded population. It was excluded from inference, and it changed no decision.
+
+### 11.4 Limitations specific to Version 2.0
+- **No patient linkage.** Repeat isolates may be correlated, so intervals and p-values may be too narrow, and error
+  control is uncertain.
+- **Screening status unknown.** No source category could be identified as screening, so all sources were kept.
+- **Different acquisition.** MARISMa's spectra start at about 2,000 Da (DRIAMS-A: about 1,960 Da). The first 10–16
+  feature bins therefore differ for essentially every spectrum, and the features scale by about 1 %. The frozen
+  pipeline cannot remove either.
+- **One hospital, one year, one instrument.** The breakpoint standard is not stated.
+- **A different prevalence:** 0.397, against 0.230 in the internal test. Precision and NPV do not transfer.
+
+### 11.5 The research demo, a software demonstration
+After the evaluation, a local dashboard was built around the same frozen model (`demo/` in the repository). It scores
+three synthetic spectra through the project's unchanged prediction command, beside the evaluation's committed results
+and their limits.
+- **It is a software demonstration, not evidence.** A synthetic spectrum comes from no organism, and its score says
+  nothing about any bacterium.
+- **What it shows.** It never displays a susceptibility label, a confidence-zone label or a treatment.
+- **The model artifact is unchanged.** It is the Version 0.4 bundle described in Section 3, which a local installer
+  places after checking its pinned checksum.
+- **Its engineering checks** are recorded in the repository, not in this chapter.
+
+### 11.6 What Version 2.0 changes in Section 10
+- **Independence, in part.** MARISMa provided independence of institution, country and period, which Section 10
+  asked for. It did not provide patient linkage or an identifiable screening status. Version 2.0 therefore supports
+  above-chance ranking at a second hospital only under the isolate-independence assumption.
+- **The other conclusions of Section 10 stand.**
+  - No generalisation gap was demonstrated, and none was excluded.
+  - The 0.90 cut-off was not shown to hold.
+  - The confidence zone missed its target there too.
+  - No result supports clinical use.
+
 ## References
 
 1. Weis C, Cuénod A, Rieck B, Dubuis O, Graf S, Lang C, et al. Direct antimicrobial resistance prediction from
@@ -786,6 +891,10 @@ Other details:
    doi:10.1128/jcm.01186-25.
 10. Gibb S, Strimmer K. MALDIquant: a versatile R package for the analysis of mass spectrometry data.
     *Bioinformatics.* 2012;28(17):2270–2271. doi:10.1093/bioinformatics/bts447.
+11. Schmidt-Santiago L, López-Mareca I, Blázquez-Sánchez M, et al. MARISMa: a routine MALDI-TOF MS dataset from 2018
+    to 2024 from Spain (2.0.0). Zenodo. doi:10.5281/zenodo.17201597 (CC BY 4.0). The citation form the dataset
+    requests, as recorded in the Version 2.0 plan.
+12. The MARISMa dataset descriptor. bioRxiv. doi:10.1101/2025.05.31.657186.
 
 **Appendix A**, [number_trace.md](number_trace.md), lists every number in this chapter and where it appears in the
 research report.
