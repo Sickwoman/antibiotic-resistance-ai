@@ -1,9 +1,17 @@
 # Publishing the frozen model: the owner's decision
 
-**Status, 2026-10-05: prepared, not published.**
+**Status, 2026-10-06: prepared, not published.**
 - The package is built and verified, and a clean environment installed it from the package.
-- Nothing has been uploaded, released or tagged.
+- On 2026-10-06 it was re-verified against the checksums recorded here, and rebuilt byte-identically from `main`'s
+  code (`b4c8d31`).
+- Nothing has been uploaded or released, and no release tag exists.
 - Publishing needs the owner's decisions below, then the one action at the end.
+
+**Two different releases.**
+- **This is the model artifact release** (tag `model-ecoli-ciprofloxacin-v0.4.0`). It carries the unchanged Version 0.4
+  model, `v0.4.0-tuned_lightgbm-random-seed42`.
+- **The code and research release `v2.0.0` is separate** (`docs/release/v2.0.0/RELEASE_NOTES.md`). It contains no
+  model file. Either can be published without the other.
 
 ## What is ready
 
@@ -45,11 +53,19 @@ matched.
 **The repository's MIT licence covers its code, not automatically the model.** The model is the copyright holder's to
 license.
 
+**Nothing here clears the right to distribute the model.** That right cannot be inferred from:
+- who owns the GitHub repository;
+- the code's licence;
+- the public availability of the training data.
+
+Only the copyright holder's confirmation (decision 2) can clear it.
+
 ## Decisions only the owner can make (unresolved)
 
-1. **The model's licence.**
+1. **The model's licence.** MIT is **proposed, pending your acceptance**.
    - The package's `NOTICE.md` proposes the MIT License, the same terms as the code. Those terms take effect only
      when the copyright holder publishes the package.
+   - `RELEASE_NOTES.md` states MIT as granted on publication, so it is correct only if you accept MIT.
    - Choosing other terms, such as CC BY 4.0, means editing `notice()` in `scripts/package_model.py`, rebuilding, and
      re-running the handoff check. The package's hash changes.
 2. **The authority to license it.**
@@ -62,10 +78,12 @@ license.
 
 ## Recommended destination
 
-**A GitHub Release of this public repository**, with tag `model-ecoli-ciprofloxacin-v0.4.0`. Create it once both
-review pull requests are merged, at the merge commit on `main`, so the tagged tree contains the installer and the
-pinned hash. Mark it not-latest, so the code release `v1.4.0` stays the latest. Attach the two assets above, and use
-`RELEASE_NOTES.md` as the text.
+**A GitHub Release of this public repository** (https://github.com/Sickwoman/antibiotic-resistance-ai), with tag
+`model-ecoli-ciprofloxacin-v0.4.0`.
+- **Target commit:** `b4c8d31138f1bd9cec3e98ef394fe6aa40a511f8`, PR #36's merge on `main`. Its tree contains the
+  installer, the pinned hash and the first version of this record.
+- **Not latest.** Mark it not-latest, so that the code release (`v1.4.0`, later `v2.0.0`) stays the latest.
+- **Assets and text.** Attach the two assets above, and use `RELEASE_NOTES.md` as the text.
 
 Why there:
 - The code and the pinned hash live in the same place, and GitHub serves release assets unchanged.
@@ -75,15 +93,14 @@ Why there:
 
 ## The exact action that needs your approval
 
-After both pull requests are merged and the decisions above are made:
+Once decisions 1 and 2 are confirmed, from the owner's checkout:
 
 ```powershell
-git switch main; git pull --ff-only                      # the merged main, with the installer and the pin
-.\.venv\Scripts\python.exe scripts\package_model.py      # must print SHA-256 9980930f35a4f592…62618d again
-$sha = git rev-parse HEAD
+git -C . cat-file -e b4c8d31138f1bd9cec3e98ef394fe6aa40a511f8   # the target exists locally (fetch origin first if not)
+.\.venv\Scripts\python.exe scripts\package_model.py         # must print SHA-256 9980930f35a4f592…62618d again
 gh release create model-ecoli-ciprofloxacin-v0.4.0 `
   dist\ecoli_ciprofloxacin-v0.4.0-tuned_lightgbm-random-seed42.zip dist\SHA256SUMS.txt `
-  --target $sha --latest=false `
+  --target b4c8d31138f1bd9cec3e98ef394fe6aa40a511f8 --latest=false `
   --title "Frozen model: E. coli ciprofloxacin v0.4.0 (research use only)" `
   --notes-file docs\release\model-v0.4.0\RELEASE_NOTES.md
 ```
